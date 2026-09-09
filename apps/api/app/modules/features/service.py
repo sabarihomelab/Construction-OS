@@ -4,6 +4,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.audit.models import AuditActorType, AuditRisk
+from app.modules.audit.service import record_audit_event
 from app.modules.authorization.models import (
     MembershipRole,
     OrganizationAuthorizationState,
@@ -16,6 +18,7 @@ from app.modules.features.registry import (
     FEATURES_BY_KEY,
     FEATURE_REGISTRY,
     FeatureReleaseState,
+    FeatureSensitivity,
     FeatureSpec,
 )
 from app.modules.features.schemas import AccessContext, VisibleFeature
@@ -26,6 +29,14 @@ def _release_is_visible(feature: FeatureSpec, allow_preview: bool) -> bool:
     if feature.release_state == FeatureReleaseState.AVAILABLE:
         return True
     return allow_preview and feature.release_state == FeatureReleaseState.PREVIEW
+
+
+def _audit_risk(feature: FeatureSpec) -> AuditRisk:
+    if feature.sensitivity == FeatureSensitivity.HIGH:
+        return AuditRisk.HIGH
+    if feature.sensitivity == FeatureSensitivity.SENSITIVE:
+        return AuditRisk.MEDIUM
+    return AuditRisk.LOW
 
 
 def resolve_visible_features(
@@ -145,6 +156,9 @@ async def set_feature_override(
     enabled: bool,
     *,
     actor_user_id: UUID | None,
+    session_id: UUID | None = None,
+    correlation_id: UUID | None = None,
+    reason: str | None = None,
     configuration: dict[str, object] | None = None,
 ) -> OrganizationFeature:
     feature = FEATURES_BY_KEY.get(feature_key)
@@ -156,6 +170,12 @@ async def set_feature_override(
         raise ValueError("Retired features cannot be enabled")
 
     row = await db.get(OrganizationFeature, (organization_id, feature_key))
+    previous = {
+        "enabled": row.enabled if row is not None else feature.enabled_by_default,
+        "configuration": dict(row.configuration) if row is not None else {},
+        "version": row.version if row is not None else None,
+    }
+
     if row is None:
         row = OrganizationFeature(
             organization_id=organization_id,
@@ -167,7 +187,8 @@ async def set_feature_override(
         db.add(row)
     else:
         row.enabled = enabled
-        row.configuration = configuration or {}
+        if configuration is not None:
+            row.configuration = configuration
         row.version += 1
         row.updated_by_user_id = actor_user_id
 
@@ -179,4 +200,26 @@ async def set_feature_override(
         auth_state.revision += 1
 
     await db.flush()
+    await record_audit_event(
+        db,
+        organization_id=organization_id,
+        action="feature.configuration.changed",
+        target_type="feature",
+        target_id=feature_key,
+        actor_type=AuditActorType.USER if actor_user_id is not None else AuditActorType.SYSTEM,
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+        correlation_id=correlation_id,
+        risk=_audit_risk(feature),
+        reason=reason,
+        changes={
+            "before": previous,
+            "after": {
+                "enabled": row.enabled,
+                "configuration": row.configuration,
+                "version": row.version,
+            },
+        },
+        metadata={"release_state": feature.release_state.value},
+    )
     return row
