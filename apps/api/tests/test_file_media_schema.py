@@ -21,13 +21,13 @@ def test_file_media_tables_are_registered() -> None:
 
 def test_file_bytes_are_not_stored_in_transactional_tables() -> None:
     prohibited = {"data", "bytes", "blob", "content", "file_content"}
-    for table_name in {
+    for table_name in (
         "storage_objects",
         "file_assets",
         "file_versions",
         "file_variants",
         "upload_sessions",
-    }:
+    ):
         assert prohibited.isdisjoint(Base.metadata.tables[table_name].c.keys())
 
 
