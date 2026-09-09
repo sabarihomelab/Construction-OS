@@ -40,7 +40,7 @@ def test_custom_values_use_typed_columns_not_one_generic_value() -> None:
         "json_value",
         "currency_code",
         "unit_code",
-    }.issubset(table.c)
+    }.issubset(set(table.c.keys()))
     assert table.c.numeric_value.type.precision == 30
     assert table.c.numeric_value.type.scale == 10
 
