@@ -105,10 +105,12 @@ async def load_active_session(
 
     if now >= session.absolute_expires_at:
         await revoke_session(db, session, "absolute_timeout", now=now)
+        await db.commit()
         raise SessionValidationError("Session has expired")
 
     if now >= session.idle_expires_at:
         await revoke_session(db, session, "idle_timeout", now=now)
+        await db.commit()
         raise SessionValidationError("Session has expired")
 
     membership = await db.get(OrganizationMembership, session.membership_id)
@@ -118,11 +120,13 @@ async def load_active_session(
         or membership.status != MembershipStatus.ACTIVE
     ):
         await revoke_session(db, session, "membership_inactive", now=now)
+        await db.commit()
         raise SessionValidationError("Session membership is no longer active")
 
     user = await db.get(User, session.user_id)
     if user is None or not user.is_active or user.status != UserStatus.ACTIVE:
         await revoke_session(db, session, "user_inactive", now=now)
+        await db.commit()
         raise SessionValidationError("Session user is no longer active")
 
     touch_after = timedelta(seconds=settings.session_touch_interval_seconds)
@@ -132,7 +136,7 @@ async def load_active_session(
             now + timedelta(seconds=settings.session_idle_timeout_seconds),
             session.absolute_expires_at,
         )
-        await db.flush()
+        await db.commit()
 
     return session
 
