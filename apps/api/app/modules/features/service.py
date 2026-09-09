@@ -15,8 +15,8 @@ from app.modules.authorization.models import (
 )
 from app.modules.features.models import OrganizationFeature
 from app.modules.features.registry import (
-    FEATURES_BY_KEY,
     FEATURE_REGISTRY,
+    FEATURES_BY_KEY,
     FeatureReleaseState,
     FeatureSensitivity,
     FeatureSpec,
