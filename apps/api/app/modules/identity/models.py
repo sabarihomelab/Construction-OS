@@ -33,10 +33,6 @@ def enum_values(enum_class: type[StrEnum]) -> list[str]:
 
 class User(UUIDTimestampMixin, Base):
     __tablename__ = "users"
-    __table_args__ = (
-        UniqueConstraint("identity_provider", "identity_subject", name="uq_users_identity"),
-        Index("uq_users_primary_email_lower", func.lower("primary_email"), unique=True),
-    )
 
     primary_email: Mapped[str] = mapped_column(String(320))
     display_name: Mapped[str] = mapped_column(String(255))
@@ -48,6 +44,11 @@ class User(UUIDTimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_authenticated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint("identity_provider", "identity_subject", name="uq_users_identity"),
+        Index("uq_users_primary_email_lower", func.lower(primary_email), unique=True),
     )
 
 
