@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 from app.modules.features.registry import FeatureKind, FeatureReleaseState, FeatureSensitivity
@@ -17,8 +19,8 @@ class VisibleFeature(BaseModel):
 
 
 class AccessContext(BaseModel):
-    organization_id: str
-    membership_id: str
+    organization_id: UUID
+    membership_id: UUID
     authorization_revision: int = Field(ge=1)
     permissions: list[str]
     features: list[VisibleFeature]
