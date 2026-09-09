@@ -11,6 +11,7 @@ Construction OS must not hardcode one language, one time zone, one currency, one
 - keep financial/accounting semantics explicit rather than inferred from display formatting
 - make all user-facing text translation-ready
 - keep locale behavior separate from authorization and tenant isolation
+- expose globalization choices through the Admin Object / preference framework where safe
 
 ## Configuration hierarchy
 
@@ -22,6 +23,30 @@ Effective presentation preferences are resolved in this order where applicable:
 4. user preferences
 
 Security, compliance, financial posting, and historical record semantics must not be overridden merely by changing a user display preference.
+
+## Attribute model
+
+Globalization and preference values should be represented as typed attributes rather than scattered constants.
+
+Examples:
+
+- organization.default_locale
+- organization.base_currency
+- organization.default_time_zone
+- organization.default_unit_system
+- organization.fiscal_year_start
+- organization.first_day_of_week
+- project.time_zone
+- project.currency
+- project.unit_system
+- user.locale
+- user.time_zone
+- user.time_format
+- user.number_format
+
+Attributes must define their type, allowed values, scope, defaulting behavior, whether they can be overridden, and whether a change affects historical business meaning.
+
+Security-sensitive or accounting-critical attributes may be admin-configurable only within system-defined safety rules.
 
 ## Language and localization
 
@@ -106,9 +131,101 @@ Money values are never represented internally using floating-point arithmetic.
 
 Each monetary value that can vary by currency must preserve its currency code or inherit it from an immutable transaction/accounting context.
 
-Organization defaults may define a base currency, while future multi-currency modules may support transaction currency, exchange-rate source, rate date, and reporting currency explicitly.
-
 Changing a company's display/default currency must never silently reinterpret historical financial records.
+
+### Currency contexts
+
+Construction OS distinguishes at least these concepts:
+
+- **base/accounting currency** — the organization's primary ledger/reporting currency
+- **transaction currency** — the currency in which a contract, invoice, purchase order, payment, or other transaction occurred
+- **project currency** — optional project-level operating/reporting currency
+- **display currency** — a user-facing converted presentation that does not alter the source transaction
+- **reporting currency** — an explicitly selected currency used for consolidated reporting
+
+The original transaction amount and transaction currency are immutable accounting facts after posting unless changed through a controlled accounting correction.
+
+## Exchange-rate service
+
+Live or recent currency conversion must be implemented through a provider-independent Exchange Rate Service rather than hardcoded API calls inside finance modules.
+
+Conceptual flow:
+
+```text
+Finance / Reporting / UI
+        ↓
+ExchangeRateService
+        ↓
+Configured Rate Provider
+        ↓
+Validated + cached rate
+        ↓
+Timestamped exchange-rate record
+```
+
+The provider may be changed without changing business modules.
+
+### Exchange-rate records
+
+Persist rate metadata when a rate contributes to a business or reporting result. A rate record should capture at least:
+
+- base currency
+- quote currency
+- rate
+- rate type
+- effective date/time
+- provider/source
+- retrieved_at
+- provider reference/version where available
+- status
+- whether the rate was automatic or manually approved/entered
+
+Do not repeatedly call an external rate provider while rendering pages. Rates are fetched on a controlled schedule or on-demand with caching and validity rules.
+
+### Historical-rate rule
+
+A live exchange rate is suitable for current display/estimation, but it must never silently recalculate historical posted transactions.
+
+Example:
+
+```text
+Invoice posted on 10 Sep 2026
+Transaction: 10,000 EUR
+Applied rate: 1.1725 EUR→USD
+Base amount: 11,725 USD
+```
+
+If tomorrow's market rate becomes 1.1800, the posted accounting amount remains tied to the original approved rate. A current-value report may separately show a converted estimate using the newer rate.
+
+### Rate-source modes
+
+Company administrators may configure, subject to permission and accounting rules:
+
+- automatic market/reference rate
+- daily closing/reference rate
+- manually entered company rate
+- contract-specific fixed rate
+- project-specific fixed rate
+- accounting-period rate
+
+Financial modules must explicitly identify which mode they require rather than selecting a rate implicitly.
+
+### Availability and failure behavior
+
+External rate availability must never make Construction OS unavailable.
+
+If a rate provider is unavailable:
+
+- previously validated rates remain available according to configured freshness rules
+- current conversion can show `rate unavailable` rather than inventing a value
+- posting operations that require a valid rate must fail safely or require an authorized manual rate
+- the Admin Operations Center records provider health and last successful refresh
+
+### Rate security and audit
+
+Changing an accounting rate, rate source, or fixed-rate policy is auditable. High-risk financial rate overrides may require elevated permission and step-up authentication.
+
+Rate provider credentials are stored only through secret-management configuration and never as normal tenant metadata.
 
 ## Numbers and decimal formatting
 
@@ -212,6 +329,7 @@ Reports should explicitly state relevant context where ambiguity could matter, i
 - time zone
 - currency
 - units
+- exchange-rate date/source where converted values are shown
 - locale/date format when needed
 - generated timestamp
 
@@ -230,6 +348,7 @@ Changing any of the following requires impact assessment when historical meaning
 - company time zone
 - project/site time zone
 - base currency
+- exchange-rate policy/source
 - fiscal year
 - unit defaults
 - working calendar
