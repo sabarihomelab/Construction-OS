@@ -95,7 +95,7 @@ async def record_audit_event(
         risk=risk,
         reason=reason,
         changes=sanitize_audit_value(changes or {}),
-        metadata=sanitize_audit_value(metadata or {}),
+        event_metadata=sanitize_audit_value(metadata or {}),
     )
     db.add(event)
     await db.flush()
