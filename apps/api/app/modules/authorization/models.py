@@ -1,7 +1,21 @@
+from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, UUIDTimestampMixin
@@ -86,4 +100,16 @@ class MembershipRole(Base):
     )
     role_id: Mapped[UUID] = mapped_column(
         ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
+class OrganizationAuthorizationState(Base):
+    __tablename__ = "organization_authorization_state"
+
+    organization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True
+    )
+    revision: Mapped[int] = mapped_column(BigInteger, default=1)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
