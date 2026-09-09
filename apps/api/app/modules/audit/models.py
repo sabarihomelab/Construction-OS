@@ -71,5 +71,5 @@ class AuditEvent(Base):
     )
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     changes: Mapped[dict[str, object]] = mapped_column(JSONB, default=dict)
-    metadata: Mapped[dict[str, object]] = mapped_column(JSONB, default=dict)
+    event_metadata: Mapped[dict[str, object]] = mapped_column("metadata", JSONB, default=dict)
     schema_version: Mapped[int] = mapped_column(Integer, default=1)
