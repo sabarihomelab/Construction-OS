@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Uuid,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -42,6 +43,11 @@ class OutboxEvent(UUIDTimestampMixin, Base):
             "entity_version IS NULL OR entity_version >= 1",
             name="ck_outbox_events_entity_version",
         ),
+        CheckConstraint(
+            "(scope_type IS NULL AND scope_id IS NULL) OR "
+            "(scope_type IS NOT NULL AND scope_id IS NOT NULL)",
+            name="ck_outbox_events_scope_pair",
+        ),
         Index("ix_outbox_events_org_sequence", "organization_id", "sequence"),
         Index("ix_outbox_events_status_available", "status", "available_at"),
     )
@@ -66,7 +72,7 @@ class OutboxEvent(UUIDTimestampMixin, Base):
     session_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True
     )
-    correlation_id: Mapped[UUID | None] = mapped_column(nullable=True, index=True)
+    correlation_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     payload: Mapped[dict[str, object]] = mapped_column(JSONB, default=dict)
     status: Mapped[OutboxEventStatus] = mapped_column(
         Enum(OutboxEventStatus, native_enum=False, values_callable=enum_values),
