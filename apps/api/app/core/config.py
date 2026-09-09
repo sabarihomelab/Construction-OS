@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     web_origin: str = "http://localhost:3000"
 
     session_cookie_name: str = "construction_os_session"
+    csrf_cookie_name: str = "construction_os_csrf"
     session_cookie_secure: bool = True
     session_cookie_samesite: Literal["lax", "strict"] = "lax"
     session_idle_timeout_seconds: int = Field(default=180, ge=60)
