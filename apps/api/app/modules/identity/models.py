@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, UUIDTimestampMixin
@@ -35,9 +35,10 @@ class User(UUIDTimestampMixin, Base):
     __tablename__ = "users"
     __table_args__ = (
         UniqueConstraint("identity_provider", "identity_subject", name="uq_users_identity"),
+        Index("uq_users_primary_email_lower", func.lower("primary_email"), unique=True),
     )
 
-    primary_email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    primary_email: Mapped[str] = mapped_column(String(320))
     display_name: Mapped[str] = mapped_column(String(255))
     identity_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
     identity_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
