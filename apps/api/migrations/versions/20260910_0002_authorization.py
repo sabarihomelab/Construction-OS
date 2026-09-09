@@ -121,8 +121,31 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("membership_id", "role_id", name=op.f("pk_membership_roles")),
     )
 
+    op.create_table(
+        "organization_authorization_state",
+        sa.Column("organization_id", sa.Uuid(), nullable=False),
+        sa.Column("revision", sa.BigInteger(), nullable=False, server_default="1"),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.CheckConstraint("revision >= 1", name="ck_organization_authorization_state_revision"),
+        sa.ForeignKeyConstraint(
+            ["organization_id"],
+            ["organizations.id"],
+            name=op.f("fk_organization_authorization_state_organization_id_organizations"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint(
+            "organization_id", name=op.f("pk_organization_authorization_state")
+        ),
+    )
+
 
 def downgrade() -> None:
+    op.drop_table("organization_authorization_state")
     op.drop_table("membership_roles")
     op.drop_table("role_permissions")
     op.drop_index("uq_roles_system_template_key", table_name="roles")
