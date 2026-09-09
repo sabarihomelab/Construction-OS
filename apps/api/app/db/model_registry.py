@@ -8,6 +8,7 @@ from app.modules.authorization.models import (
 from app.modules.features.models import OrganizationFeature
 from app.modules.identity.models import OrganizationMembership, User, UserPreference
 from app.modules.organizations.models import Organization, OrganizationSettings
+from app.modules.sessions.models import Session
 
 __all__ = [
     "MembershipRole",
@@ -19,6 +20,7 @@ __all__ = [
     "Permission",
     "Role",
     "RolePermission",
+    "Session",
     "User",
     "UserPreference",
 ]
