@@ -8,6 +8,15 @@ from app.modules.authorization.models import (
 )
 from app.modules.events.models import OutboxEvent
 from app.modules.features.models import OrganizationFeature
+from app.modules.files.models import (
+    FileAsset,
+    FileLink,
+    FileVariant,
+    FileVersion,
+    OrganizationStorageUsage,
+    StorageObject,
+    UploadSession,
+)
 from app.modules.identity.models import OrganizationMembership, User, UserPreference
 from app.modules.metadata.models import (
     CustomFieldDefinition,
@@ -32,19 +41,26 @@ __all__ = [
     "CustomFieldOption",
     "CustomFieldValue",
     "DeviceSyncState",
+    "FileAsset",
+    "FileLink",
+    "FileVariant",
+    "FileVersion",
     "MembershipRole",
     "Organization",
     "OrganizationAuthorizationState",
     "OrganizationFeature",
     "OrganizationMembership",
     "OrganizationSettings",
+    "OrganizationStorageUsage",
     "OutboxEvent",
     "Permission",
     "Role",
     "RolePermission",
     "Session",
+    "StorageObject",
     "SyncConflict",
     "SyncMutationReceipt",
+    "UploadSession",
     "User",
     "UserPreference",
 ]
