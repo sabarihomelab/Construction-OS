@@ -2,7 +2,18 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text, Uuid, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    Uuid,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -30,6 +41,7 @@ def enum_values(enum_class: type[StrEnum]) -> list[str]:
 class AuditEvent(Base):
     __tablename__ = "audit_events"
     __table_args__ = (
+        CheckConstraint("schema_version >= 1", name="ck_audit_events_schema_version"),
         Index("ix_audit_events_org_occurred", "organization_id", "occurred_at"),
         Index("ix_audit_events_target", "organization_id", "target_type", "target_id"),
     )
