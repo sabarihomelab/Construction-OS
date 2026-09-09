@@ -30,5 +30,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e '.[dev]'
-      - run: ruff check app
-      - run: python -m compileall app
+      - run: ruff check app tests migrations
+      - run: python -m compileall app migrations
+      - run: pytest -q
