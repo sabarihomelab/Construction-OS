@@ -62,5 +62,14 @@ Owns derived summaries, reporting projections and future analytical stores so he
 ## 20. API and Contract Versioning
 Owns public/internal API versions, compatibility windows, deprecation rules and schema-contract evolution.
 
+## 21. Offline Sync and Device State
+Owns supported offline data packages, encrypted local device state, durable offline mutation queues, client-generated idempotency keys, visible sync status, automatic retry, conflict detection/resolution, server acknowledgement, cache/package expiry and sync diagnostics. Offline-capable modules must use this shared mechanism rather than creating their own local persistence/synchronization behavior.
+
+## 22. Setup, Templates and Configuration Health
+Owns guided company setup, project templates, role templates, workflow templates, cost-code/classification templates, reusable configuration packages, import validation, configuration dependency checks and plain-language configuration health diagnostics. Setup must create real tenant data and must not seed fake business records.
+
+## 23. Data Portability and Tenant Export
+Owns authorized full-tenant and scoped export orchestration for supported records, relationships and files. Exports use stable schemas/manifests, explicit canonical identifiers, checksums where useful, background jobs for large packages, permission checks, audit events and predictable versioned formats. Construction OS must not intentionally use proprietary storage representations to trap customer-owned data.
+
 ## Architectural rule
-Business modules use these platform services through stable internal interfaces. No business module should independently implement authentication, file storage, external synchronization, audit, custom fields or background-job infrastructure.
+Business modules use these platform services through stable internal interfaces. No business module should independently implement authentication, file storage, external synchronization, audit, custom fields, offline synchronization, tenant export or background-job infrastructure.
