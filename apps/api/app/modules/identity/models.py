@@ -27,6 +27,10 @@ class MembershipKind(StrEnum):
     SERVICE = "service"
 
 
+def enum_values(enum_class: type[StrEnum]) -> list[str]:
+    return [item.value for item in enum_class]
+
+
 class User(UUIDTimestampMixin, Base):
     __tablename__ = "users"
     __table_args__ = (
@@ -38,7 +42,7 @@ class User(UUIDTimestampMixin, Base):
     identity_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
     identity_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[UserStatus] = mapped_column(
-        Enum(UserStatus, native_enum=False), default=UserStatus.ACTIVE
+        Enum(UserStatus, native_enum=False, values_callable=enum_values), default=UserStatus.ACTIVE
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_authenticated_at: Mapped[datetime | None] = mapped_column(
@@ -72,10 +76,12 @@ class OrganizationMembership(UUIDTimestampMixin, Base):
     )
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     kind: Mapped[MembershipKind] = mapped_column(
-        Enum(MembershipKind, native_enum=False), default=MembershipKind.INTERNAL
+        Enum(MembershipKind, native_enum=False, values_callable=enum_values),
+        default=MembershipKind.INTERNAL,
     )
     status: Mapped[MembershipStatus] = mapped_column(
-        Enum(MembershipStatus, native_enum=False), default=MembershipStatus.INVITED
+        Enum(MembershipStatus, native_enum=False, values_callable=enum_values),
+        default=MembershipStatus.INVITED,
     )
     joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
