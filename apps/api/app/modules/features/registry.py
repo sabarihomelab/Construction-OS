@@ -55,6 +55,7 @@ FEATURE_REGISTRY: tuple[FeatureSpec, ...] = (
         name="Administration",
         kind=FeatureKind.MODULE,
         required_permissions=("admin.settings.view",),
+        tenant_configurable=False,
         display_order=900,
         mobile_enabled=False,
         help_topic="admin",
@@ -139,3 +140,11 @@ if len(FEATURES_BY_KEY) != len(FEATURE_REGISTRY):
 for feature in FEATURE_REGISTRY:
     if feature.parent_key is not None and feature.parent_key not in FEATURES_BY_KEY:
         raise RuntimeError(f"Unknown parent feature: {feature.parent_key}")
+
+    visited = {feature.key}
+    parent_key = feature.parent_key
+    while parent_key is not None:
+        if parent_key in visited:
+            raise RuntimeError(f"Feature registry contains a parent cycle at: {parent_key}")
+        visited.add(parent_key)
+        parent_key = FEATURES_BY_KEY[parent_key].parent_key
