@@ -1,7 +1,7 @@
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Boolean, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, UUIDTimestampMixin
@@ -45,4 +45,4 @@ class OrganizationSettings(Base):
     )
     first_day_of_week: Mapped[int] = mapped_column(Integer, default=1)
     settings_version: Mapped[int] = mapped_column(Integer, default=1)
-    storage_quota_bytes: Mapped[int | None] = mapped_column(nullable=True)
+    storage_quota_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
