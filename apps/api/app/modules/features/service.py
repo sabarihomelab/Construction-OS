@@ -13,6 +13,7 @@ from app.modules.authorization.models import (
     Role,
     RolePermission,
 )
+from app.modules.events.service import enqueue_event
 from app.modules.features.models import OrganizationFeature
 from app.modules.features.registry import (
     FEATURE_REGISTRY,
@@ -221,5 +222,17 @@ async def set_feature_override(
             },
         },
         metadata={"release_state": feature.release_state.value},
+    )
+    await enqueue_event(
+        db,
+        organization_id=organization_id,
+        event_type="access_context.changed",
+        entity_type="organization",
+        entity_id=organization_id,
+        entity_version=auth_state.revision,
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+        correlation_id=correlation_id,
+        payload={"authorization_revision": auth_state.revision},
     )
     return row
