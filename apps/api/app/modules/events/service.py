@@ -1,5 +1,6 @@
 import json
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -26,6 +27,12 @@ _SENSITIVE_KEY_PARTS = (
 
 class EventPayloadError(ValueError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class EventPage:
+    events: list[OutboxEvent]
+    next_cursor: int
 
 
 def _is_sensitive_key(key: str) -> bool:
@@ -140,7 +147,7 @@ async def list_visible_events_after(
     permission_keys: set[str],
     allowed_scopes: Mapping[str, set[str]] | None = None,
     limit: int = 200,
-) -> list[OutboxEvent]:
+) -> EventPage:
     if after_sequence < 0:
         raise ValueError("after_sequence cannot be negative")
     if limit < 1 or limit > 500:
@@ -155,13 +162,16 @@ async def list_visible_events_after(
         .order_by(OutboxEvent.sequence)
         .limit(min(limit * 4, 1000))
     )
+    scanned = rows.all()
     visible: list[OutboxEvent] = []
-    for event in rows.all():
+    next_cursor = after_sequence
+    for event in scanned:
+        next_cursor = max(next_cursor, event.sequence)
         if event_is_visible(event, permission_keys, allowed_scopes):
             visible.append(event)
             if len(visible) >= limit:
                 break
-    return visible
+    return EventPage(events=visible, next_cursor=next_cursor)
 
 
 async def mark_event_published(
