@@ -124,6 +124,7 @@ class SyncMutationReceipt(UUIDTimestampMixin, Base):
             "client_mutation_id",
             name="uq_sync_mutation_receipts_client_mutation",
         ),
+        UniqueConstraint("id", "organization_id", name="uq_sync_mutation_receipts_id_org"),
         CheckConstraint("length(request_hash) = 64", name="ck_sync_mutation_receipts_hash_length"),
         CheckConstraint(
             "base_version IS NULL OR base_version >= 1",
@@ -166,6 +167,13 @@ class SyncConflict(UUIDTimestampMixin, Base):
             name="fk_sync_conflicts_device_org",
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(
+            ["mutation_receipt_id", "organization_id"],
+            ["sync_mutation_receipts.id", "sync_mutation_receipts.organization_id"],
+            name="fk_sync_conflicts_receipt_org",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("mutation_receipt_id", name="uq_sync_conflicts_mutation_receipt"),
         CheckConstraint("base_version >= 1", name="ck_sync_conflicts_base_version"),
         CheckConstraint("server_version >= 1", name="ck_sync_conflicts_server_version"),
         Index("ix_sync_conflicts_org_status", "organization_id", "status"),
@@ -174,9 +182,7 @@ class SyncConflict(UUIDTimestampMixin, Base):
 
     organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     device_id: Mapped[UUID] = mapped_column(Uuid, index=True)
-    mutation_receipt_id: Mapped[UUID] = mapped_column(
-        ForeignKey("sync_mutation_receipts.id", ondelete="CASCADE"), unique=True
-    )
+    mutation_receipt_id: Mapped[UUID] = mapped_column(Uuid)
     entity_type: Mapped[str] = mapped_column(String(80))
     entity_id: Mapped[str] = mapped_column(String(160))
     base_version: Mapped[int] = mapped_column(BigInteger)
