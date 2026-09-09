@@ -12,9 +12,9 @@ class UserCreate(BaseModel):
     identity_provider: str | None = Field(default=None, max_length=64)
     identity_subject: str | None = Field(default=None, max_length=255)
 
-    @field_validator("primary_email")
+    @field_validator("primary_email", mode="before")
     @classmethod
-    def normalize_email(cls, value: EmailStr) -> str:
+    def normalize_email(cls, value: object) -> str:
         return str(value).strip().lower()
 
 
