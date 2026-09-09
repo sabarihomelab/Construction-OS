@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -80,6 +81,7 @@ class StorageObject(UUIDTimestampMixin, Base):
     __tablename__ = "storage_objects"
     __table_args__ = (
         UniqueConstraint("provider_key", "storage_key", name="uq_storage_objects_provider_key"),
+        UniqueConstraint("id", "organization_id", name="uq_storage_objects_id_org"),
         UniqueConstraint(
             "organization_id",
             "sha256",
@@ -132,6 +134,7 @@ class OrganizationStorageUsage(Base):
 class FileAsset(UUIDTimestampMixin, Base):
     __tablename__ = "file_assets"
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_file_assets_id_org"),
         CheckConstraint("current_version >= 1", name="ck_file_assets_current_version"),
     )
 
@@ -156,7 +159,26 @@ class FileAsset(UUIDTimestampMixin, Base):
 class FileVersion(UUIDTimestampMixin, Base):
     __tablename__ = "file_versions"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["asset_id", "organization_id"],
+            ["file_assets.id", "file_assets.organization_id"],
+            name="fk_file_versions_asset_org",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["storage_object_id", "organization_id"],
+            ["storage_objects.id", "storage_objects.organization_id"],
+            name="fk_file_versions_storage_object_org",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint("asset_id", "version", name="uq_file_versions_asset_version"),
+        UniqueConstraint("id", "organization_id", name="uq_file_versions_id_org"),
+        UniqueConstraint(
+            "asset_id",
+            "version",
+            "organization_id",
+            name="uq_file_versions_asset_version_org",
+        ),
         CheckConstraint("version >= 1", name="ck_file_versions_version"),
         CheckConstraint("size_bytes > 0", name="ck_file_versions_size_positive"),
         CheckConstraint("length(sha256) = 64", name="ck_file_versions_sha256_length"),
@@ -165,13 +187,9 @@ class FileVersion(UUIDTimestampMixin, Base):
     organization_id: Mapped[UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), index=True
     )
-    asset_id: Mapped[UUID] = mapped_column(
-        ForeignKey("file_assets.id", ondelete="CASCADE"), index=True
-    )
+    asset_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     version: Mapped[int] = mapped_column(Integer)
-    storage_object_id: Mapped[UUID] = mapped_column(
-        ForeignKey("storage_objects.id", ondelete="RESTRICT"), index=True
-    )
+    storage_object_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     original_filename: Mapped[str] = mapped_column(String(255))
     declared_content_type: Mapped[str | None] = mapped_column(String(160), nullable=True)
     detected_content_type: Mapped[str | None] = mapped_column(String(160), nullable=True)
@@ -200,6 +218,18 @@ class FileVersion(UUIDTimestampMixin, Base):
 class FileLink(UUIDTimestampMixin, Base):
     __tablename__ = "file_links"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["asset_id", "organization_id"],
+            ["file_assets.id", "file_assets.organization_id"],
+            name="fk_file_links_asset_org",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["asset_id", "pinned_version", "organization_id"],
+            ["file_versions.asset_id", "file_versions.version", "file_versions.organization_id"],
+            name="fk_file_links_pinned_version_org",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint(
             "organization_id",
             "entity_type",
@@ -220,9 +250,7 @@ class FileLink(UUIDTimestampMixin, Base):
     )
     entity_type: Mapped[str] = mapped_column(String(80))
     entity_id: Mapped[UUID] = mapped_column(Uuid)
-    asset_id: Mapped[UUID] = mapped_column(
-        ForeignKey("file_assets.id", ondelete="CASCADE"), index=True
-    )
+    asset_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     relation_type: Mapped[str] = mapped_column(String(80), default="attachment")
     pinned_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_by_user_id: Mapped[UUID | None] = mapped_column(
@@ -233,6 +261,18 @@ class FileLink(UUIDTimestampMixin, Base):
 class FileVariant(UUIDTimestampMixin, Base):
     __tablename__ = "file_variants"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["file_version_id", "organization_id"],
+            ["file_versions.id", "file_versions.organization_id"],
+            name="fk_file_variants_file_version_org",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["storage_object_id", "organization_id"],
+            ["storage_objects.id", "storage_objects.organization_id"],
+            name="fk_file_variants_storage_object_org",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint("file_version_id", "variant_key", name="uq_file_variants_version_key"),
         CheckConstraint("width IS NULL OR width > 0", name="ck_file_variants_width_positive"),
         CheckConstraint("height IS NULL OR height > 0", name="ck_file_variants_height_positive"),
@@ -241,13 +281,9 @@ class FileVariant(UUIDTimestampMixin, Base):
     organization_id: Mapped[UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), index=True
     )
-    file_version_id: Mapped[UUID] = mapped_column(
-        ForeignKey("file_versions.id", ondelete="CASCADE"), index=True
-    )
+    file_version_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     variant_key: Mapped[str] = mapped_column(String(64))
-    storage_object_id: Mapped[UUID] = mapped_column(
-        ForeignKey("storage_objects.id", ondelete="RESTRICT"), index=True
-    )
+    storage_object_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
@@ -258,6 +294,10 @@ class UploadSession(UUIDTimestampMixin, Base):
         CheckConstraint(
             "expected_size_bytes IS NULL OR expected_size_bytes > 0",
             name="ck_upload_sessions_expected_size_positive",
+        ),
+        CheckConstraint(
+            "expected_sha256 IS NULL OR length(expected_sha256) = 64",
+            name="ck_upload_sessions_expected_sha256_length",
         ),
         CheckConstraint(
             "reserved_bytes >= 0",
