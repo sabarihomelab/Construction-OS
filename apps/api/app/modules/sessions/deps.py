@@ -5,7 +5,11 @@ from fastapi import Depends, HTTPException, Request, status
 from app.core.config import get_settings
 from app.core.deps import DbSession
 from app.modules.sessions.models import Session
-from app.modules.sessions.service import SessionValidationError, load_active_session, validate_csrf_token
+from app.modules.sessions.service import (
+    SessionValidationError,
+    load_active_session,
+    validate_csrf_token,
+)
 
 
 async def get_current_session(request: Request, db: DbSession) -> Session:
