@@ -1,3 +1,4 @@
+from app.modules.audit.models import AuditEvent
 from app.modules.authorization.models import (
     MembershipRole,
     OrganizationAuthorizationState,
@@ -11,6 +12,7 @@ from app.modules.organizations.models import Organization, OrganizationSettings
 from app.modules.sessions.models import Session
 
 __all__ = [
+    "AuditEvent",
     "MembershipRole",
     "Organization",
     "OrganizationAuthorizationState",
