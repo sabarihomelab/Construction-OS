@@ -1,10 +1,15 @@
+from app.modules.authorization.models import MembershipRole, Permission, Role, RolePermission
 from app.modules.identity.models import OrganizationMembership, User, UserPreference
 from app.modules.organizations.models import Organization, OrganizationSettings
 
 __all__ = [
+    "MembershipRole",
     "Organization",
     "OrganizationMembership",
     "OrganizationSettings",
+    "Permission",
+    "Role",
+    "RolePermission",
     "User",
     "UserPreference",
 ]
