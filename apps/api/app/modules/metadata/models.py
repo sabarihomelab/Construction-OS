@@ -115,6 +115,9 @@ class CustomFieldOption(UUIDTimestampMixin, Base):
 
 class CustomFieldDefinitionRevision(Base):
     __tablename__ = "custom_field_definition_revisions"
+    __table_args__ = (
+        CheckConstraint("version >= 1", name="ck_custom_field_definition_revisions_version"),
+    )
 
     definition_id: Mapped[UUID] = mapped_column(
         ForeignKey("custom_field_definitions.id", ondelete="CASCADE"), primary_key=True
