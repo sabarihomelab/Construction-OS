@@ -45,6 +45,7 @@ For every object document:
 - sensitive attributes
 - immutable attributes
 - derived/calculated attributes
+- concurrency/version field where concurrent or offline editing is possible
 
 ## 4. Page inventory
 
@@ -60,7 +61,9 @@ For each page/reference screen:
 - empty state
 - loading/error states
 - desktop/tablet/mobile behavior
+- fastest common user path and expected interaction count for field-heavy tasks
 - offline behavior if applicable
+- realtime/live-update behavior if applicable
 - help topic/context
 - required feature
 - required capabilities
@@ -132,6 +135,7 @@ Document:
 - retention/archive approach
 - expected record volume
 - query/performance considerations
+- optimistic-concurrency/version strategy where applicable
 
 ## 9. Compatibility and migration
 
@@ -164,6 +168,8 @@ Document:
 - step-up MFA requirements
 - rate-limit/abuse considerations
 - AI access allowed/restricted/prohibited
+- offline-device exposure and local-data sensitivity where applicable
+- realtime-event payload restrictions where applicable
 
 ## 11. Audit events
 
@@ -189,7 +195,42 @@ Document events that can generate:
 
 Notification content must respect the recipient's permissions and must not leak sensitive data through subject lines or previews.
 
-## 13. Reporting and exports
+## 13. Realtime, offline and client state
+
+For any module affected by concurrent edits, field connectivity or live collaboration, document:
+
+- events emitted after committed mutations;
+- event type, entity version and required capability/scope;
+- client cache entries invalidated/refreshed by each event;
+- reconnect/catch-up behavior;
+- offline-capable records/actions;
+- local queue behavior and client-generated mutation IDs;
+- idempotency behavior on retry;
+- conflict detection and resolution rules;
+- server acknowledgement semantics;
+- what happens when the cursor/event-retention window has expired;
+- device revocation/security behavior;
+- data that must never be placed inside event or sync diagnostics payloads.
+
+Realtime delivery must not become a second authorization path. Offline support must not silently lose entered information.
+
+## 14. Performance budgets
+
+For performance-sensitive modules, define measurable targets using representative data volumes for:
+
+- first useful page content;
+- common reads/saves;
+- search/filtering;
+- project/context switching;
+- scrolling/list virtualization where applicable;
+- realtime propagation;
+- offline local save and reconnect start;
+- heavy background operations;
+- drawing/document rendering where applicable.
+
+Document pagination, incremental loading, caching/projections and background processing used to stay within these budgets. Do not accept unrestricted full-table/full-file loading as a normal implementation shortcut.
+
+## 15. Reporting and exports
 
 Document:
 
@@ -201,7 +242,7 @@ Document:
 - historical calculations
 - timezone/currency handling
 
-## 14. Help and knowledge
+## 16. Help and knowledge
 
 Each page/module must include concise authenticated help content:
 
@@ -214,7 +255,7 @@ Each page/module must include concise authenticated help content:
 
 The optional local/help AI consumes this approved knowledge and page context rather than inventing product behavior.
 
-## 15. Testing
+## 17. Testing
 
 Required test categories as applicable:
 
@@ -227,10 +268,13 @@ Required test categories as applicable:
 - UI/responsive
 - accessibility
 - offline/sync
+- realtime reconnect/catch-up
+- duplicate/idempotent retry
+- concurrency/conflict
 - performance
 - security/regression
 
-## 16. Observability and debugging
+## 18. Observability and debugging
 
 Document:
 
@@ -238,6 +282,8 @@ Document:
 - structured log events
 - metrics
 - traces/correlation IDs
+- realtime backlog/lag where applicable
+- offline sync/conflict counts where applicable
 - common failure modes
 - expected error codes
 - diagnostic queries/tools
@@ -245,7 +291,7 @@ Document:
 
 Never require unrestricted access to tenant data for routine troubleshooting.
 
-## 17. Change history and impact register
+## 19. Change history and impact register
 
 Maintain a chronological internal table for significant changes:
 
@@ -254,6 +300,8 @@ Maintain a chronological internal table for significant changes:
 
 Do not remove old entries when behavior changes again. This register is part of the debugging history.
 
-## 18. Definition of done
+## 20. Definition of done
 
-A module/feature is complete only when its real persistence, validation, authorization, audit, error states, responsive UI, tests, documentation, migration/compatibility behavior and operational diagnostics are implemented. Empty UI shells, fake counters, placeholder controls and undocumented hardcoded business values do not count as completed features.
+A module/feature is complete only when its real persistence, validation, authorization, tenant isolation, audit, error states, responsive UI, search/filtering, realtime behavior where relevant, offline behavior where relevant, performance budgets, tests, documentation, migration/compatibility behavior, real dashboard/report integration and operational diagnostics are implemented.
+
+Empty UI shells, fake counters, placeholder workflows, dead buttons, silent last-write-wins conflicts, undocumented hardcoded business values and unsupported dashboard claims do not count as completed features.
