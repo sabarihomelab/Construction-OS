@@ -6,6 +6,7 @@ from app.modules.authorization.models import (
     Role,
     RolePermission,
 )
+from app.modules.events.models import OutboxEvent
 from app.modules.features.models import OrganizationFeature
 from app.modules.identity.models import OrganizationMembership, User, UserPreference
 from app.modules.metadata.models import (
@@ -14,25 +15,36 @@ from app.modules.metadata.models import (
     CustomFieldOption,
     CustomFieldValue,
 )
+from app.modules.offline.models import (
+    ClientDevice,
+    DeviceSyncState,
+    SyncConflict,
+    SyncMutationReceipt,
+)
 from app.modules.organizations.models import Organization, OrganizationSettings
 from app.modules.sessions.models import Session
 
 __all__ = [
     "AuditEvent",
+    "ClientDevice",
     "CustomFieldDefinition",
     "CustomFieldDefinitionRevision",
     "CustomFieldOption",
     "CustomFieldValue",
+    "DeviceSyncState",
     "MembershipRole",
     "Organization",
     "OrganizationAuthorizationState",
     "OrganizationFeature",
     "OrganizationMembership",
     "OrganizationSettings",
+    "OutboxEvent",
     "Permission",
     "Role",
     "RolePermission",
     "Session",
+    "SyncConflict",
+    "SyncMutationReceipt",
     "User",
     "UserPreference",
 ]
