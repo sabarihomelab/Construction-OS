@@ -32,17 +32,17 @@ def test_available_feature_requires_permission() -> None:
     assert "admin.operations" not in keys
 
 
-def test_non_configurable_feature_ignores_tenant_disable_override() -> None:
+def test_non_configurable_home_ignores_tenant_disable_override() -> None:
     features = resolve_visible_features(set(), {"home": False})
     assert "home" in {feature.key for feature in features}
 
 
-def test_configurable_available_feature_can_be_disabled() -> None:
+def test_non_configurable_admin_ignores_tenant_disable_override() -> None:
     permissions = {"admin.settings.view", "admin.operations.view"}
     features = resolve_visible_features(permissions, {"admin": False})
     keys = {feature.key for feature in features}
-    assert "admin" not in keys
-    assert "admin.operations" not in keys
+    assert "admin" in keys
+    assert "admin.operations" in keys
 
 
 def test_only_available_features_are_shown_by_default() -> None:
