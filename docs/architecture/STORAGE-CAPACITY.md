@@ -2,7 +2,9 @@
 
 ## Design goal
 
-Construction OS is designed to operate efficiently within an initial storage envelope of approximately 2 TB while remaining horizontally extensible beyond that capacity. The 2 TB target is an operating baseline, not a product ceiling.
+Construction OS has no fixed product-level storage ceiling. Storage capacity is determined by the deployment architecture, infrastructure provisioned for that environment, and optional tenant/company policy.
+
+The application must remain storage-efficient, observable and expandable. Increasing storage capacity must not require redesigning business modules or changing attachment identities.
 
 ## Storage classes
 
@@ -19,19 +21,30 @@ Construction OS is designed to operate efficiently within an initial storage env
 - Deduplicate physical object bytes within a tenant when the checksum and retention policy permit it. Never allow cross-tenant deduplication to weaken isolation.
 - Delete abandoned multipart uploads, failed processing artifacts and temporary exports automatically after a configured retention period.
 - Keep storage accounting per tenant, project, module, media type and storage class.
+- Business modules must reference logical storage identities rather than physical disk/container/provider locations.
 
-## Tenant quotas
+## Tenant quotas and capacity policies
 
-Each tenant may have a configurable storage entitlement. Quotas control new storage consumption but do not make existing records inaccessible.
+Storage quotas are optional policy controls, not architectural limits.
 
-Recommended warning stages:
+A deployment may operate with:
 
-- 70% — informational capacity warning
-- 85% — administrator warning and capacity planning prompt
-- 95% — critical warning; restrict non-essential bulk imports where policy allows
-- 100% — preserve existing data and reads; reject new storage-heavy writes with a clear administrative resolution path
+- no tenant quota;
+- a company-specific quota;
+- a plan/contract entitlement;
+- dedicated storage capacity;
+- customer-managed storage capacity.
 
-Exact thresholds must remain configurable by deployment policy.
+Where quotas are enabled, they control new storage consumption but never make existing records inaccessible merely because a threshold is reached.
+
+Recommended warning stages, when a quota/capacity policy exists:
+
+- 70% — informational capacity warning;
+- 85% — administrator warning and capacity-planning prompt;
+- 95% — critical warning;
+- 100% — preserve existing reads/data and reject only new storage-consuming operations that cannot be accommodated, with a clear administrative resolution path.
+
+Thresholds remain configurable by deployment/company policy.
 
 ## Retention and lifecycle
 
@@ -55,16 +68,18 @@ Files imported from external applications are copied into Construction OS privat
 - PostgreSQL queries never scan object bytes.
 - Large audit/activity tables may use partitioning and archival policies.
 - Storage usage calculations are maintained incrementally rather than recomputing all object sizes on every dashboard request.
+- Drawings and other very large documents use optimized/tiled/derived representations where required for responsive viewing; originals remain independently managed.
 
-## Expansion beyond 2 TB
+## Expansion and scale
 
-The storage layer must be abstracted so capacity can be expanded without changing business modules. Supported future patterns may include:
+The storage layer must be abstracted so capacity can expand without changing business modules. Supported deployment patterns may include:
 
 - additional disks/nodes in self-hosted object storage;
 - larger dedicated object-storage clusters;
 - cloud-compatible object storage;
 - dedicated storage per enterprise tenant;
-- customer-managed storage where contractual requirements require it.
+- customer-managed storage where contractual requirements require it;
+- migration between storage providers through controlled background operations.
 
 Moving or expanding storage must preserve stable attachment identities. Business records reference logical storage objects, not hard-coded physical disk paths.
 
@@ -72,8 +87,9 @@ Moving or expanding storage must preserve stable attachment identities. Business
 
 Track at minimum:
 
-- total provisioned capacity;
+- total provisioned capacity where measurable;
 - total used and available capacity;
+- optional quota/entitlement and utilization percentage;
 - usage by tenant;
 - usage by project/module/media type;
 - growth rate;
