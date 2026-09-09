@@ -8,7 +8,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "postgresql+asyncpg://construction:construction@localhost:5432/construction_os"
     web_origin: str = "http://localhost:3000"
-    jwt_secret: str = "replace-me"
+    session_idle_timeout_seconds: int = 180
+    session_absolute_timeout_seconds: int = 28800
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
