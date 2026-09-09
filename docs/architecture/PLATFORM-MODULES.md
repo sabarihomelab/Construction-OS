@@ -36,7 +36,7 @@ Owns field mappings between external records and Construction OS canonical objec
 Owns external identifiers, source versions, checkpoints/cursors, idempotency, conflict detection, retry state, reconciliation and sync history.
 
 ## 12. Background Jobs and Event Outbox
-Owns durable asynchronous work such as image processing, external fetches, notifications, report generation, sync, indexing and long-running tasks.
+Owns durable asynchronous work such as image processing, external fetches, notifications, report generation, sync, indexing and long-running tasks. The transactional outbox is the durable bridge between committed business changes and asynchronous/realtime delivery.
 
 ## 13. Audit and Change History
 Owns immutable security/business audit events, configuration change history, actor/session/correlation identifiers and traceability.
@@ -71,5 +71,10 @@ Owns guided company setup, project templates, role templates, workflow templates
 ## 23. Data Portability and Tenant Export
 Owns authorized full-tenant and scoped export orchestration for supported records, relationships and files. Exports use stable schemas/manifests, explicit canonical identifiers, checksums where useful, background jobs for large packages, permission checks, audit events and predictable versioned formats. Construction OS must not intentionally use proprietary storage representations to trap customer-owned data.
 
+## 24. Real-Time Events and Client State
+Owns permission-scoped realtime change delivery to connected clients, reconnect/catch-up semantics, event cursors, client-state invalidation and live UI refresh. PostgreSQL remains authoritative: realtime events are emitted only from committed changes, normally through the transactional outbox. A disconnected client must be able to reconnect and obtain changes since its last acknowledged cursor without relying on an in-memory websocket message history.
+
+Realtime delivery must be tenant-scoped and authorization-aware. Events contain minimal identifiers/revisions needed to refresh affected state; sensitive business payloads are fetched again through normal authorized APIs rather than broadcast indiscriminately.
+
 ## Architectural rule
-Business modules use these platform services through stable internal interfaces. No business module should independently implement authentication, file storage, external synchronization, audit, custom fields, offline synchronization, tenant export or background-job infrastructure.
+Business modules use these platform services through stable internal interfaces. No business module should independently implement authentication, file storage, external synchronization, audit, custom fields, offline synchronization, realtime delivery, tenant export or background-job infrastructure.
