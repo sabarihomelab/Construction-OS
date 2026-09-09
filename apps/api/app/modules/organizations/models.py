@@ -18,6 +18,10 @@ class TimeFormat(StrEnum):
     TWENTY_FOUR_HOUR = "24h"
 
 
+def enum_values(enum_class: type[StrEnum]) -> list[str]:
+    return [item.value for item in enum_class]
+
+
 class Organization(UUIDTimestampMixin, Base):
     __tablename__ = "organizations"
 
@@ -38,10 +42,11 @@ class OrganizationSettings(Base):
     timezone: Mapped[str] = mapped_column(String(64), default="UTC")
     base_currency: Mapped[str] = mapped_column(String(3), default="USD")
     unit_system: Mapped[UnitSystem] = mapped_column(
-        Enum(UnitSystem, native_enum=False), default=UnitSystem.METRIC
+        Enum(UnitSystem, native_enum=False, values_callable=enum_values), default=UnitSystem.METRIC
     )
     time_format: Mapped[TimeFormat] = mapped_column(
-        Enum(TimeFormat, native_enum=False), default=TimeFormat.TWENTY_FOUR_HOUR
+        Enum(TimeFormat, native_enum=False, values_callable=enum_values),
+        default=TimeFormat.TWENTY_FOUR_HOUR,
     )
     first_day_of_week: Mapped[int] = mapped_column(Integer, default=1)
     settings_version: Mapped[int] = mapped_column(Integer, default=1)
