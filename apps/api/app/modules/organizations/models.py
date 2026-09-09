@@ -1,14 +1,48 @@
-from sqlalchemy import Boolean, String
+from enum import StrEnum
+from uuid import UUID
+
+from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, UUIDTimestampMixin
 
 
+class UnitSystem(StrEnum):
+    METRIC = "metric"
+    IMPERIAL = "imperial"
+    MIXED = "mixed"
+
+
+class TimeFormat(StrEnum):
+    TWELVE_HOUR = "12h"
+    TWENTY_FOUR_HOUR = "24h"
+
+
 class Organization(UUIDTimestampMixin, Base):
     __tablename__ = "organizations"
 
-    name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), index=True)
     legal_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    timezone: Mapped[str] = mapped_column(String(64), default="UTC")
-    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    slug: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    country_code: Mapped[str | None] = mapped_column(String(2), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class OrganizationSettings(Base):
+    __tablename__ = "organization_settings"
+
+    organization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True
+    )
+    locale: Mapped[str] = mapped_column(String(35), default="en-US")
+    timezone: Mapped[str] = mapped_column(String(64), default="UTC")
+    base_currency: Mapped[str] = mapped_column(String(3), default="USD")
+    unit_system: Mapped[UnitSystem] = mapped_column(
+        Enum(UnitSystem, native_enum=False), default=UnitSystem.METRIC
+    )
+    time_format: Mapped[TimeFormat] = mapped_column(
+        Enum(TimeFormat, native_enum=False), default=TimeFormat.TWENTY_FOUR_HOUR
+    )
+    first_day_of_week: Mapped[int] = mapped_column(Integer, default=1)
+    settings_version: Mapped[int] = mapped_column(Integer, default=1)
+    storage_quota_bytes: Mapped[int | None] = mapped_column(nullable=True)
