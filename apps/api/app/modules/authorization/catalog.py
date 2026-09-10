@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from app.modules.authorization.models import PermissionRisk
+from app.modules.authorization.module_permissions import MODULE_PERMISSION_DEFINITIONS
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,7 +14,7 @@ class PermissionSpec:
     risk: PermissionRisk = PermissionRisk.LOW
 
 
-PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
+_BASE_PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
     PermissionSpec(key="admin.settings.view", module="admin", resource="settings", action="view", description="View company administration settings.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="admin.configuration.view", module="admin", resource="configuration", action="view", description="View registered company, project-template and project configuration definitions and effective values.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="admin.configuration.manage", module="admin", resource="configuration", action="manage", description="Create versioned company, project-template and project configuration overrides.", risk=PermissionRisk.CRITICAL),
@@ -101,6 +102,18 @@ PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
     PermissionSpec(key="workforce.timecard.approve", module="workforce", resource="timecard", action="approve", description="Approve or reject timecards through the shared Workflow engine.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="workforce.timecard.manage", module="workforce", resource="timecard", action="manage", description="Perform controlled timecard administration and correction actions.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="finance.budget.view", module="finance", resource="budget", action="view", description="View project budget information within the authorized scope.", risk=PermissionRisk.HIGH),
+)
+
+PERMISSION_CATALOG = _BASE_PERMISSION_CATALOG + tuple(
+    PermissionSpec(
+        key=definition.key,
+        module=definition.module,
+        resource=definition.resource,
+        action=definition.action,
+        description=definition.description,
+        risk=definition.risk,
+    )
+    for definition in MODULE_PERMISSION_DEFINITIONS
 )
 
 PERMISSIONS_BY_KEY = {permission.key: permission for permission in PERMISSION_CATALOG}
