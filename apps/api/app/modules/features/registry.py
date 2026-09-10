@@ -84,6 +84,17 @@ FEATURE_REGISTRY: tuple[FeatureSpec, ...] = (
         help_topic="drawings",
     ),
     FeatureSpec(
+        key="rfis",
+        name="RFIs",
+        kind=FeatureKind.MODULE,
+        route="/rfis",
+        required_permissions=("rfis.rfi.view",),
+        release_state=FeatureReleaseState.PLANNED,
+        display_order=140,
+        offline_enabled=True,
+        help_topic="rfis",
+    ),
+    FeatureSpec(
         key="field",
         name="Field Operations",
         kind=FeatureKind.MODULE,
