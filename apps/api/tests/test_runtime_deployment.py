@@ -1,10 +1,14 @@
+from dataclasses import replace
+
 from fastapi import FastAPI
 
 from app.core.config import Settings
-from app.modules.features.service import resolve_visible_features
+from app.modules.features import service as feature_service
+from app.modules.features.registry import FEATURE_REGISTRY, FEATURES_BY_KEY, FeatureReleaseState
 from app.modules.jobs.handlers import JobHandlerRegistry
 from app.runtime.bootstrap import mount_runtime_routers
 from app.runtime.deployment import build_runtime_plan
+from app.runtime.installer_cli import module_catalog, resolved_module_keys
 from app.runtime.modules import ModuleSelectionError, resolve_runtime_modules
 
 
@@ -37,21 +41,33 @@ def test_runtime_router_mounting_excludes_unselected_modules() -> None:
     plan = build_runtime_plan(Settings(runtime_modules="projects", worker_profiles="general"))
     application = FastAPI()
     mount_runtime_routers(application, plan)
-    paths = {route.path for route in application.routes if hasattr(route, "path")}
+    paths = set(application.openapi()["paths"])
     assert "/api/v1/projects" in paths
     assert not any("/rfis" in path for path in paths)
     assert not any("/daily-reports" in path for path in paths)
 
 
-def test_feature_visibility_requires_deployment_availability() -> None:
-    visible = resolve_visible_features(
-        {"projects.project.view", "field.daily_report.view"},
-        allow_preview=True,
+def test_feature_visibility_requires_deployment_availability(monkeypatch) -> None:
+    projects = replace(
+        FEATURES_BY_KEY["projects"],
+        release_state=FeatureReleaseState.AVAILABLE,
+    )
+    registry = tuple(projects if feature.key == "projects" else feature for feature in FEATURE_REGISTRY)
+    by_key = {feature.key: feature for feature in registry}
+    monkeypatch.setattr(feature_service, "FEATURE_REGISTRY", registry)
+    monkeypatch.setattr(feature_service, "FEATURES_BY_KEY", by_key)
+
+    visible = feature_service.resolve_visible_features(
+        {"projects.project.view"},
         deployment_modules={"projects"},
     )
-    keys = {feature.key for feature in visible}
-    assert "projects" in keys
-    assert "field" not in keys
+    assert "projects" in {feature.key for feature in visible}
+
+    hidden = feature_service.resolve_visible_features(
+        {"projects.project.view"},
+        deployment_modules=set(),
+    )
+    assert "projects" not in {feature.key for feature in hidden}
 
 
 def test_worker_registry_filters_by_profile_and_module() -> None:
@@ -87,3 +103,14 @@ def test_external_database_profile_does_not_change_application_contract() -> Non
     assert plan.database_mode.value == "external"
     assert plan.storage_provider == "s3-compatible"
     assert plan.module_keys == {"projects", "field"}
+
+
+def test_installer_catalog_uses_runtime_manifest() -> None:
+    catalog_keys = {item["key"] for item in module_catalog()}
+    runtime_keys = {module.key for module in resolve_runtime_modules("*")}
+    assert catalog_keys == runtime_keys
+
+
+def test_installer_dependency_resolution_matches_runtime() -> None:
+    assert resolved_module_keys("drawings") == ["projects", "documents", "drawings"]
+    assert resolved_module_keys("rfis") == ["projects", "rfis"]
