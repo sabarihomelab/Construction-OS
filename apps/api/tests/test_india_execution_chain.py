@@ -77,7 +77,7 @@ def test_execution_routers_expose_real_project_scoped_contracts():
     assert "/projects/{project_id}/procurement/purchase-orders" in _paths(procurement_router)
     assert "/projects/{project_id}/procurement/goods-receipts" in _paths(procurement_router)
     assert "/projects/{project_id}/subcontracts" in _paths(subcontracts_router)
-    assert "/projects/{project_id}/subcontracts/claims" in _paths(subcontracts_router)
+    assert "/projects/{project_id}/subcontract-claims" in _paths(subcontracts_router)
     assert "/projects/{project_id}/scheduling/schedules" in _paths(scheduling_router)
 
 
