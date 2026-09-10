@@ -43,6 +43,26 @@ class ConfigurationDefinition:
         return self.mutability != ConfigurationMutability.PROTECTED
 
 
+BUSINESS_SCOPES = (
+    ConfigurationScopeType.COMPANY,
+    ConfigurationScopeType.PROJECT_TEMPLATE,
+    ConfigurationScopeType.PROJECT,
+)
+
+DAILY_REPORT_SECTIONS = (
+    "weather",
+    "crew",
+    "work",
+    "equipment",
+    "deliveries",
+    "production",
+    "delays",
+    "safety",
+    "photos",
+    "notes",
+)
+
+
 CONFIGURATION_DEFINITIONS: tuple[ConfigurationDefinition, ...] = (
     ConfigurationDefinition(
         key="core.audit.enabled",
@@ -69,11 +89,7 @@ CONFIGURATION_DEFINITIONS: tuple[ConfigurationDefinition, ...] = (
         default={},
         change_class=ConfigurationChangeClass.PRESENTATION,
         mutability=ConfigurationMutability.BUSINESS,
-        allowed_scopes=(
-            ConfigurationScopeType.COMPANY,
-            ConfigurationScopeType.PROJECT_TEMPLATE,
-            ConfigurationScopeType.PROJECT,
-        ),
+        allowed_scopes=BUSINESS_SCOPES,
         description="Controlled company/project terminology overrides keyed by canonical term.",
     ),
     ConfigurationDefinition(
@@ -92,11 +108,7 @@ CONFIGURATION_DEFINITIONS: tuple[ConfigurationDefinition, ...] = (
         default=7,
         change_class=ConfigurationChangeClass.BUSINESS_RULE,
         mutability=ConfigurationMutability.BUSINESS,
-        allowed_scopes=(
-            ConfigurationScopeType.COMPANY,
-            ConfigurationScopeType.PROJECT_TEMPLATE,
-            ConfigurationScopeType.PROJECT,
-        ),
+        allowed_scopes=BUSINESS_SCOPES,
         min_value=0,
         max_value=3650,
         description="Default due-date offset for new RFIs; existing RFIs retain their own due date.",
@@ -108,11 +120,7 @@ CONFIGURATION_DEFINITIONS: tuple[ConfigurationDefinition, ...] = (
         default="RFI",
         change_class=ConfigurationChangeClass.METADATA,
         mutability=ConfigurationMutability.BUSINESS,
-        allowed_scopes=(
-            ConfigurationScopeType.COMPANY,
-            ConfigurationScopeType.PROJECT_TEMPLATE,
-            ConfigurationScopeType.PROJECT,
-        ),
+        allowed_scopes=BUSINESS_SCOPES,
         max_length=24,
         description="Display prefix for RFI numbering; stable numeric identity remains protected.",
     ),
@@ -123,12 +131,79 @@ CONFIGURATION_DEFINITIONS: tuple[ConfigurationDefinition, ...] = (
         default=True,
         change_class=ConfigurationChangeClass.BUSINESS_RULE,
         mutability=ConfigurationMutability.BUSINESS,
-        allowed_scopes=(
-            ConfigurationScopeType.COMPANY,
-            ConfigurationScopeType.PROJECT_TEMPLATE,
-            ConfigurationScopeType.PROJECT,
-        ),
+        allowed_scopes=BUSINESS_SCOPES,
         description="Whether authorized field users may create drawing markups.",
+    ),
+    ConfigurationDefinition(
+        key="field.daily_reports.sections.enabled",
+        module_key="field",
+        value_type=ConfigurationValueType.STRING_LIST,
+        default=["crew", "work", "photos", "notes"],
+        change_class=ConfigurationChangeClass.BUSINESS_RULE,
+        mutability=ConfigurationMutability.BUSINESS,
+        allowed_scopes=BUSINESS_SCOPES,
+        allowed_values=DAILY_REPORT_SECTIONS,
+        description="Standard Daily Report sections shown for this company/project.",
+    ),
+    ConfigurationDefinition(
+        key="field.daily_reports.sections.required",
+        module_key="field",
+        value_type=ConfigurationValueType.STRING_LIST,
+        default=["work"],
+        change_class=ConfigurationChangeClass.BUSINESS_RULE,
+        mutability=ConfigurationMutability.BUSINESS,
+        allowed_scopes=BUSINESS_SCOPES,
+        allowed_values=DAILY_REPORT_SECTIONS,
+        description="Enabled Daily Report sections that must contain data before submission.",
+    ),
+    ConfigurationDefinition(
+        key="field.daily_reports.approval.required",
+        module_key="field",
+        value_type=ConfigurationValueType.BOOLEAN,
+        default=False,
+        change_class=ConfigurationChangeClass.WORKFLOW,
+        mutability=ConfigurationMutability.BUSINESS,
+        allowed_scopes=BUSINESS_SCOPES,
+        description="Whether a submitted Daily Report requires an approval step before finalization.",
+    ),
+    ConfigurationDefinition(
+        key="field.daily_reports.carry_forward.enabled",
+        module_key="field",
+        value_type=ConfigurationValueType.BOOLEAN,
+        default=True,
+        change_class=ConfigurationChangeClass.BUSINESS_RULE,
+        mutability=ConfigurationMutability.BUSINESS,
+        allowed_scopes=BUSINESS_SCOPES,
+        description="Allow supported draft sections to be carried forward into a new report.",
+    ),
+    ConfigurationDefinition(
+        key="field.daily_reports.default_shift",
+        module_key="field",
+        value_type=ConfigurationValueType.STRING,
+        default="day",
+        change_class=ConfigurationChangeClass.METADATA,
+        mutability=ConfigurationMutability.BUSINESS,
+        allowed_scopes=BUSINESS_SCOPES,
+        max_length=40,
+        description="Default shift code proposed when a new Daily Report is created.",
+    ),
+    ConfigurationDefinition(
+        key="field.daily_reports.compact_entry",
+        module_key="field",
+        value_type=ConfigurationValueType.BOOLEAN,
+        default=True,
+        change_class=ConfigurationChangeClass.PRESENTATION,
+        mutability=ConfigurationMutability.USER_PREFERENCE,
+        description="Use the compact field-first Daily Report entry experience when available.",
+    ),
+    ConfigurationDefinition(
+        key="field.daily_reports.visible_columns",
+        module_key="field",
+        value_type=ConfigurationValueType.STRING_LIST,
+        default=["report_date", "shift_code", "status"],
+        change_class=ConfigurationChangeClass.PRESENTATION,
+        mutability=ConfigurationMutability.USER_PREFERENCE,
+        description="Personal Daily Report list columns; this does not change business rules.",
     ),
 )
 
@@ -191,6 +266,10 @@ def normalize_configuration_value(
         if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
             raise ValueError("Value must be a list of strings")
         normalized = list(dict.fromkeys(item.strip() for item in value if item.strip()))
+        if definition.allowed_values:
+            invalid = [item for item in normalized if item not in definition.allowed_values]
+            if invalid:
+                raise ValueError("List contains unsupported values: " + ", ".join(invalid))
     elif value_type == ConfigurationValueType.UUID:
         try:
             normalized = str(UUID(str(value)))
@@ -203,7 +282,11 @@ def normalize_configuration_value(
     else:
         raise ValueError(f"Unsupported configuration value type: {value_type}")
 
-    if definition.allowed_values and str(normalized) not in definition.allowed_values:
+    if (
+        definition.allowed_values
+        and value_type != ConfigurationValueType.STRING_LIST
+        and str(normalized) not in definition.allowed_values
+    ):
         raise ValueError("Value is not in the allowed set")
 
     if definition.min_value is not None or definition.max_value is not None:
