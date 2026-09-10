@@ -10,6 +10,7 @@ class ModuleManifest:
     key: str
     name: str
     dependencies: tuple[str, ...] = ()
+    integrates_with: tuple[str, ...] = ()
     api_router: str | None = None
     search_provider_module: str | None = None
     worker_profiles: tuple[str, ...] = ()
@@ -41,14 +42,16 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
     ModuleManifest(
         key="rfis",
         name="RFIs",
-        dependencies=("projects", "documents", "drawings"),
+        dependencies=("projects",),
+        integrates_with=("documents", "drawings"),
         api_router="app.modules.rfis.router:router",
         search_provider_module="app.modules.rfis.search",
     ),
     ModuleManifest(
         key="submittals",
         name="Submittals",
-        dependencies=("projects", "documents", "drawings", "rfis"),
+        dependencies=("projects",),
+        integrates_with=("documents", "drawings", "rfis"),
         api_router="app.modules.submittals.router:router",
         search_provider_module="app.modules.submittals.search",
     ),
@@ -56,6 +59,7 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
         key="field",
         name="Field Operations",
         dependencies=("projects",),
+        integrates_with=("documents", "drawings", "rfis"),
         api_router="app.modules.field.router:router",
         search_provider_module="app.modules.field.search",
     ),
@@ -67,31 +71,42 @@ if len(MODULES_BY_KEY) != len(MODULE_MANIFESTS):
     raise RuntimeError("Runtime module keys must be unique")
 
 for manifest in MODULE_MANIFESTS:
-    unknown = set(manifest.dependencies) - set(MODULES_BY_KEY)
-    if unknown:
+    unknown_dependencies = set(manifest.dependencies) - set(MODULES_BY_KEY)
+    if unknown_dependencies:
         raise RuntimeError(
-            f"Runtime module {manifest.key} has unknown dependencies: {sorted(unknown)}"
+            f"Runtime module {manifest.key} has unknown dependencies: "
+            f"{sorted(unknown_dependencies)}"
+        )
+    unknown_integrations = set(manifest.integrates_with) - set(MODULES_BY_KEY)
+    if unknown_integrations:
+        raise RuntimeError(
+            f"Runtime module {manifest.key} has unknown optional integrations: "
+            f"{sorted(unknown_integrations)}"
         )
     if manifest.key in manifest.dependencies:
         raise RuntimeError(f"Runtime module cannot depend on itself: {manifest.key}")
+    if manifest.key in manifest.integrates_with:
+        raise RuntimeError(f"Runtime module cannot integrate with itself: {manifest.key}")
 
 
-def _requested_keys(raw: str) -> set[str]:
+def requested_runtime_module_keys(raw: str) -> frozenset[str]:
     normalized = raw.strip()
     if not normalized or normalized.lower() in {"default", "auto"}:
-        return {manifest.key for manifest in MODULE_MANIFESTS if manifest.default_enabled}
+        return frozenset(
+            manifest.key for manifest in MODULE_MANIFESTS if manifest.default_enabled
+        )
     if normalized == "*":
-        return set(MODULES_BY_KEY)
+        return frozenset(MODULES_BY_KEY)
 
     keys = {part.strip().lower() for part in normalized.split(",") if part.strip()}
     unknown = keys - set(MODULES_BY_KEY)
     if unknown:
         raise ModuleSelectionError(f"Unknown runtime modules: {', '.join(sorted(unknown))}")
-    return keys
+    return frozenset(keys)
 
 
 def resolve_runtime_modules(raw: str) -> tuple[ModuleManifest, ...]:
-    requested = _requested_keys(raw)
+    requested = requested_runtime_module_keys(raw)
     resolved = set(requested)
     pending = list(requested)
 
