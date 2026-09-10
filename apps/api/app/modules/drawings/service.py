@@ -17,6 +17,7 @@ from app.modules.drawings.models import (
     DrawingMeasurementType,
     DrawingPin,
     DrawingPinType,
+    DrawingRenderPackage,
     DrawingRevision,
     DrawingRevisionStatus,
     DrawingSet,
@@ -193,7 +194,10 @@ async def add_drawing_revision(
     sheet.version += 1
     await db.flush()
 
-    if file_version.scan_status == FileScanStatus.CLEAN and file_version.processing_status == FileProcessingStatus.READY:
+    if (
+        file_version.scan_status == FileScanStatus.CLEAN
+        and file_version.processing_status == FileProcessingStatus.READY
+    ):
         revision.status = DrawingRevisionStatus.PROCESSING
         await enqueue_job(
             db,
@@ -218,21 +222,24 @@ async def publish_drawing_revision(
 ) -> DrawingRevision:
     revision = await db.scalar(
         select(DrawingRevision)
-        .where(DrawingRevision.id == revision_id, DrawingRevision.organization_id == organization_id)
+        .where(
+            DrawingRevision.id == revision_id,
+            DrawingRevision.organization_id == organization_id,
+        )
         .with_for_update()
     )
     if revision is None:
         raise DrawingValidationError("Drawing revision was not found")
-    if revision.status != DrawingRevisionStatus.PROCESSING:
-        raise DrawingConflictError("Drawing revision must be processed before publishing")
+    if revision.status != DrawingRevisionStatus.READY:
+        raise DrawingConflictError("Drawing revision must be render-ready before publishing")
 
     render_ready = await db.scalar(
         select(func.count())
-        .select_from(__import__("app.modules.drawings.models", fromlist=["DrawingRenderPackage"]).DrawingRenderPackage)
+        .select_from(DrawingRenderPackage)
         .where(
-            __import__("app.modules.drawings.models", fromlist=["DrawingRenderPackage"]).DrawingRenderPackage.drawing_revision_id == revision.id,
-            __import__("app.modules.drawings.models", fromlist=["DrawingRenderPackage"]).DrawingRenderPackage.render_version == revision.render_version,
-            __import__("app.modules.drawings.models", fromlist=["DrawingRenderPackage"]).DrawingRenderPackage.completed_at.is_not(None),
+            DrawingRenderPackage.drawing_revision_id == revision.id,
+            DrawingRenderPackage.render_version == revision.render_version,
+            DrawingRenderPackage.completed_at.is_not(None),
         )
     )
     if not render_ready:
@@ -240,7 +247,10 @@ async def publish_drawing_revision(
 
     sheet = await db.scalar(
         select(DrawingSheet)
-        .where(DrawingSheet.id == revision.sheet_id, DrawingSheet.organization_id == organization_id)
+        .where(
+            DrawingSheet.id == revision.sheet_id,
+            DrawingSheet.organization_id == organization_id,
+        )
         .with_for_update()
     )
     if sheet is None:
@@ -365,6 +375,15 @@ async def create_measurement(
     actor_user_id: UUID,
     calibration_id: UUID | None = None,
 ) -> DrawingMeasurement:
+    revision_exists = await db.scalar(
+        select(DrawingRevision.id).where(
+            DrawingRevision.id == drawing_revision_id,
+            DrawingRevision.organization_id == organization_id,
+        )
+    )
+    if revision_exists is None:
+        raise DrawingValidationError("Drawing revision was not found")
+
     scale: Decimal | None = None
     if measurement_type != DrawingMeasurementType.COUNT:
         if calibration_id is None:
