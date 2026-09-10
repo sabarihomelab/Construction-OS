@@ -1,4 +1,4 @@
-"""Add Construction OS Assistant permissions.
+"""Add India defaults and Construction OS Assistant permissions.
 
 Revision ID: 20260910_0035
 Revises: 20260910_0034
@@ -35,6 +35,13 @@ _PERMISSIONS = (
 
 
 def upgrade() -> None:
+    # India is the Release 1 default for newly created rows. Existing organization
+    # values are deliberately not rewritten by this migration.
+    op.alter_column("organizations", "country_code", server_default="IN")
+    op.alter_column("organization_settings", "locale", server_default="en-IN")
+    op.alter_column("organization_settings", "timezone", server_default="Asia/Kolkata")
+    op.alter_column("organization_settings", "base_currency", server_default="INR")
+
     permissions = sa.table(
         "permissions",
         sa.column("key", sa.String()),
@@ -69,3 +76,7 @@ def downgrade() -> None:
             permissions.c.key.in_([key for key, *_ in _PERMISSIONS])
         )
     )
+    op.alter_column("organization_settings", "base_currency", server_default="USD")
+    op.alter_column("organization_settings", "timezone", server_default="UTC")
+    op.alter_column("organization_settings", "locale", server_default="en-US")
+    op.alter_column("organizations", "country_code", server_default=None)
