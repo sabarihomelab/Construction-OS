@@ -1,117 +1,155 @@
-# Construction OS Full Product Release Requirements Baseline
+# Construction OS Release 1 — India Demo Build Baseline
 
-This document converts recurring construction-user feedback into an explicit Construction OS **Release 1 acceptance baseline**. It supplements module contracts and architecture standards; it does not replace them.
+This baseline supersedes the earlier broad/global feature-parity interpretation of Release 1.
 
-## Release interpretation
+Construction OS Release 1 is now an **India-first integrated contractor operating system**. US/UK workflows and foreign product feature catalogs do not define Release 1 scope. Foreign products may still be studied as technical references.
 
-All 25 requirement areas in this baseline are in scope for the first production release. They may remain in internal `planned`/`preview` states while being built, but Release 1 is not considered complete until every applicable area is addressed with a production-usable implementation or an explicitly documented jurisdiction-dependent boundary.
+## Release goal
 
-Construction OS must not claim a capability is released until it satisfies the module Definition of Done: real persistence, validation, authorization, tenant isolation, error handling, audit where relevant, responsive/mobile behavior, offline behavior where required, realtime behavior where relevant, search/filtering, tests, documentation and real dashboard/report integration.
+Release 1 is not measured by how many individual modules exist. It is ready when one realistic Indian civil/general contractor project can be demonstrated coherently from project setup and BOQ through site execution, procurement, measurement, RA billing, job cost and management visibility using persisted authoritative data.
 
-Country-specific statutory tax/payroll calculations remain the one intentional boundary: the core payroll/accounting framework is Release 1 scope, while jurisdiction packages require a defined target country/region before compliance can be claimed.
+The first customer-facing milestone is **one complete India Demo Build**. Internal modules may be completed and validated incrementally, but incomplete engineering checkpoints are not separate customer releases.
 
-## Coverage matrix
+## Demo journey acceptance
 
-| # | Requirement | Current coverage | Release 1 action |
-|---|---|---|---|
-| 1 | Field-first UX | Partial | Deliver field-task UX standards: minimal taps, role/task-specific layouts, large touch targets, carry-forward, responsive mobile behavior and low-training workflows. |
-| 2 | Offline-first mobile | Partial | Deliver Offline Sync & Device State with encrypted local storage, durable mutation queue, retry, conflict handling, acknowledgement and visible sync status for supported field workflows. |
-| 3 | Performance is a feature | Partial | Define and test measurable performance budgets for startup/login, project switching, drawings, search, scrolling, saves, sync, realtime propagation and dashboards. |
-| 4 | Global search | Partial | Deliver Search & Indexing across all supported business objects, module search/filtering and preservation of navigation/search state. |
-| 5 | Drawing engine | Missing explicit business module | Deliver Drawings module/engine for sets, sheets, revisions, overlays/comparison, markups, measurements, calibration, pins, offline packages and fast mobile rendering. |
-| 6 | Estimating engine | Missing explicit business module | Deliver Estimating and Takeoff with structured spreadsheet-like calculations, formulas, assemblies, resources, versions, comparison, cost codes and first-class Excel import/export. |
-| 7 | Scope intelligence | Partial/future AI | Deliver evidence-based estimating intelligence for drawing/spec comparison, scope gaps, bid exclusions and revision differences. AI suggests; human confirms. |
-| 8 | Bidder/external collaborator experience | Partial | Deliver temporary/scoped external collaboration plus Bid Management/External Collaboration without requiring unnecessary full-workspace accounts/seats. |
-| 9 | RFIs | Planned, not fully contracted | Deliver complete RFI workflow with drawing/spec/location/schedule/cost links, due dates, reminders, escalation, ball-in-court and history. |
-| 10 | Submittals | Planned, not fully contracted | Deliver Package -> Items -> Revisions model with workflow/attachments and specification/drawing/procurement/schedule/lead-time links. |
-| 11 | Notification engine | Partial | Deliver priority taxonomy, reason-for-notification, preferences, channels, quiet hours, digests, escalation, subscriptions and realtime/in-app state. |
-| 12 | Daily report / field data | Partial | Deliver crews, carry-forward, voice, photos, weather, manpower, equipment, deliveries, production, delays, visitors, safety, T&M and downstream reuse without duplicate entry. |
-| 13 | Time & workforce | Partial | Deliver internal/subcontract labor, crews, time types, cost codes, location, equipment, production, approvals, obvious task/project switching and offline entry. |
-| 14 | Scheduling | Missing detailed contract | Deliver activities, dependencies, milestones, critical path, baselines, look-aheads, constraints, calendars, actuals, delays and procurement/submittal integration with simple field progress updates. |
-| 15 | Change management | Missing detailed contract | Deliver connected Potential Issue -> Change Event -> Cost/Quantity -> RFQ -> Quote -> Review -> Owner Change -> Commitment -> Budget/Job Cost -> Billing chain. |
-| 16 | Native construction financials | Partial/high-level | Deliver COA, cost codes, jobs, budgets, commitments, POs, AP, AR, progress billing, retainage, change orders, payroll core, job cost, GL, cash, equipment costing and financial reporting. Jurisdiction-specific statutory calculations remain configurable packages. |
-| 17 | Reporting | Partial | Deliver configurable grids, saved views, filters, grouping, calculated fields, charts, dashboards, drilldown, scheduled reports and PDF/Excel/CSV export. |
-| 18 | Closeout | Missing explicit business module | Deliver continuous Closeout collecting approved records during project execution, completeness dashboards and structured final packages. |
-| 19 | Permissions | Strong partial | Complete role templates, granular permissions, scopes and admin permission preview/test: "What exactly can this person see/do?" with server-authoritative evaluation. |
-| 20 | Implementation/configuration | Partial | Deliver guided company setup, project/role/cost-code/workflow templates, imports, validation and configuration health checks without consultant dependence. |
-| 21 | Data ownership | Partial | Deliver complete authorized export for supported records/files/relationships without intentional lock-in, plus audit/manifest/versioning for large exports. |
-| 22 | Localization | Strong architectural coverage | Implement language/locale/currency/number/date/timezone/units/tax configuration and historical currency/timezone/unit/rule preservation. |
-| 23 | Support & system health | Strong architectural coverage | Deliver Admin Operations Center covering app/database/storage/jobs/sync/email/backups/security/usage/errors plus plain-language Help/AI explanations. |
-| 24 | AI | Strong architectural direction, not implemented | Deliver optional permission-scoped AI assistance for defined use cases; AI never silently decides financial, contractual, safety or approval outcomes and exposes evidence where applicable. |
-| 25 | Product quality rule | Strong coverage | Enforce Definition of Done: no fake counters, placeholder workflows, dead buttons or unsupported dashboard claims. |
+The integrated demo must be capable of demonstrating, with real persisted relationships:
 
-## Additional platform modules required
+1. Company and project configuration.
+2. Party / client / vendor / subcontractor setup.
+3. WBS / Cost Code hierarchy.
+4. BOQ creation or controlled Excel import.
+5. Estimate / Rate Analysis.
+6. Budget baseline and controlled revisions.
+7. Worker/crew setup and project assignment.
+8. Fast attendance capture, including supervisor-driven bulk attendance.
+9. Structured work quantity / progress capture.
+10. DPR generated from authoritative attendance/work/material/equipment data where possible.
+11. Material requirement / indent.
+12. Approval through the shared Workflow engine.
+13. RFQ to multiple vendors.
+14. Vendor quotations and auditable comparison.
+15. Purchase Order with revision/amendment history.
+16. Delivery Challan / GRN and quantity/quality acceptance.
+17. Site/store inventory derived from transaction history.
+18. Material issue/consumption/wastage linked to project control structures where applicable.
+19. Equipment assignment/usage and maintenance basics.
+20. Practical quality/safety/punch workflow.
+21. Subcontract / Work Order.
+22. Measurement and certification with separate executed/measured/submitted/certified/billed quantities.
+23. Subcontractor cumulative RA Billing with configurable deductions/additions.
+24. Basic planning/scheduling/lookahead and DPR progress linkage.
+25. Job Cost combining labour + materials + equipment + subcontract + other direct costs.
+26. Client contract / measurement / RA Billing / certification / receivable tracking.
+27. Versioned India tax/withholding/invoice metadata foundation without hardcoded current statutory rates.
+28. Excel/CSV accounting export and Tally integration surface.
+29. Project management dashboard with drilldown to originating transactions.
+30. Useful PDF/Excel/CSV reports.
+31. Closeout basics.
+32. Mobile field workflow usable by a supervisor/site engineer.
+33. Critical field flows tolerate weak/offline connectivity.
 
-The following shared capabilities are Release 1 dependencies and must be implemented before dependent business modules are considered release-ready:
+## India-first domain rules
 
-1. **Offline Sync & Device State** — encrypted local data, offline transaction queue, idempotency, retry, conflict resolution, acknowledgement, cache/package expiry and sync observability.
-2. **Setup, Templates & Configuration Health** — guided onboarding, reusable project/role/workflow/cost-code templates, import validation and configuration diagnostics.
-3. **Data Portability & Tenant Export** — complete authorized export orchestration for supported records, relationships and files, with manifests/checksums and auditable export jobs.
-4. **Real-Time Events & Client State** — committed-event delivery, tenant/permission scoping, reconnect/catch-up cursors, targeted UI invalidation and live updates without making websocket state authoritative.
+### WBS and BOQ are different
 
-## Business modules that must become explicit
+WBS/Cost Codes are the internal project cost/control structure. BOQ is the contractual quantity/rate/billing structure. A BOQ item may map to multiple internal cost components.
 
-The Release 1 module catalog must explicitly include at minimum:
+### Authoritative quantities and money
 
-- Projects
-- Drawings
-- Specifications/Documents
-- Estimating
-- Takeoff
-- Bid Management / External Collaboration
-- RFIs
-- Submittals
-- Meetings
-- Daily Reports / Field Operations
-- Photos
-- Time & Workforce
-- Safety
-- Inspections
-- Punch
-- Equipment
-- Materials
-- Scheduling
-- Change Management
-- Financials / Job Cost / Accounting
-- Reporting
-- Closeout
+Use Decimal/Numeric types. Do not store authoritative quantities only inside descriptive text. Unit conversions must be controlled and incompatible units are never silently converted. INR is the new-company default currency, while currency remains an explicit attribute.
 
-These business modules reuse platform Identity, Authorization, Feature Registry, Metadata, Workflow, Files, Integration, Jobs/Outbox, Audit, Notifications, Search, Governance, Reporting projections, Help, Offline Sync, Realtime Events and Data Portability rather than recreating those capabilities independently.
+### Worker is not User
 
-## Cross-cutting engineering gates
+A labourer must exist without owning an application account. Workforce supports direct employee, direct labour, contract labour, subcontractor labour, vendor crew and staff concepts. Release 1 prioritizes supervisor-driven fast/bulk attendance over requiring every worker to use a smartphone.
 
-### Field usability
+### Party is shared
 
-For field-heavy workflows, page contracts must document the primary user's fastest common path and expected interaction count. The least technical intended user should be able to complete the task without learning unrelated modules.
+Client, vendor, supplier, subcontractor, contractor, consultant and service-provider roles should reuse a Party/Business Partner foundation rather than creating unrelated duplicate masters.
 
-### Offline safety
+### Procurement is core
 
-Supported offline records must never disappear silently. Every offline mutation has a local durable identity, sync status and acknowledgement/error state. Conflict handling must preserve both sides until a deterministic rule or authorized user resolves the conflict.
+Canonical Release 1 path:
 
-### Realtime consistency
+`Indent → Approval → RFQ → Vendor Quotes → Comparison → Vendor Selection → PO → Delivery/Challan → GRN → Stock → Invoice/accounting reconciliation`
 
-Committed business state is authoritative. Realtime events notify/refresh clients after commit; they are not the source of truth. Reconnecting clients use durable cursors/revisions to catch up on missed changes. Sensitive payloads are not broadly broadcast; clients refetch through authorized APIs.
+Vendor selection and PO revisions are auditable. Accepted historical commercial values are never overwritten silently.
 
-### Performance budgets
+### Inventory is transactional
 
-Each performance-sensitive module must define measurable budgets before release and test against representative data volumes. Expensive pages must use pagination, projections, incremental loading, caching or background processing rather than unrestricted full-data loads.
+Current stock is derived from traceable transactions such as opening balance, GRN receipt, issue, consumption, transfer, return, rejection, wastage, damage and controlled adjustment. Do not use a manually edited balance as the source of truth.
 
-### Data reuse
+### Measurement is reusable
 
-"Enter information once" is a design goal, but modules must not duplicate authoritative facts. Shared facts should be referenced or projected into downstream views. Derived records must identify their source and remain rebuildable where appropriate.
+Measurement/certification is a shared business engine, not logic hidden only inside RA billing. Preserve executed, measured, submitted, certified, billed and paid quantity states separately.
 
-### Historical meaning
+### RA billing is cumulative
 
-Configuration, workflow, exchange-rate, calculation, drawing revision and business-rule changes must preserve the historical context needed to explain old records. New configuration does not silently reinterpret completed historical business transactions.
+Subcontractor and client RA billing preserve previous/current/cumulative quantity and amount. Retention, advance recovery, material recovery, penalty, withholding, tax, debit and other adjustments are configurable/effective-dated; current percentages are not hardcoded into permanent domain logic.
 
-### External collaboration
+### Accounting strategy
 
-External/bidder access must be purpose-scoped, tenant-scoped, time-bound where appropriate, auditable and revocable. Temporary collaboration must not expose the broader Construction OS workspace.
+Construction OS Release 1 does **not** attempt to replace a full Indian accounting system. Construction OS owns operational/construction-commercial truth. Accounting remains adapter-driven.
 
-### AI
+Initial integration priority: controlled Excel/CSV, then TallyPrime. Tally-specific implementation must remain inside an integration adapter rather than business-domain code.
 
-AI remains optional. Core workflows continue to function without it. AI may assist, summarize, extract, classify, draft or highlight risk, but authoritative financial, contractual, safety and approval decisions remain deterministic/human-controlled unless a future explicitly reviewed policy says otherwise.
+### India compliance
 
-## Release rule
+GST/TDS/withholding/e-invoice architecture is jurisdiction-aware, versioned and effective-dated. Historical approved/certified/posted records retain the rule version used at transaction time. Full GST-return filing and full payroll statutory processing are outside the first integrated demo unless later proven necessary.
 
-**Release 1 addresses all 25 requirement areas in this baseline.** Internal development may progress module-by-module and features may remain hidden while incomplete, but the first production release is not declared complete until the applicable module contracts, persistence, migrations, security, tenant isolation, responsive/offline/realtime behavior, tests, documentation, observability and operational support are complete.
+## Existing module handling
+
+Keep existing valid platform and business foundations. Do not rewrite Projects, Documents/Drawings, RFIs/Submittals, Daily Reports, Workforce, Equipment/Materials, Safety/Inspections/Punch or Meetings merely because the market changed.
+
+Refit them progressively:
+
+- DPR references authoritative WBS/BOQ/activity/worker/material/equipment/measurement records.
+- Workforce expands for Indian labour and attendance realities.
+- Materials evolves into material master + site/store inventory, with Procurement as a connected bounded context.
+- Equipment adds usage/cost allocation over time.
+- RFI/Submittal depth is lower priority than BOQ/procurement/measurement/RA billing/job cost.
+- Meetings remain useful but lower priority than core commercial execution.
+- advanced BIM/CAD/GIS/AI is deferred until the integrated India demo unless a dependency requires otherwise.
+
+## Shared platform requirements
+
+Every module reuses the existing shared platform services: Identity, Authorization, Feature Registry, Configuration, Metadata/Custom Fields, Workflow, Files, Jobs/Outbox, Audit, Notifications, Search, Reporting, Governance, Help, Offline Sync, Realtime Events and Data Portability.
+
+Do not create module-specific substitutes for these capabilities.
+
+## Field UX baseline
+
+The supervisor/site-engineer experience should prioritize clear task actions such as Attendance, Update Work, Material Received, Material Used, Request Material, Equipment, Add Photo, Report Issue and Finish DPR.
+
+Use large touch targets, low typing, defaults, carry-forward, recent values, reusable crews/locations and role-aware navigation. Do not expose unnecessary accounting/commercial complexity to field users.
+
+## Offline / low-bandwidth baseline
+
+Prioritize offline-safe behavior for attendance, DPR, work progress, photos, material transactions, equipment, issues, inspections and safe measurements.
+
+The user must see local save/sync state. Queued changes use durable identity/idempotency, retry/backoff and explicit conflict handling. Field data must never disappear silently.
+
+## Excel and WhatsApp
+
+Excel is a first-class adoption/import/export surface with validation, preview, row-level errors, duplicate detection, tenant/project safety and audit.
+
+WhatsApp is not the system of record. Future WhatsApp integration may deliver DPRs, approval links, reports, reminders and vendor/subcontractor notifications, but authoritative decisions and records must be persisted/audited in Construction OS.
+
+## AI baseline
+
+AI is optional and evidence-based. The first in-app Assistant role is product help, configuration explanation, release/upgrade guidance and retrieval over permitted knowledge.
+
+Future project insights may explain over-budget items, excess material consumption, productivity, unbilled work, pending certifications, stock shortages or delayed activities, but answers must trace to authoritative records.
+
+AI is never authoritative for measurement, billing, tax, withholding, payment, budget, certification or approval decisions. AI also cannot silently execute installer migrations or rollback operations.
+
+## Definition of Done
+
+A capability is not complete merely because code exists. Where applicable it requires persistence, validation/calculation, state handling, tenant/project isolation, authorization, configuration, audit, workflow, notifications/events, files, search, reporting, offline behavior, import/export, concurrency/error handling, indexes, tests, documentation, responsive UX, clean and upgrade migrations and green CI.
+
+## Final Release 1 test
+
+A salesperson/developer must be able to run the India demo without manual database edits, fake UI-only data, broken skipped stages, code changes during the demo, unexplained errors, dead controls, missing permissions or inconsistent totals.
+
+The final question is:
+
+> Can one real Indian contractor run one real project through Construction OS from BOQ and site execution through procurement, measurement, RA billing, cost and management visibility?
