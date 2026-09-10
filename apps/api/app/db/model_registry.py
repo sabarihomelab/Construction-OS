@@ -65,6 +65,7 @@ from app.modules.operations.models import (
     OperationsRetentionPolicy,
 )
 from app.modules.organizations.models import Organization, OrganizationSettings
+from app.modules.projects.models import Project, ProjectMembership, ProjectRoleAssignment
 from app.modules.reporting.models import (
     DashboardDefinition,
     ReportDefinition,
@@ -140,6 +141,9 @@ __all__ = [
     "OrganizationStorageUsage",
     "OutboxEvent",
     "Permission",
+    "Project",
+    "ProjectMembership",
+    "ProjectRoleAssignment",
     "ReportDefinition",
     "ReportDefinitionVersion",
     "ReportRun",
