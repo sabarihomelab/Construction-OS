@@ -34,6 +34,17 @@ from app.modules.drawings.models import (
 from app.modules.events.models import OutboxEvent
 from app.modules.exports.models import DataExportManifestItem, DataExportRequest
 from app.modules.features.models import OrganizationFeature
+from app.modules.field.models import (
+    DailyReport,
+    DailyReportCrewEntry,
+    DailyReportDelayEntry,
+    DailyReportDeliveryEntry,
+    DailyReportEquipmentEntry,
+    DailyReportHistoryEvent,
+    DailyReportProductionEntry,
+    DailyReportSafetyEntry,
+    DailyReportWorkEntry,
+)
 from app.modules.files.models import (
     FileAsset,
     FileLink,
@@ -98,12 +109,7 @@ from app.modules.reporting.models import (
     ReportRun,
     SavedView,
 )
-from app.modules.rfis.models import (
-    RFI,
-    RFIHistoryEvent,
-    RFIReference,
-    RFIResponse,
-)
+from app.modules.rfis.models import RFI, RFIHistoryEvent, RFIReference, RFIResponse
 from app.modules.rfis.numbering import RFIProjectCounter
 from app.modules.search.models import SearchDocument
 from app.modules.sessions.models import Session
@@ -153,6 +159,15 @@ __all__ = [
     "DataExportRequest",
     "DataLifecyclePolicy",
     "DataLifecyclePolicyVersion",
+    "DailyReport",
+    "DailyReportCrewEntry",
+    "DailyReportDelayEntry",
+    "DailyReportDeliveryEntry",
+    "DailyReportEquipmentEntry",
+    "DailyReportHistoryEvent",
+    "DailyReportProductionEntry",
+    "DailyReportSafetyEntry",
+    "DailyReportWorkEntry",
     "DeviceSyncState",
     "Document",
     "DocumentFolder",
