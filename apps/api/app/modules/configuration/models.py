@@ -48,6 +48,21 @@ def enum_values(enum_class: type[StrEnum]) -> list[str]:
     return [item.value for item in enum_class]
 
 
+class OrganizationConfigurationState(Base):
+    __tablename__ = "organization_configuration_states"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="ck_organization_configuration_states_revision"),
+    )
+
+    organization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True
+    )
+    revision: Mapped[int] = mapped_column(BigInteger, default=1)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class ConfigurationValue(UUIDTimestampMixin, Base):
     __tablename__ = "configuration_values"
     __table_args__ = (
