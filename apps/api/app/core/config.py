@@ -25,6 +25,7 @@ _ENV_FILE = _find_env_file()
 class Settings(BaseSettings):
     app_name: str = "Construction OS API"
     environment: str = "development"
+    environment_name: str = "Local Development"
     database_url: str = "postgresql+asyncpg://construction:construction@localhost:5432/construction_os"
     web_origin: str = "http://localhost:3000"
 
@@ -52,6 +53,8 @@ class Settings(BaseSettings):
             raise ValueError("Session touch interval must be shorter than the idle timeout")
         if self.environment.lower() == "production" and not self.session_cookie_secure:
             raise ValueError("Secure session cookies are required in production")
+        if not self.environment_name.strip():
+            raise ValueError("ENVIRONMENT_NAME cannot be empty")
         if not self.storage_provider.strip():
             raise ValueError("STORAGE_PROVIDER cannot be empty")
         return self
