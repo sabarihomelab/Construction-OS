@@ -101,7 +101,7 @@ async def _bump_organization_revision(
 ) -> int:
     statement = (
         pg_insert(OrganizationConfigurationState)
-        .values(organization_id=organization_id, revision=1)
+        .values(organization_id=organization_id, revision=2)
         .on_conflict_do_update(
             index_elements=["organization_id"],
             set_={
@@ -132,7 +132,7 @@ async def _bump_scope_revision(
             module_key=module_key,
             scope_type=scope_type,
             scope_id=scope_id,
-            revision=1,
+            revision=2,
         )
         .on_conflict_do_update(
             index_elements=["organization_id", "module_key", "scope_type", "scope_id"],
@@ -160,7 +160,7 @@ async def _bump_preference_revision(
         .values(
             organization_id=organization_id,
             membership_id=membership_id,
-            revision=1,
+            revision=2,
         )
         .on_conflict_do_update(
             index_elements=["membership_id"],
