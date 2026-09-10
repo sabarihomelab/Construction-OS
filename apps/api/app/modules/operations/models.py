@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
@@ -11,6 +12,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -95,6 +97,11 @@ class OperationalEvent(UUIDTimestampMixin, Base):
 
 class OperationsRetentionPolicy(UUIDTimestampMixin, Base):
     __tablename__ = "operations_retention_policies"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "category", name="uq_operations_retention_org_category"),
+        CheckConstraint("snapshot_days >= 1", name="ck_operations_retention_snapshot_days"),
+        CheckConstraint("event_days >= 1", name="ck_operations_retention_event_days"),
+    )
 
     organization_id: Mapped[UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), index=True
