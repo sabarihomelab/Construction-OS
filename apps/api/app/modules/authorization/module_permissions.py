@@ -55,4 +55,6 @@ MODULE_PERMISSION_DEFINITIONS: tuple[ModulePermissionDefinition, ...] = (
     ModulePermissionDefinition("meetings.reference.manage", "meetings", "reference", "manage", "Link permitted project records to meetings.", PermissionRisk.MEDIUM),
     ModulePermissionDefinition("meetings.minutes.manage", "meetings", "minutes", "manage", "Draft and revise meeting minutes before finalization.", PermissionRisk.MEDIUM),
     ModulePermissionDefinition("meetings.minutes.finalize", "meetings", "minutes", "finalize", "Finalize meeting minutes under configured approval rules.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("help.assistant.use", "help", "assistant", "use", "Use the permission-scoped Construction OS Assistant.", PermissionRisk.MEDIUM),
+    ModulePermissionDefinition("help.assistant.upgrade", "help", "assistant", "upgrade_guidance", "Use installation, upgrade, migration and rollback guidance from the Construction OS Assistant.", PermissionRisk.HIGH),
 )
