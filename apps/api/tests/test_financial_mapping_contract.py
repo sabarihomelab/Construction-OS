@@ -2,6 +2,7 @@ from datetime import date
 from uuid import uuid4
 
 import pytest
+from fastapi.routing import iter_route_contexts
 from pydantic import ValidationError
 
 from app.modules.financials.api import router
@@ -10,7 +11,7 @@ from app.modules.financials.schemas import CostHeadLedgerMappingCreate
 
 
 def test_cost_head_ledger_mapping_routes_are_composed() -> None:
-    paths = {route.path for route in router.routes if hasattr(route, "path")}
+    paths = {context.path for context in iter_route_contexts(router.routes)}
     assert "/financials/cost-heads/{cost_head_id}/ledger-mappings" in paths
     assert (
         "/financials/cost-heads/{cost_head_id}/ledger-mappings/{mapping_id}/end" in paths
