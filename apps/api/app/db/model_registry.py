@@ -74,6 +74,8 @@ from app.modules.files.models import (
     StorageObject,
     UploadSession,
 )
+from app.modules.financials import job_cost_models as financial_job_cost_models  # noqa: F401
+from app.modules.financials import models as financial_models  # noqa: F401
 from app.modules.governance.models import (
     DataLifecyclePolicy,
     DataLifecyclePolicyVersion,
