@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.modules.audit.models import AuditActorType, AuditRisk
 from app.modules.audit.service import record_audit_event
 from app.modules.authorization.models import (
@@ -26,6 +27,8 @@ from app.modules.features.registry import (
 from app.modules.features.schemas import AccessContext, VisibleFeature
 from app.modules.identity.models import MembershipStatus, OrganizationMembership
 from app.modules.projects.access import load_project_permissions, visible_project_scope
+from app.runtime.deployment import build_runtime_plan
+from app.runtime.modules import MODULES_BY_KEY
 
 
 def _release_is_visible(feature: FeatureSpec, allow_preview: bool) -> bool:
@@ -47,6 +50,7 @@ def resolve_visible_features(
     overrides: Mapping[str, bool] | None = None,
     *,
     allow_preview: bool = False,
+    deployment_modules: set[str] | frozenset[str] | None = None,
 ) -> list[FeatureSpec]:
     overrides = overrides or {}
     visibility: dict[str, bool] = {}
@@ -55,6 +59,14 @@ def resolve_visible_features(
         cached = visibility.get(feature.key)
         if cached is not None:
             return cached
+
+        if (
+            deployment_modules is not None
+            and feature.key in MODULES_BY_KEY
+            and feature.key not in deployment_modules
+        ):
+            visibility[feature.key] = False
+            return False
 
         if not _release_is_visible(feature, allow_preview):
             visibility[feature.key] = False
@@ -144,7 +156,12 @@ async def build_access_context(db: AsyncSession, membership_id: UUID) -> AccessC
         )
     )
 
-    visible_features = resolve_visible_features(feature_permissions, overrides)
+    runtime_plan = build_runtime_plan(get_settings())
+    visible_features = resolve_visible_features(
+        feature_permissions,
+        overrides,
+        deployment_modules=runtime_plan.module_keys,
+    )
 
     return AccessContext(
         organization_id=membership.organization_id,
@@ -194,6 +211,10 @@ async def set_feature_override(
         raise ValueError("This feature cannot be configured by a tenant")
     if feature.release_state == FeatureReleaseState.RETIRED:
         raise ValueError("Retired features cannot be enabled")
+    if enabled and feature_key in MODULES_BY_KEY:
+        runtime_plan = build_runtime_plan(get_settings())
+        if not runtime_plan.module_enabled(feature_key):
+            raise ValueError("This feature is not available in the current deployment")
 
     row = await db.get(OrganizationFeature, (organization_id, feature_key))
     existing_configuration = dict(row.configuration) if row is not None else {}
