@@ -15,7 +15,8 @@ from app.modules.configuration.registry import (
 )
 from app.modules.features.registry import FEATURES_BY_KEY, FeatureReleaseState
 from app.modules.search.providers import search_projection_providers
-from app.modules.workforce.api import router
+from app.modules.workforce.management_router import router as management_router
+from app.modules.workforce.router import router as core_router
 from app.modules.workforce.schemas import TimeEntryWrite, WorkerCreate
 from app.modules.workforce.search import timecard_search_projection, worker_search_projection
 from app.runtime.modules import MODULES_BY_KEY, resolve_runtime_modules
@@ -126,7 +127,7 @@ def test_workforce_feature_is_installer_selectable_but_hidden_until_ui_release()
 
     manifest = MODULES_BY_KEY["workforce"]
     assert manifest.dependencies == ("projects",)
-    assert manifest.integrates_with == ("field",)
+    assert {"field", "equipment", "safety"}.issubset(manifest.integrates_with)
     assert {item.key for item in resolve_runtime_modules("workforce")} == {
         "projects",
         "workforce",
@@ -154,7 +155,12 @@ def test_workforce_search_providers_are_shared_registry_providers() -> None:
 
 
 def test_workforce_router_contract_exposes_staffing_and_timecard_lifecycle() -> None:
-    paths = {route.path for route in router.routes if hasattr(route, "path")}
+    paths = {
+        route.path
+        for source_router in (core_router, management_router)
+        for route in source_router.routes
+        if hasattr(route, "path")
+    }
     assert "/workforce/workers" in paths
     assert "/workforce/crews/{crew_id}/memberships/{crew_membership_id}/end" in paths
     assert "/projects/{project_id}/workforce/assignments" in paths
