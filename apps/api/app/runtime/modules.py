@@ -140,7 +140,7 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
         name="Financials / Job Cost",
         dependencies=("commercial",),
         integrates_with=("estimating", "procurement", "subcontracts", "workforce", "equipment"),
-        api_router="app.modules.financials.router:router",
+        api_router="app.modules.financials.api:router",
         search_provider_module="app.modules.financials.search",
     ),
 )
