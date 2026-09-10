@@ -127,22 +127,46 @@ async def enqueue_event(
     return event
 
 
+def _scope_is_allowed(
+    event: OutboxEvent,
+    allowed_scopes: Mapping[str, set[str]] | None,
+) -> bool:
+    if event.scope_type is None:
+        return True
+    if allowed_scopes is None:
+        return False
+    scope_ids = allowed_scopes.get(event.scope_type, set())
+    return "*" in scope_ids or event.scope_id in scope_ids
+
+
+def _permission_is_allowed(
+    event: OutboxEvent,
+    permission_keys: set[str],
+    scoped_permissions: Mapping[str, Mapping[str, set[str]]] | None,
+) -> bool:
+    if event.required_permission_key is None:
+        return True
+    if event.required_permission_key in permission_keys:
+        return True
+    if event.scope_type is None or event.scope_id is None or scoped_permissions is None:
+        return False
+    by_scope_id = scoped_permissions.get(event.scope_type, {})
+    return event.required_permission_key in by_scope_id.get(event.scope_id, set())
+
+
 def event_is_visible(
     event: OutboxEvent,
     permission_keys: set[str],
     *,
     membership_id: UUID | None = None,
     allowed_scopes: Mapping[str, set[str]] | None = None,
+    scoped_permissions: Mapping[str, Mapping[str, set[str]]] | None = None,
 ) -> bool:
     if event.recipient_membership_id is not None and event.recipient_membership_id != membership_id:
         return False
-    if event.required_permission_key and event.required_permission_key not in permission_keys:
+    if not _scope_is_allowed(event, allowed_scopes):
         return False
-    if event.scope_type is None:
-        return True
-    if allowed_scopes is None:
-        return False
-    return event.scope_id in allowed_scopes.get(event.scope_type, set())
+    return _permission_is_allowed(event, permission_keys, scoped_permissions)
 
 
 async def list_visible_events_after(
@@ -153,6 +177,7 @@ async def list_visible_events_after(
     permission_keys: set[str],
     membership_id: UUID | None = None,
     allowed_scopes: Mapping[str, set[str]] | None = None,
+    scoped_permissions: Mapping[str, Mapping[str, set[str]]] | None = None,
     limit: int = 200,
 ) -> EventPage:
     if after_sequence < 0:
@@ -179,6 +204,7 @@ async def list_visible_events_after(
             permission_keys,
             membership_id=membership_id,
             allowed_scopes=allowed_scopes,
+            scoped_permissions=scoped_permissions,
         ):
             visible.append(event)
             if len(visible) >= limit:
