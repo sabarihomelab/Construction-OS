@@ -305,7 +305,7 @@ class ProjectCostAllocation(UUIDTimestampMixin, Base):
     equipment_asset_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     material_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    quantity: Mapped[Decimal | None] = mapped_column(Numeric(18, 3), nullable=True)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(20, 4), nullable=True)
     unit_code: Mapped[str | None] = mapped_column(String(24), nullable=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(20, 2))
 
