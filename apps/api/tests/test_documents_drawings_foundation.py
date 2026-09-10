@@ -74,37 +74,37 @@ def test_drawing_revision_has_render_ready_state() -> None:
 
 def test_calibration_and_length_measurement_are_decimal_and_reproducible() -> None:
     scale = calibration_scale(
-        point_a_x=Decimal("0"),
-        point_a_y=Decimal("0"),
-        point_b_x=Decimal("10"),
-        point_b_y=Decimal("0"),
-        real_length=Decimal("20"),
+        point_a_x=Decimal(0),
+        point_a_y=Decimal(0),
+        point_b_x=Decimal(10),
+        point_b_y=Decimal(0),
+        real_length=Decimal(20),
     )
     value = calculate_measurement(
         DrawingMeasurementType.LENGTH,
         {"points": [[0, 0], [3, 4]]},
         scale=scale,
     )
-    assert scale == Decimal("2")
-    assert value == Decimal("10")
+    assert scale == Decimal(2)
+    assert value == Decimal(10)
 
 
 def test_area_measurement_uses_calibration_squared() -> None:
     value = calculate_measurement(
         DrawingMeasurementType.AREA,
         {"points": [[0, 0], [4, 0], [4, 3], [0, 3]]},
-        scale=Decimal("2"),
+        scale=Decimal(2),
     )
-    assert value == Decimal("48")
+    assert value == Decimal(48)
 
 
 def test_volume_measurement_uses_area_and_depth() -> None:
     value = calculate_measurement(
         DrawingMeasurementType.VOLUME,
         {"points": [[0, 0], [2, 0], [2, 2], [0, 2]], "depth": "3"},
-        scale=Decimal("2"),
+        scale=Decimal(2),
     )
-    assert value == Decimal("48")
+    assert value == Decimal(48)
 
 
 def test_uncalibrated_length_is_rejected() -> None:
@@ -122,4 +122,4 @@ def test_count_does_not_require_calibration() -> None:
         {"points": [[0, 0], [1, 1]], "count": 7},
         scale=None,
     )
-    assert value == Decimal("7")
+    assert value == Decimal(7)
