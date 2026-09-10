@@ -95,8 +95,8 @@ def test_time_entry_schema_rejects_more_than_24_hours() -> None:
     with pytest.raises(ValidationError):
         TimeEntryWrite(
             work_date="2026-09-10",
-            regular_hours=Decimal("16"),
-            overtime_hours=Decimal("9"),
+            regular_hours=Decimal(16),
+            overtime_hours=Decimal(9),
         )
 
 
