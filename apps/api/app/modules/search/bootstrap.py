@@ -1,5 +1,6 @@
 def register_builtin_search_providers() -> None:
     # Imports intentionally register each provider with the shared registry.
+    from app.modules.commercial import search as _commercial  # noqa: F401
     from app.modules.documents import search_provider as _documents  # noqa: F401
     from app.modules.drawings import search as _drawings  # noqa: F401
     from app.modules.equipment import search as _equipment  # noqa: F401
