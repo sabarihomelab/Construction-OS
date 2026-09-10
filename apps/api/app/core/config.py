@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://construction:construction@localhost:5432/construction_os"
     web_origin: str = "http://localhost:3000"
 
+    deployment_profile: Literal["development", "single_server", "split"] = "development"
+    database_mode: Literal["local", "external"] = "local"
+    storage_provider: str = "local"
+    runtime_modules: str = "default"
+    worker_profiles: str = "auto"
+
     session_cookie_name: str = "construction_os_session"
     csrf_cookie_name: str = "construction_os_csrf"
     session_cookie_secure: bool = True
@@ -29,6 +35,8 @@ class Settings(BaseSettings):
             raise ValueError("Session touch interval must be shorter than the idle timeout")
         if self.environment.lower() == "production" and not self.session_cookie_secure:
             raise ValueError("Secure session cookies are required in production")
+        if not self.storage_provider.strip():
+            raise ValueError("STORAGE_PROVIDER cannot be empty")
         return self
 
 
