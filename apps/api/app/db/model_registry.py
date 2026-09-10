@@ -6,6 +6,12 @@ from app.modules.authorization.models import (
     Role,
     RolePermission,
 )
+from app.modules.documents.models import (
+    Document,
+    DocumentFolder,
+    DocumentRevision,
+    SpecificationSection,
+)
 from app.modules.events.models import OutboxEvent
 from app.modules.exports.models import DataExportManifestItem, DataExportRequest
 from app.modules.features.models import OrganizationFeature
@@ -110,6 +116,9 @@ __all__ = [
     "DataLifecyclePolicy",
     "DataLifecyclePolicyVersion",
     "DeviceSyncState",
+    "Document",
+    "DocumentFolder",
+    "DocumentRevision",
     "ExternalRecordMapping",
     "FileAsset",
     "FileLink",
@@ -153,6 +162,7 @@ __all__ = [
     "SearchDocument",
     "Session",
     "SetupRun",
+    "SpecificationSection",
     "StagedExternalRecord",
     "StorageObject",
     "SyncCheckpoint",
