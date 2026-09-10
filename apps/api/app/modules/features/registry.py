@@ -95,6 +95,17 @@ FEATURE_REGISTRY: tuple[FeatureSpec, ...] = (
         help_topic="rfis",
     ),
     FeatureSpec(
+        key="submittals",
+        name="Submittals",
+        kind=FeatureKind.MODULE,
+        route="/submittals",
+        required_permissions=("submittals.submittal.view",),
+        release_state=FeatureReleaseState.PLANNED,
+        display_order=150,
+        offline_enabled=True,
+        help_topic="submittals",
+    ),
+    FeatureSpec(
         key="field",
         name="Field Operations",
         kind=FeatureKind.MODULE,
