@@ -11,6 +11,7 @@ def register_builtin_search_providers() -> None:
     from app.modules.projects import search as _projects  # noqa: F401
     from app.modules.rfis import search as _rfis  # noqa: F401
     from app.modules.safety import search as _safety  # noqa: F401
+    from app.modules.scheduling import search as _scheduling  # noqa: F401
     from app.modules.subcontracts import search as _subcontracts  # noqa: F401
     from app.modules.submittals import search as _submittals  # noqa: F401
     from app.modules.workforce import search as _workforce  # noqa: F401
