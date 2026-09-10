@@ -111,6 +111,22 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
         api_router="app.modules.estimating.router:router",
         search_provider_module="app.modules.estimating.search",
     ),
+    ModuleManifest(
+        key="procurement",
+        name="Procurement / Purchase Orders / GRN",
+        dependencies=("commercial",),
+        integrates_with=("equipment", "estimating"),
+        api_router="app.modules.procurement.router:router",
+        search_provider_module="app.modules.procurement.search",
+    ),
+    ModuleManifest(
+        key="subcontracts",
+        name="Subcontracts / Work Orders",
+        dependencies=("commercial",),
+        integrates_with=("estimating", "workforce", "field"),
+        api_router="app.modules.subcontracts.router:router",
+        search_provider_module="app.modules.subcontracts.search",
+    ),
 )
 
 MODULES_BY_KEY = {manifest.key: manifest for manifest in MODULE_MANIFESTS}
