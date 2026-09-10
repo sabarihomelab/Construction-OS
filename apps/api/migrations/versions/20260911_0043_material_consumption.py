@@ -181,7 +181,21 @@ def upgrade() -> None:
         "material_consumptions",
         ["project_id", "status"],
     )
+    op.alter_column(
+        "project_cost_allocations",
+        "quantity",
+        existing_type=sa.Numeric(18, 3),
+        type_=sa.Numeric(20, 4),
+        existing_nullable=True,
+    )
 
 
 def downgrade() -> None:
+    op.alter_column(
+        "project_cost_allocations",
+        "quantity",
+        existing_type=sa.Numeric(20, 4),
+        type_=sa.Numeric(18, 3),
+        existing_nullable=True,
+    )
     op.drop_table("material_consumptions")
