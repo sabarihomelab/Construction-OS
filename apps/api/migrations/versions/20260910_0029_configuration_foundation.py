@@ -72,7 +72,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],
-            name="fk_organization_configuration_states_organization_id_organizations",
+            name="fk_org_config_states_org",
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint(
