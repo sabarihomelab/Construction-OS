@@ -45,6 +45,7 @@ PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
     PermissionSpec(key="security.role.view", module="security", resource="role", action="view", description="View roles and their assigned capabilities.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="security.role.manage", module="security", resource="role", action="manage", description="Create, update, clone, assign, and retire company roles.", risk=PermissionRisk.CRITICAL),
     PermissionSpec(key="help.content.view", module="help", resource="content", action="view", description="View Construction OS help and product guidance."),
+    PermissionSpec(key="help.knowledge.manage", module="help", resource="knowledge", action="manage", description="Manage company-specific help and knowledge sources.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="files.file.view", module="files", resource="file", action="view", description="View file metadata and permitted attachments within the authorized scope.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="files.file.download", module="files", resource="file", action="download", description="Download permitted files and file versions within the authorized scope.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="files.file.upload", module="files", resource="file", action="upload", description="Upload and attach files within the authorized scope.", risk=PermissionRisk.MEDIUM),
