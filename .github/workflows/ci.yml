@@ -76,17 +76,14 @@ jobs:
           exit 1
       - name: Validate live API readiness and composition
         run: |
+          EXPECTED_MODULES=$(docker compose exec -T api python -c 'import json; from app.core.config import get_settings; from app.runtime.deployment import build_runtime_plan; print(json.dumps(build_runtime_plan(get_settings()).module_keys))')
+          export EXPECTED_MODULES
           python - <<'PY'
           import json
           import os
           from urllib.request import urlopen
 
-          os.chdir("apps/api")
-          from app.core.config import get_settings
-          from app.runtime.deployment import build_runtime_plan
-
-          get_settings.cache_clear()
-          expected_modules = set(build_runtime_plan(get_settings()).module_keys)
+          expected_modules = set(json.loads(os.environ["EXPECTED_MODULES"]))
 
           with urlopen("http://localhost:8000/health/ready", timeout=5) as response:
               readiness = json.load(response)
@@ -99,6 +96,9 @@ jobs:
           required_paths = {
               "/api/v1/projects",
               "/api/v1/configuration/modules/{module_key}",
+              "/api/v1/safety/inspection-templates",
+              "/api/v1/equipment/assets",
+              "/api/v1/projects/{project_id}/meetings",
           }
           missing = sorted(required_paths - paths)
           assert not missing, f"Missing live API paths: {missing}"
