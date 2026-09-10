@@ -88,6 +88,18 @@ PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
     PermissionSpec(key="field.daily_report.submit", module="field", resource="daily_report", action="submit", description="Submit Daily Reports using effective project configuration.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="field.daily_report.approve", module="field", resource="daily_report", action="approve", description="Approve or reject Daily Reports requiring review.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="field.daily_report.manage", module="field", resource="daily_report", action="manage", description="Perform controlled Daily Report administrative actions.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="workforce.worker.view", module="workforce", resource="worker", action="view", description="View the company worker directory and permitted workforce details.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="workforce.worker.manage", module="workforce", resource="worker", action="manage", description="Create, update, link, deactivate and terminate Worker records.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="workforce.crew.view", module="workforce", resource="crew", action="view", description="View company crews and crew membership.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="workforce.crew.manage", module="workforce", resource="crew", action="manage", description="Create and manage crews and crew membership history.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="workforce.assignment.view", module="workforce", resource="assignment", action="view", description="View worker assignments within the authorized project scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="workforce.assignment.manage", module="workforce", resource="assignment", action="manage", description="Assign, suspend and end workers within the authorized project scope.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="workforce.timecard.view", module="workforce", resource="timecard", action="view", description="View timecards and time entries within the authorized project scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="workforce.timecard.create", module="workforce", resource="timecard", action="create", description="Create project timecards for actively assigned workers.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="workforce.timecard.update", module="workforce", resource="timecard", action="update", description="Edit draft or rejected timecard entries.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="workforce.timecard.submit", module="workforce", resource="timecard", action="submit", description="Submit timecards under effective project rules and workflow configuration.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="workforce.timecard.approve", module="workforce", resource="timecard", action="approve", description="Approve or reject timecards through the shared Workflow engine.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="workforce.timecard.manage", module="workforce", resource="timecard", action="manage", description="Perform controlled timecard administration and correction actions.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="finance.budget.view", module="finance", resource="budget", action="view", description="View project budget information within the authorized scope.", risk=PermissionRisk.HIGH),
 )
 
