@@ -71,6 +71,7 @@ class OrganizationMembership(UUIDTimestampMixin, Base):
         UniqueConstraint(
             "organization_id", "user_id", name="uq_organization_memberships_org_user"
         ),
+        UniqueConstraint("id", "organization_id", name="uq_organization_memberships_id_org"),
     )
 
     organization_id: Mapped[UUID] = mapped_column(
