@@ -1,4 +1,5 @@
 from decimal import Decimal, InvalidOperation, localcontext
+from itertools import pairwise
 from typing import Any
 
 from app.modules.drawings.models import DrawingMeasurementType
@@ -60,7 +61,7 @@ def calibration_scale(
 def _polyline_length(points: list[Point]) -> Decimal:
     if len(points) < 2:
         raise DrawingMeasurementError("Length measurement requires at least two points")
-    return sum((_distance(start, end) for start, end in zip(points, points[1:], strict=False)), Decimal(0))
+    return sum((_distance(start, end) for start, end in pairwise(points)), Decimal(0))
 
 
 def _polygon_area(points: list[Point]) -> Decimal:
