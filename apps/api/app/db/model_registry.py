@@ -42,6 +42,12 @@ from app.modules.offline.models import (
 from app.modules.organizations.models import Organization, OrganizationSettings
 from app.modules.search.models import SearchDocument
 from app.modules.sessions.models import Session
+from app.modules.setup.models import (
+    ConfigurationHealthCheck,
+    ConfigurationTemplate,
+    ConfigurationTemplateVersion,
+    SetupRun,
+)
 from app.modules.workflows.models import (
     WorkflowApprovalTask,
     WorkflowDefinition,
@@ -58,6 +64,9 @@ __all__ = [
     "BackgroundJob",
     "BackgroundJobAttempt",
     "ClientDevice",
+    "ConfigurationHealthCheck",
+    "ConfigurationTemplate",
+    "ConfigurationTemplateVersion",
     "CustomFieldDefinition",
     "CustomFieldDefinitionRevision",
     "CustomFieldOption",
@@ -87,6 +96,7 @@ __all__ = [
     "RolePermission",
     "SearchDocument",
     "Session",
+    "SetupRun",
     "StorageObject",
     "SyncConflict",
     "SyncMutationReceipt",
