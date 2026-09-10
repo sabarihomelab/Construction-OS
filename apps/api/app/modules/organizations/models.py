@@ -7,6 +7,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base, UUIDTimestampMixin
 
 
+INDIA_DEFAULT_LOCALE = "en-IN"
+INDIA_DEFAULT_TIMEZONE = "Asia/Kolkata"
+INDIA_DEFAULT_CURRENCY = "INR"
+
+
 class UnitSystem(StrEnum):
     METRIC = "metric"
     IMPERIAL = "imperial"
@@ -38,9 +43,9 @@ class OrganizationSettings(Base):
     organization_id: Mapped[UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True
     )
-    locale: Mapped[str] = mapped_column(String(35), default="en-US")
-    timezone: Mapped[str] = mapped_column(String(64), default="UTC")
-    base_currency: Mapped[str] = mapped_column(String(3), default="USD")
+    locale: Mapped[str] = mapped_column(String(35), default=INDIA_DEFAULT_LOCALE)
+    timezone: Mapped[str] = mapped_column(String(64), default=INDIA_DEFAULT_TIMEZONE)
+    base_currency: Mapped[str] = mapped_column(String(3), default=INDIA_DEFAULT_CURRENCY)
     unit_system: Mapped[UnitSystem] = mapped_column(
         Enum(UnitSystem, native_enum=False, values_callable=enum_values), default=UnitSystem.METRIC
     )
