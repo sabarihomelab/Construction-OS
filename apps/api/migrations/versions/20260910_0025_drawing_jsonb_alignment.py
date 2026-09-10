@@ -8,6 +8,7 @@ Create Date: 2026-09-10
 from collections.abc import Sequence
 
 from alembic import op
+from sqlalchemy import Text
 from sqlalchemy.dialects import postgresql
 
 revision: str = "20260910_0025"
@@ -31,7 +32,7 @@ def upgrade() -> None:
         op.alter_column(
             table_name,
             column_name,
-            type_=postgresql.JSONB(astext_type=postgresql.TEXT()),
+            type_=postgresql.JSONB(astext_type=Text()),
             postgresql_using=f"{column_name}::jsonb",
         )
 
@@ -41,6 +42,6 @@ def downgrade() -> None:
         op.alter_column(
             table_name,
             column_name,
-            type_=postgresql.JSON(astext_type=postgresql.TEXT()),
+            type_=postgresql.JSON(astext_type=Text()),
             postgresql_using=f"{column_name}::json",
         )
