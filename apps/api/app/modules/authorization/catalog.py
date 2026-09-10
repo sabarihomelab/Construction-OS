@@ -31,6 +31,22 @@ PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
         risk=PermissionRisk.HIGH,
     ),
     PermissionSpec(
+        key="admin.operations.jobs.view",
+        module="admin",
+        resource="operations_jobs",
+        action="view",
+        description="View tenant-scoped background job status and failure diagnostics.",
+        risk=PermissionRisk.HIGH,
+    ),
+    PermissionSpec(
+        key="admin.operations.jobs.manage",
+        module="admin",
+        resource="operations_jobs",
+        action="manage",
+        description="Retry, cancel, or otherwise manage tenant-scoped background jobs.",
+        risk=PermissionRisk.CRITICAL,
+    ),
+    PermissionSpec(
         key="admin.custom_field.view",
         module="admin",
         resource="custom_field",
