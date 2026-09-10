@@ -16,6 +16,9 @@ Company
 │   └── dated Crew Membership history
 └── Project
     └── Project Worker Assignment
+        ├── project role / trade / crew
+        ├── optional employer Party and engagement type
+        ├── effective-dated Project Worker Rates
         └── Weekly Timecard
             ├── Time Entries
             ├── shared Workflow instance when approval is enabled
@@ -23,6 +26,10 @@ Company
 ```
 
 A Worker can exist without a Construction OS login. This is required for subcontract labor, field workers who do not use the application directly, imported workforce records and future payroll/integration scenarios.
+
+A Worker belongs to the company, not to one project. The same Worker can be assigned to multiple Projects without duplicating worker identity. Each Project Worker Assignment carries that project's role, trade, crew, engagement/employer context, dates and status.
+
+Worker assignment and application visibility are separate concepts. Assigning a Worker to Project A does not create a login or grant access to Project A. Application users receive project visibility only through Project Membership, Role Assignment and Authorization. Likewise, a Worker assigned to Projects A and B can have an application user that is allowed to see only Project A.
 
 ## Protected identity versus configurable presentation
 
@@ -68,13 +75,32 @@ Crew membership is effective-dated and versioned. Ending membership updates the 
 
 Crews can be deactivated without deleting their historical membership or project assignment references.
 
-## Project assignment
+## Multi-project worker assignment
 
 A Worker must be explicitly assigned to a Project before a project timecard can be created.
 
 The database enforces tenant-safe Project, Worker and Project Worker Assignment relationships. A Worker assigned only to Project A cannot receive a Project B timecard through a forgotten API/service check.
 
-Project assignment supports trade, project role, default cost code, crew, start/end dates and active/suspended/ended status. These fields are business context and can later integrate with Scheduling, Daily Reports, Job Cost and payroll export packages.
+Project assignment supports trade, project role, default cost code, crew, start/end dates and active/suspended/ended status. It can also identify the project-specific engagement type such as staff, direct labour, contract labour, subcontractor labour or vendor crew.
+
+Where labour is supplied by another business, `employer_party_id` can point to the company-level Party directory. The relationship is optional so the Workforce module remains usable for direct employees even when Commercial workflows are not active.
+
+The same Worker may have different project context. For example, one Worker may be a carpenter in Project A and a crew supervisor in Project B, with different crews and commercial rates. These are assignment facts and do not duplicate the Worker master.
+
+## Project worker commercial rates
+
+Commercial rate information is effective-dated and belongs to the exact Project Worker Assignment. It is not stored on the company Worker master because the same Worker may have different rates in different projects or periods.
+
+Supported wage bases are hourly, daily, weekly, monthly, piece-rate and contract. A rate record can hold regular cost rate plus optional overtime, double-time and billing rates. Monetary values use Decimal database columns.
+
+Rate periods must not overlap for the same Project Worker Assignment. Historical rates are ended with an effective date and retained rather than overwritten. Downstream Job Cost should resolve the rate applicable to the work date and persist the resulting cost/rule context so a later rate change does not rewrite historical cost.
+
+Worker rates are sensitive commercial information. They are not included in ordinary Worker or assignment responses and require separate project-scoped permissions:
+
+- `workforce.rate.view`
+- `workforce.rate.manage`
+
+A supervisor can therefore be permitted to assign workers and approve attendance without being allowed to see wage or billing rates.
 
 ## Timecard lifecycle
 
@@ -131,6 +157,8 @@ Atomic capabilities are:
 - `workforce.crew.manage`
 - `workforce.assignment.view`
 - `workforce.assignment.manage`
+- `workforce.rate.view`
+- `workforce.rate.manage`
 - `workforce.timecard.view`
 - `workforce.timecard.create`
 - `workforce.timecard.update`
@@ -138,7 +166,7 @@ Atomic capabilities are:
 - `workforce.timecard.approve`
 - `workforce.timecard.manage`
 
-Worker/Crew directory actions are company scoped. Project assignment/timecard permissions are evaluated against the exact project. UI hiding is never treated as authorization.
+Worker/Crew directory actions are company scoped. Project assignment, project worker rate and timecard permissions are evaluated against the exact project. UI hiding is never treated as authorization.
 
 ## Shared platform integrations
 
@@ -155,25 +183,30 @@ Workforce reuses, rather than reimplements:
 - Reporting datasets/views when exposed;
 - Offline mutation/idempotency contracts for future field UI;
 - retention/governance rules;
-- integration gateway/mapping for payroll/accounting exports.
+- integration gateway/mapping for payroll/accounting exports;
+- the shared Party directory when an external labour employer needs to be identified.
 
 ## Search
 
 The shared Search registry contains approved projections for Worker and Timecard entities. Timecard results are project scoped and require `workforce.timecard.view`; Worker results require `workforce.worker.view`.
 
+Sensitive Project Worker Rates are intentionally not exposed through the ordinary Worker search projection.
+
 Search is derived data and never grants access to the underlying entity.
 
 ## Deployment / installer behavior
 
-`workforce` is a normal business runtime module with `projects` as its only hard dependency. Field Operations is an optional integration, not a required dependency.
+`workforce` is a normal business runtime module with `projects` as its only hard dependency. Field Operations, Equipment, Safety and the Commercial Party directory are optional integrations, not required dependencies.
 
-Therefore an existing Construction OS installation can add Workforce later through `setup.ps1` without automatically activating Field Operations or a heavyweight worker profile. The common Alembic migration chain already contains the Workforce schema; runtime activation controls route/search/UI availability.
+Therefore an existing Construction OS installation can add Workforce later through `setup.ps1` without automatically activating those optional modules or a heavyweight worker profile. The common Alembic migration chain already contains the Workforce schema; runtime activation controls route/search/UI availability.
 
-## Payroll and accounting boundary
+## Payroll, Job Cost and accounting boundary
 
-Approved timecards are authoritative labor-time input. Country-specific payroll calculations, statutory taxes, benefits, wage rules and accounting posting belong to later payroll/accounting/integration packages.
+Approved timecards are authoritative labor-time input. Project Worker Rates provide governed commercial context for Job Cost, but Workforce does not post accounting entries itself.
 
-This separation lets Construction OS support multiple countries and external payroll systems without changing historical time capture.
+Job Cost can combine approved time with the effective project rate and retain a source reference back to the Worker assignment/time entry. Country-specific payroll calculations, statutory taxes, benefits, wage rules and general-ledger posting belong to later payroll/accounting/integration packages.
+
+This separation lets Construction OS support multiple projects, labour suppliers and external payroll/accounting systems without changing historical time capture.
 
 ## Release 1 remaining work
 
@@ -186,7 +219,7 @@ The current work establishes the backend/domain foundation. Release 1 still requ
 - shared Workflow task/reviewer UX;
 - notifications for assigned/reviewed timecards;
 - import/export and payroll/accounting mapping packages;
-- Workforce reporting datasets and production dashboards;
+- Workforce and labour-cost reporting datasets and production dashboards;
 - attachment/comment surfaces where required by final workflows;
 - configuration health rules for incompatible time policies;
 - cross-tenant/project end-to-end authorization tests;
