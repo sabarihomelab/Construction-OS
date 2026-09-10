@@ -10,7 +10,11 @@ from app.modules.authentication.providers import AuthenticationAssertion
 from app.modules.authentication.service import AuthenticationValidationError, validate_assertion
 from app.modules.authorization.catalog import PERMISSIONS_BY_KEY
 from app.modules.help.models import TenantKnowledgeSource
-from app.modules.help.service import ProductHelpRegistry, ProductHelpTopic, knowledge_source_is_visible
+from app.modules.help.service import (
+    ProductHelpRegistry,
+    ProductHelpTopic,
+    knowledge_source_is_visible,
+)
 from app.modules.integrations.mapping_service import MappingValidationError, validate_mapping_spec
 from app.modules.sessions.models import AuthenticationLevel, AuthenticationMethod
 
@@ -62,7 +66,7 @@ def test_authentication_assertion_requires_timezone_aware_timestamp() -> None:
         display_name="User",
         method=AuthenticationMethod.OIDC,
         level=AuthenticationLevel.MFA,
-        authenticated_at=datetime(2026, 9, 10, 10, 0),
+        authenticated_at=datetime.fromisoformat("2026-09-10T10:00:00"),
     )
     with pytest.raises(AuthenticationValidationError):
         validate_assertion(assertion)
