@@ -15,6 +15,8 @@ class PermissionSpec:
 
 PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
     PermissionSpec(key="admin.settings.view", module="admin", resource="settings", action="view", description="View company administration settings.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="admin.configuration.view", module="admin", resource="configuration", action="view", description="View registered company, project-template and project configuration definitions and effective values.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="admin.configuration.manage", module="admin", resource="configuration", action="manage", description="Create versioned company, project-template and project configuration overrides.", risk=PermissionRisk.CRITICAL),
     PermissionSpec(key="admin.operations.view", module="admin", resource="operations", action="view", description="View company operational health and capacity information.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="admin.operations.storage.view", module="admin", resource="operations_storage", action="view", description="View storage usage and storage-health information.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="admin.operations.security.view", module="admin", resource="operations_security", action="view", description="View security-posture information exposed to company administrators.", risk=PermissionRisk.CRITICAL),
