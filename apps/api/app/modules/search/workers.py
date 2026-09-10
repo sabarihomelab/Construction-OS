@@ -1,9 +1,7 @@
-from uuid import UUID
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.jobs.models import BackgroundJob
 from app.modules.jobs.handlers import JobHandlerRegistry
+from app.modules.jobs.models import BackgroundJob
 from app.modules.search.providers import SearchProjectionProviderRegistry
 from app.modules.search.service import remove_search_document, upsert_search_document
 
