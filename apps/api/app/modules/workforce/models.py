@@ -195,6 +195,12 @@ class ProjectWorkerAssignment(UUIDTimestampMixin, Base):
         UniqueConstraint(
             "project_id", "worker_id", name="uq_project_worker_assignments_project_worker"
         ),
+        UniqueConstraint(
+            "project_id",
+            "worker_id",
+            "organization_id",
+            name="uq_project_worker_assignments_project_worker_org",
+        ),
         UniqueConstraint("id", "organization_id", name="uq_project_worker_assignments_id_org"),
         CheckConstraint("revision >= 1", name="ck_project_worker_assignments_revision"),
         CheckConstraint(
@@ -241,6 +247,16 @@ class Timecard(UUIDTimestampMixin, Base):
             ["worker_id", "organization_id"],
             ["workers.id", "workers.organization_id"],
             name="fk_timecards_worker_org",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["project_id", "worker_id", "organization_id"],
+            [
+                "project_worker_assignments.project_id",
+                "project_worker_assignments.worker_id",
+                "project_worker_assignments.organization_id",
+            ],
+            name="fk_timecards_project_worker_assignment_org",
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
