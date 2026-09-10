@@ -33,3 +33,41 @@ jobs:
       - run: ruff check app tests migrations
       - run: python -m compileall app migrations
       - run: pytest -q
+
+  local-stack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare local environment
+        run: cp .env.example .env
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Start complete local stack
+        run: docker compose up -d --build
+      - name: Wait for API
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:8000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs api
+          exit 1
+      - name: Wait for web
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3000 >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs web
+          exit 1
+      - name: Show local stack status
+        run: docker compose ps
+      - name: Stop local stack
+        if: always()
+        run: docker compose down -v --remove-orphans
