@@ -59,9 +59,17 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
         key="field",
         name="Field Operations",
         dependencies=("projects",),
-        integrates_with=("documents", "drawings", "rfis"),
+        integrates_with=("documents", "drawings", "rfis", "workforce"),
         api_router="app.modules.field.router:router",
         search_provider_module="app.modules.field.search",
+    ),
+    ModuleManifest(
+        key="workforce",
+        name="Workforce & Time",
+        dependencies=("projects",),
+        integrates_with=("field",),
+        api_router="app.modules.workforce.router:router",
+        search_provider_module="app.modules.workforce.search",
     ),
 )
 
