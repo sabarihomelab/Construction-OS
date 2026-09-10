@@ -7,48 +7,50 @@ Construction OS is an all-in-one construction operations platform combining fiel
 - `apps/web` — Next.js web application
 - `apps/api` — FastAPI backend
 - PostgreSQL — primary application database
-- Docker Compose — complete local development stack
+- PowerShell — preferred native Windows local-development workflow
+- Docker Compose — retained as an optional infrastructure/deployment path for later use
 - GitHub Actions — build/lint/test validation
 - `docs/ARCHITECTURE.md` — product and technical boundaries
 
-## One-click local development on Windows
+## Local development on Windows — no Docker required
 
-After cloning the repository and switching to the branch you want to test, run:
+After cloning the repository and switching to the branch you want to test, run the setup once from the repository root:
 
-```bat
-start-local.cmd
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup-local.ps1
 ```
 
-That launcher handles the local development stack for you:
+The setup script:
 
-- checks for Docker
-- attempts to install Docker Desktop through `winget` when Docker is missing
-- starts Docker Desktop when needed
-- creates `.env` from `.env.example` on the first run
-- builds/updates the API and web containers
-- installs Python and Node application dependencies inside Docker
-- starts PostgreSQL
-- waits for PostgreSQL health
-- runs all Alembic database migrations automatically
-- starts the FastAPI development server with reload enabled
-- starts the Next.js development server
-- waits until the API and web app are reachable
-- opens `http://localhost:3000` in the default browser
+- installs Python 3.12 through `winget` when missing
+- installs Node.js LTS/npm through `winget` when missing
+- installs PostgreSQL 17 through `winget` when missing
+- starts the local PostgreSQL Windows service
+- creates the local `construction` database user and `construction_os` database when needed
+- creates `.env` from `.env.example`
+- creates `apps/api/.venv`
+- installs/updates FastAPI/Python dependencies
+- installs/updates Next.js/Node dependencies
+- applies Alembic database migrations
 
-You do not need to manually create a Python virtual environment, run `pip install`, install PostgreSQL, run Alembic, or run `npm install` on the host machine.
+PostgreSQL installation may ask you to choose an administrator password. The setup script asks for that password once when it needs to create the Construction OS development database. The password is not written to the repository.
 
-### Launcher commands
+### Start Construction OS
 
-```bat
-start-local.cmd
-start-local.cmd restart
-start-local.cmd logs
-start-local.cmd stop
-start-local.cmd reset
-start-local.cmd help
+After setup, start the application with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-local.ps1
 ```
 
-`reset` deletes only the local Docker database/container volumes after explicit confirmation. It does not delete repository source files.
+The start script:
+
+- makes sure PostgreSQL is running
+- applies any newly added migrations
+- starts the FastAPI API in its own PowerShell window
+- starts the Next.js development server in its own PowerShell window
+- waits for both services
+- opens the application in your default browser
 
 ### Local addresses
 
@@ -58,33 +60,26 @@ start-local.cmd help
 - API documentation: `http://localhost:8000/docs`
 - PostgreSQL: `localhost:5432`
 
+To stop development, close the API and Web PowerShell windows, or press `Ctrl+C` in each window.
+
+If dependencies change after pulling new code, run `setup-local.ps1` again. It is safe to rerun and keeps the existing local `.env` and database.
+
 ## Manual development setup
 
-The one-click launcher is the preferred workflow. Manual setup is still available for debugging individual services.
+The PowerShell scripts are the preferred Windows workflow. Individual services can still be run manually for debugging.
 
-### Database only
+### API
 
-```bash
-docker compose up -d postgres
-```
-
-### API without Docker
-
-```bash
+```powershell
 cd apps/api
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-# macOS/Linux: source .venv/bin/activate
-pip install -e '.[dev]'
-alembic upgrade head
-uvicorn app.main:app --reload
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
-### Web without Docker
+### Web
 
-```bash
+```powershell
 cd apps/web
-npm install
 npm run dev
 ```
 
