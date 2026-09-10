@@ -247,6 +247,19 @@ FEATURE_REGISTRY: tuple[FeatureSpec, ...] = (
         display_order=1000,
         help_topic="help",
     ),
+    FeatureSpec(
+        key="help.assistant",
+        name="Construction OS Assistant",
+        kind=FeatureKind.PAGE,
+        parent_key="help",
+        route="/help/assistant",
+        required_permissions=("help.assistant.use",),
+        tenant_configurable=False,
+        release_state=FeatureReleaseState.PLANNED,
+        sensitivity=FeatureSensitivity.SENSITIVE,
+        display_order=1010,
+        help_topic="help.assistant",
+    ),
 )
 
 FEATURES_BY_KEY = {feature.key: feature for feature in FEATURE_REGISTRY}
