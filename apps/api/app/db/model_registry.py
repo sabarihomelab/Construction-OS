@@ -90,6 +90,13 @@ from app.modules.reporting.models import (
     ReportRun,
     SavedView,
 )
+from app.modules.rfis.models import (
+    RFI,
+    RFIHistoryEvent,
+    RFIReference,
+    RFIResponse,
+)
+from app.modules.rfis.numbering import RFIProjectCounter
 from app.modules.search.models import SearchDocument
 from app.modules.sessions.models import Session
 from app.modules.setup.models import (
@@ -173,6 +180,11 @@ __all__ = [
     "Project",
     "ProjectMembership",
     "ProjectRoleAssignment",
+    "RFI",
+    "RFIHistoryEvent",
+    "RFIProjectCounter",
+    "RFIReference",
+    "RFIResponse",
     "ReportDefinition",
     "ReportDefinitionVersion",
     "ReportRun",
