@@ -117,6 +117,7 @@ from app.modules.workflows.models import (
 )
 
 __all__ = [
+    "RFI",
     "AuditEvent",
     "BackgroundJob",
     "BackgroundJobAttempt",
@@ -180,7 +181,6 @@ __all__ = [
     "Project",
     "ProjectMembership",
     "ProjectRoleAssignment",
-    "RFI",
     "RFIHistoryEvent",
     "RFIProjectCounter",
     "RFIReference",
