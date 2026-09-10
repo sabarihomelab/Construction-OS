@@ -10,6 +10,8 @@ from app.modules.workforce.models import (
     ProjectWorkerAssignmentStatus,
     TimecardHistoryType,
     TimecardStatus,
+    WageBasis,
+    WorkerEngagementType,
 )
 
 
@@ -137,6 +139,8 @@ class CrewMembershipRead(BaseModel):
 class ProjectWorkerAssignmentCreate(BaseModel):
     worker_id: UUID
     crew_id: UUID | None = None
+    employer_party_id: UUID | None = None
+    engagement_type: WorkerEngagementType | None = None
     project_role: str | None = Field(default=None, max_length=160)
     trade: str | None = Field(default=None, max_length=120)
     default_cost_code: str | None = Field(default=None, max_length=80)
@@ -153,6 +157,8 @@ class ProjectWorkerAssignmentCreate(BaseModel):
 class ProjectWorkerAssignmentUpdate(BaseModel):
     expected_revision: int = Field(ge=1)
     crew_id: UUID | None = None
+    employer_party_id: UUID | None = None
+    engagement_type: WorkerEngagementType | None = None
     project_role: str | None = Field(default=None, max_length=160)
     trade: str | None = Field(default=None, max_length=120)
     default_cost_code: str | None = Field(default=None, max_length=80)
@@ -174,12 +180,59 @@ class ProjectWorkerAssignmentRead(BaseModel):
     project_id: UUID
     worker_id: UUID
     crew_id: UUID | None
+    employer_party_id: UUID | None
+    engagement_type: WorkerEngagementType | None
     status: ProjectWorkerAssignmentStatus
     project_role: str | None
     trade: str | None
     default_cost_code: str | None
     start_date: date | None
     end_date: date | None
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProjectWorkerRateCreate(BaseModel):
+    wage_basis: WageBasis
+    regular_rate: Decimal = Field(ge=0, max_digits=18, decimal_places=2)
+    overtime_rate: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    double_time_rate: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    billing_rate: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    currency_code: str = Field(default="INR", min_length=3, max_length=3)
+    effective_from: date
+    effective_to: date | None = None
+    source_reference: str | None = Field(default=None, max_length=160)
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> "ProjectWorkerRateCreate":
+        if self.effective_to and self.effective_to < self.effective_from:
+            raise ValueError("effective_to cannot be before effective_from")
+        return self
+
+
+class ProjectWorkerRateEnd(BaseModel):
+    expected_revision: int = Field(ge=1)
+    effective_to: date
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class ProjectWorkerRateRead(BaseModel):
+    id: UUID
+    organization_id: UUID
+    project_id: UUID
+    assignment_id: UUID
+    worker_id: UUID
+    wage_basis: WageBasis
+    regular_rate: Decimal
+    overtime_rate: Decimal | None
+    double_time_rate: Decimal | None
+    billing_rate: Decimal | None
+    currency_code: str
+    effective_from: date
+    effective_to: date | None
+    source_reference: str | None
     revision: int
     created_at: datetime
     updated_at: datetime
