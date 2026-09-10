@@ -24,6 +24,7 @@ from app.modules.features.registry import (
 )
 from app.modules.features.schemas import AccessContext, VisibleFeature
 from app.modules.identity.models import MembershipStatus, OrganizationMembership
+from app.modules.projects.access import load_project_permissions, visible_project_scope
 
 
 def _release_is_visible(feature: FeatureSpec, allow_preview: bool) -> bool:
@@ -110,7 +111,19 @@ async def build_access_context(db: AsyncSession, membership_id: UUID) -> AccessC
         .distinct()
         .order_by(RolePermission.permission_key)
     )
-    permission_keys = set(permission_rows.all())
+    organization_permissions = set(permission_rows.all())
+
+    project_permissions = await load_project_permissions(
+        db,
+        organization_id=membership.organization_id,
+        organization_membership_id=membership.id,
+    )
+    project_scope = visible_project_scope(organization_permissions, project_permissions)
+
+    feature_permissions = set(organization_permissions)
+    for project_id, scoped_permissions in project_permissions.items():
+        if "*" in project_scope or project_id in project_scope:
+            feature_permissions.update(scoped_permissions)
 
     feature_rows = await db.scalars(
         select(OrganizationFeature).where(
@@ -125,13 +138,18 @@ async def build_access_context(db: AsyncSession, membership_id: UUID) -> AccessC
         )
     )
 
-    visible_features = resolve_visible_features(permission_keys, overrides)
+    visible_features = resolve_visible_features(feature_permissions, overrides)
 
     return AccessContext(
         organization_id=membership.organization_id,
         membership_id=membership.id,
         authorization_revision=authorization_revision or 1,
-        permissions=sorted(permission_keys),
+        permissions=sorted(organization_permissions),
+        scopes={"project": sorted(project_scope)},
+        project_permissions={
+            project_id: sorted(permission_keys)
+            for project_id, permission_keys in sorted(project_permissions.items())
+        },
         features=[
             VisibleFeature(
                 key=feature.key,
