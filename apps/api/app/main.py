@@ -8,9 +8,10 @@ from app.modules.offline.router import router as offline_router
 from app.modules.projects.router import router as projects_router
 from app.modules.rfis.router import router as rfis_router
 from app.modules.sessions.router import router as session_router
+from app.modules.submittals.router import router as submittals_router
 
 settings = get_settings()
-app = FastAPI(title=settings.app_name, version="0.7.0")
+app = FastAPI(title=settings.app_name, version="0.8.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,3 +27,4 @@ app.include_router(realtime_router, prefix="/api/v1")
 app.include_router(offline_router, prefix="/api/v1")
 app.include_router(projects_router, prefix="/api/v1")
 app.include_router(rfis_router, prefix="/api/v1")
+app.include_router(submittals_router, prefix="/api/v1")
