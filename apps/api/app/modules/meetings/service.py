@@ -12,7 +12,6 @@ from app.modules.documents.models import Document
 from app.modules.drawings.models import DrawingSheet
 from app.modules.events.service import enqueue_event
 from app.modules.meetings.models import (
-    AgendaItemStatus,
     Meeting,
     MeetingActionItem,
     MeetingActionStatus,
