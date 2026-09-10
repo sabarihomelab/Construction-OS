@@ -82,7 +82,12 @@ PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
     PermissionSpec(key="submittals.submittal.review", module="submittals", resource="submittal", action="review", description="Add review comments and issue official Submittal decisions.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="submittals.submittal.close", module="submittals", resource="submittal", action="close", description="Close approved Submittals in the authorized project scope.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="submittals.submittal.manage", module="submittals", resource="submittal", action="manage", description="Manage Submittal responsibility and controlled void actions.", risk=PermissionRisk.HIGH),
-    PermissionSpec(key="field.daily_log.view", module="field", resource="daily_log", action="view", description="View daily logs within the authorized scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="field.daily_report.view", module="field", resource="daily_report", action="view", description="View Daily Reports within the authorized project scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="field.daily_report.create", module="field", resource="daily_report", action="create", description="Create Daily Report drafts within the authorized project scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="field.daily_report.update", module="field", resource="daily_report", action="update", description="Update Daily Report drafts and configured sections.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="field.daily_report.submit", module="field", resource="daily_report", action="submit", description="Submit Daily Reports using effective project configuration.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="field.daily_report.approve", module="field", resource="daily_report", action="approve", description="Approve or reject Daily Reports requiring review.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="field.daily_report.manage", module="field", resource="daily_report", action="manage", description="Perform controlled Daily Report administrative actions.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="finance.budget.view", module="finance", resource="budget", action="view", description="View project budget information within the authorized scope.", risk=PermissionRisk.HIGH),
 )
 
