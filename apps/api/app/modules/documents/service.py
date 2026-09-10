@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -7,10 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.audit.models import AuditActorType, AuditRisk
 from app.modules.audit.service import record_audit_event
-from app.modules.events.service import enqueue_event
-from app.modules.files.models import FileProcessingStatus, FileScanStatus, FileVersion
-from app.modules.projects.models import Project
-from app.modules.search.service import schedule_search_index
 from app.modules.documents.models import (
     Document,
     DocumentKind,
@@ -19,6 +15,10 @@ from app.modules.documents.models import (
     DocumentStatus,
     SpecificationSection,
 )
+from app.modules.events.service import enqueue_event
+from app.modules.files.models import FileProcessingStatus, FileScanStatus, FileVersion
+from app.modules.projects.models import Project
+from app.modules.search.service import schedule_search_index
 
 
 class DocumentValidationError(ValueError):
@@ -173,7 +173,7 @@ async def publish_revision(
     actor_user_id: UUID,
     session_id: UUID | None = None,
     correlation_id: UUID | None = None,
-    issue_date=None,
+    issue_date: date | None = None,
 ) -> DocumentRevision:
     revision = await db.scalar(
         select(DocumentRevision)
@@ -221,10 +221,9 @@ async def publish_revision(
     for previous in previous_rows.all():
         previous.status = DocumentRevisionStatus.SUPERSEDED
 
-    now = datetime.now(UTC)
     revision.status = DocumentRevisionStatus.PUBLISHED
     revision.published_by_user_id = actor_user_id
-    revision.published_at = now
+    revision.published_at = datetime.now(UTC)
     revision.issue_date = issue_date
     document.status = DocumentStatus.ACTIVE
     document.version += 1
