@@ -25,6 +25,14 @@ from app.modules.metadata.models import (
     CustomFieldOption,
     CustomFieldValue,
 )
+from app.modules.notifications.digests import NotificationDigest, NotificationDigestItem
+from app.modules.notifications.models import (
+    Notification,
+    NotificationDelivery,
+    NotificationPreference,
+    NotificationSettings,
+    NotificationSubscription,
+)
 from app.modules.offline.models import (
     ClientDevice,
     DeviceSyncState,
@@ -59,6 +67,13 @@ __all__ = [
     "FileVariant",
     "FileVersion",
     "MembershipRole",
+    "Notification",
+    "NotificationDelivery",
+    "NotificationDigest",
+    "NotificationDigestItem",
+    "NotificationPreference",
+    "NotificationSettings",
+    "NotificationSubscription",
     "Organization",
     "OrganizationAuthorizationState",
     "OrganizationFeature",
