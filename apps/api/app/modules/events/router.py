@@ -24,6 +24,7 @@ async def get_realtime_events(
         organization_id=UUID(context.organization_id),
         after_sequence=after,
         permission_keys=set(context.permissions),
+        membership_id=session.membership_id,
         limit=limit,
     )
     return RealtimeEventBatch(
