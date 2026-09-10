@@ -78,8 +78,8 @@ class CrewEntryWrite(BaseModel):
     company_name: str | None = Field(default=None, max_length=255)
     trade: str | None = Field(default=None, max_length=120)
     worker_count: int = Field(default=0, ge=0, le=100000)
-    regular_hours: Decimal = Field(default=Decimal("0"), ge=0, le=24)
-    overtime_hours: Decimal = Field(default=Decimal("0"), ge=0, le=24)
+    regular_hours: Decimal = Field(default=Decimal(0), ge=0, le=24)
+    overtime_hours: Decimal = Field(default=Decimal(0), ge=0, le=24)
     notes: str | None = None
 
 
@@ -95,7 +95,7 @@ class WorkEntryWrite(BaseModel):
 class EquipmentEntryWrite(BaseModel):
     equipment_name: str = Field(min_length=1, max_length=255)
     equipment_reference: str | None = Field(default=None, max_length=160)
-    hours_operated: Decimal = Field(default=Decimal("0"), ge=0, le=24)
+    hours_operated: Decimal = Field(default=Decimal(0), ge=0, le=24)
     status: str | None = Field(default=None, max_length=80)
     notes: str | None = None
 
