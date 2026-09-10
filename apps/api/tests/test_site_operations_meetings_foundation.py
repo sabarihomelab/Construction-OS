@@ -137,7 +137,7 @@ def test_site_operations_and_meetings_router_contracts_are_mounted_at_module_lev
 
     assert "/safety/inspection-templates" in safety_paths
     assert "/projects/{project_id}/safety/records" in safety_paths
-    assert "/projects/{project_id}/punch-items" in safety_paths
+    assert "/projects/{project_id}/punch" in safety_paths
 
     assert "/equipment/assets" in equipment_paths
     assert "/materials" in equipment_paths
