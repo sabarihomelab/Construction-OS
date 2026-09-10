@@ -6,6 +6,7 @@ def register_builtin_search_providers() -> None:
     from app.modules.equipment import search as _equipment  # noqa: F401
     from app.modules.estimating import search as _estimating  # noqa: F401
     from app.modules.field import search as _field  # noqa: F401
+    from app.modules.financials import search as _financials  # noqa: F401
     from app.modules.meetings import search as _meetings  # noqa: F401
     from app.modules.procurement import search as _procurement  # noqa: F401
     from app.modules.projects import search as _projects  # noqa: F401
