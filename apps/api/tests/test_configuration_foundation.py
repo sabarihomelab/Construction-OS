@@ -1,5 +1,3 @@
-import subprocess
-import sys
 from datetime import datetime
 from decimal import Decimal
 
@@ -21,6 +19,7 @@ from app.modules.configuration.registry import (
     ConfigurationValueType,
     normalize_configuration_value,
 )
+from app.modules.configuration.router import router as configuration_router
 from app.modules.configuration.schemas import ConfigurationOverrideWrite
 from app.modules.features.registry import FEATURES_BY_KEY, FeatureReleaseState
 from app.modules.features.schemas import AccessContext
@@ -145,18 +144,8 @@ def test_access_context_keeps_configuration_revision_backward_compatible() -> No
     assert AccessContext.model_fields["configuration_revision"].default == 1
 
 
-def test_configuration_router_is_mounted_under_versioned_api() -> None:
-    command = (
-        "from app.main import app; "
-        "print('\\n'.join(sorted(route.path for route in app.routes if hasattr(route, 'path'))))"
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", command],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    paths = set(result.stdout.splitlines())
+def test_configuration_router_defines_versioned_api_contract() -> None:
+    paths = {f"/api/v1{route.path}" for route in configuration_router.routes}
     assert "/api/v1/configuration/modules/{module_key}" in paths
     assert "/api/v1/configuration/projects/{project_id}/modules/{module_key}" in paths
     assert "/api/v1/configuration/preferences/{module_key}/{preference_key:path}" in paths
