@@ -49,7 +49,7 @@ async def list_material_consumptions(
     session: CurrentSession,
 ) -> list[MaterialConsumption]:
     context = await build_access_context(db, session.membership_id)
-    _project_permission(context, project_id, "materials.delivery.view")
+    _project_permission(context, project_id, "materials.consumption.view")
     rows = await db.scalars(
         select(MaterialConsumption)
         .where(
@@ -77,7 +77,7 @@ async def create_material_consumption_route(
     _csrf: CsrfProtected,
 ) -> MaterialConsumption:
     context = await build_access_context(db, session.membership_id)
-    _project_permission(context, project_id, "materials.delivery.manage")
+    _project_permission(context, project_id, "materials.consumption.create")
     try:
         row = await create_material_consumption(
             db,
@@ -109,7 +109,7 @@ async def post_material_consumption_route(
     _csrf: CsrfProtected,
 ) -> MaterialConsumption:
     context = await build_access_context(db, session.membership_id)
-    _project_permission(context, project_id, "materials.delivery.manage")
+    _project_permission(context, project_id, "materials.consumption.post")
     try:
         row = await post_material_consumption(
             db,
