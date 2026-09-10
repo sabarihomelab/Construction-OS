@@ -20,6 +20,7 @@ from app.modules.files.models import (
     UploadStatus,
 )
 from app.modules.files.storage import StorageProvider, UploadTarget
+from app.modules.jobs.service import enqueue_job
 from app.modules.organizations.models import OrganizationSettings
 
 
@@ -317,6 +318,20 @@ async def finalize_upload(
     upload.reserved_bytes = 0
 
     await db.flush()
+    await enqueue_job(
+        db,
+        organization_id=organization_id,
+        job_type="files.process_version",
+        idempotency_key=f"file-version:{version.id}:process:v1",
+        payload={
+            "file_version_id": version.id,
+            "asset_id": asset.id,
+            "provider_key": stored_object.provider_key,
+            "storage_object_id": stored_object.id,
+        },
+        created_by_user_id=actor_user_id,
+        correlation_id=correlation_id,
+    )
     await record_audit_event(
         db,
         organization_id=organization_id,
