@@ -305,3 +305,34 @@ Do not remove old entries when behavior changes again. This register is part of 
 A module/feature is complete only when its real persistence, validation, authorization, tenant isolation, audit, error states, responsive UI, search/filtering, realtime behavior where relevant, offline behavior where relevant, performance budgets, tests, documentation, migration/compatibility behavior, real dashboard/report integration and operational diagnostics are implemented.
 
 Empty UI shells, fake counters, placeholder workflows, dead buttons, silent last-write-wins conflicts, undocumented hardcoded business values and unsupported dashboard claims do not count as completed features.
+
+## 21. Configuration manifest
+
+Every future business module must register its supported configuration surface with the shared Company/App Configuration foundation before customer-specific form or workflow behavior is implemented.
+
+The module contract must list:
+
+- standard sections and standard fields owned by the product;
+- stable configuration keys owned by the module;
+- platform defaults;
+- value type and validation for each key;
+- whether each key is protected, business-configurable or a user preference;
+- allowed override scopes: company, project template, project and/or user preference;
+- change classification: presentation, metadata, business rule, workflow, financial or security;
+- historical behavior and whether records must pin a configuration/rule version;
+- whether the setting affects offline packages or queued offline mutations;
+- relevant feature/capability requirements;
+- supported custom-field entity types;
+- supported workflow hooks;
+- notification events/preferences used;
+- attachment/file support;
+- search projection provider;
+- reporting dataset/provider;
+- import/export provider;
+- retention/governance behavior;
+- realtime invalidation behavior;
+- configuration-health checks.
+
+Business modules must consume the shared effective-configuration resolver and the existing shared platform engines. They must not create private copies of authorization, custom-field, workflow, notification, audit, file, search, reporting, realtime, offline, template or retention infrastructure.
+
+A module may expose a simple configuration for a small contractor and a richer configuration for an enterprise, but both must execute through the same canonical business engine and object model.
