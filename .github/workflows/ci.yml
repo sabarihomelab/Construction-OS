@@ -38,6 +38,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate PowerShell installer syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path './setup.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
       - name: Prepare local environment
         run: cp .env.example .env
       - name: Validate Compose configuration
@@ -60,6 +74,31 @@ jobs:
           docker compose ps -a
           docker compose logs --tail=200 api
           exit 1
+      - name: Validate live API readiness and composition
+        run: |
+          python - <<'PY'
+          import json
+          from urllib.request import urlopen
+
+          with urlopen("http://localhost:8000/health/ready", timeout=5) as response:
+              readiness = json.load(response)
+          assert readiness["status"] == "ready"
+          expected_modules = {"projects", "documents", "drawings", "rfis", "submittals", "field"}
+          assert expected_modules == set(readiness["runtime_modules"])
+
+          with urlopen("http://localhost:8000/openapi.json", timeout=5) as response:
+              openapi = json.load(response)
+          paths = set(openapi["paths"])
+          required_paths = {
+              "/api/v1/projects",
+              "/api/v1/projects/{project_id}/rfis",
+              "/api/v1/projects/{project_id}/submittals",
+              "/api/v1/projects/{project_id}/daily-reports",
+              "/api/v1/configuration/modules/{module_key}",
+          }
+          missing = sorted(required_paths - paths)
+          assert not missing, f"Missing live API paths: {missing}"
+          PY
       - name: Wait for web
         run: |
           for attempt in $(seq 1 60); do
