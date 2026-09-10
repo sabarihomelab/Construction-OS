@@ -90,6 +90,7 @@ async def enqueue_event(
     entity_id: str | UUID | None = None,
     entity_version: int | None = None,
     required_permission_key: str | None = None,
+    recipient_membership_id: UUID | None = None,
     scope_type: str | None = None,
     scope_id: str | UUID | None = None,
     actor_user_id: UUID | None = None,
@@ -106,6 +107,7 @@ async def enqueue_event(
 
     event = OutboxEvent(
         organization_id=organization_id,
+        recipient_membership_id=recipient_membership_id,
         event_type=event_type,
         entity_type=entity_type,
         entity_id=str(entity_id) if entity_id is not None else None,
@@ -128,8 +130,12 @@ async def enqueue_event(
 def event_is_visible(
     event: OutboxEvent,
     permission_keys: set[str],
+    *,
+    membership_id: UUID | None = None,
     allowed_scopes: Mapping[str, set[str]] | None = None,
 ) -> bool:
+    if event.recipient_membership_id is not None and event.recipient_membership_id != membership_id:
+        return False
     if event.required_permission_key and event.required_permission_key not in permission_keys:
         return False
     if event.scope_type is None:
@@ -145,6 +151,7 @@ async def list_visible_events_after(
     organization_id: UUID,
     after_sequence: int,
     permission_keys: set[str],
+    membership_id: UUID | None = None,
     allowed_scopes: Mapping[str, set[str]] | None = None,
     limit: int = 200,
 ) -> EventPage:
@@ -167,7 +174,12 @@ async def list_visible_events_after(
     next_cursor = after_sequence
     for event in scanned:
         next_cursor = max(next_cursor, event.sequence)
-        if event_is_visible(event, permission_keys, allowed_scopes):
+        if event_is_visible(
+            event,
+            permission_keys,
+            membership_id=membership_id,
+            allowed_scopes=allowed_scopes,
+        ):
             visible.append(event)
             if len(visible) >= limit:
                 break
