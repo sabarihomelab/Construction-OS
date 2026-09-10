@@ -130,6 +130,12 @@ class ProjectEquipmentAssignment(UUIDTimestampMixin, Base):
             name="uq_equipment_assignments_project_asset_start",
         ),
         UniqueConstraint("id", "organization_id", name="uq_equipment_assignments_id_org"),
+        UniqueConstraint(
+            "id",
+            "project_id",
+            "organization_id",
+            name="uq_equipment_assignments_scope",
+        ),
         CheckConstraint("revision >= 1", name="ck_equipment_assignments_revision"),
         CheckConstraint(
             "end_date IS NULL OR start_date IS NULL OR end_date >= start_date",
