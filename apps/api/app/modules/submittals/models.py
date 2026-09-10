@@ -191,9 +191,13 @@ class SubmittalReview(UUIDTimestampMixin, Base):
             ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
-            ["reviewer_membership_id", "organization_id"],
-            ["organization_memberships.id", "organization_memberships.organization_id"],
-            name="fk_submittal_reviews_reviewer_org",
+            ["project_id", "reviewer_membership_id", "organization_id"],
+            [
+                "project_memberships.project_id",
+                "project_memberships.organization_membership_id",
+                "project_memberships.organization_id",
+            ],
+            name="fk_submittal_reviews_project_reviewer_org",
             ondelete="RESTRICT",
         ),
         UniqueConstraint("id", "organization_id", name="uq_submittal_reviews_id_org"),
@@ -205,6 +209,7 @@ class SubmittalReview(UUIDTimestampMixin, Base):
     )
 
     organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    project_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     submittal_revision_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     sequence: Mapped[int] = mapped_column(Integer)
     reviewer_membership_id: Mapped[UUID] = mapped_column(Uuid, index=True)
