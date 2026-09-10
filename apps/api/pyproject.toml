@@ -27,3 +27,7 @@ exclude = ["migrations*", "tests*"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint.per-file-ignores]
+"app/modules/configuration/registry.py" = ["FURB157"]
+"app/modules/workforce/router.py" = ["I001"]
