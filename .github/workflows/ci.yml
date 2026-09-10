@@ -76,7 +76,7 @@ jobs:
           exit 1
       - name: Validate live API readiness and composition
         run: |
-          EXPECTED_MODULES=$(docker compose exec -T api python -c 'import json; from app.core.config import get_settings; from app.runtime.deployment import build_runtime_plan; print(json.dumps(build_runtime_plan(get_settings()).module_keys))')
+          EXPECTED_MODULES=$(docker compose exec -T api python -c 'import json; from app.core.config import get_settings; from app.runtime.deployment import build_runtime_plan; print(json.dumps(sorted(build_runtime_plan(get_settings()).module_keys)))')
           export EXPECTED_MODULES
           python - <<'PY'
           import json
