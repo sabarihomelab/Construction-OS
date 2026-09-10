@@ -47,6 +47,22 @@ PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
         risk=PermissionRisk.CRITICAL,
     ),
     PermissionSpec(
+        key="admin.workflow.view",
+        module="admin",
+        resource="workflow",
+        action="view",
+        description="View company workflow definitions, versions, states, and transitions.",
+        risk=PermissionRisk.MEDIUM,
+    ),
+    PermissionSpec(
+        key="admin.workflow.manage",
+        module="admin",
+        resource="workflow",
+        action="manage",
+        description="Create, version, publish, retire, and configure company workflows.",
+        risk=PermissionRisk.HIGH,
+    ),
+    PermissionSpec(
         key="admin.custom_field.view",
         module="admin",
         resource="custom_field",
