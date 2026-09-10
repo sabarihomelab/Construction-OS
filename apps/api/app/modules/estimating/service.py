@@ -325,7 +325,7 @@ async def create_rate_analysis(
     base = Decimal(0)
     prepared: list[dict[str, object]] = []
     for raw in components:
-        row = dict(raw) if isinstance(raw, Mapping) else dict(raw)
+        row = dict(raw)
         quantity = Decimal(row.get("quantity") or 0)
         unit_rate = Decimal(row.get("unit_rate") or 0)
         amount = money(quantity * unit_rate)
