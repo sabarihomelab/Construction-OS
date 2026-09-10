@@ -19,7 +19,10 @@ from app.modules.financials.job_cost_models import (
 )
 from app.modules.financials.router import router
 from app.modules.financials.schemas import SiteExpenseCreate
-from app.modules.financials.search import project_cost_search_projection, site_expense_search_projection
+from app.modules.financials.search import (
+    project_cost_search_projection,
+    site_expense_search_projection,
+)
 from app.modules.search.bootstrap import register_builtin_search_providers
 from app.modules.search.providers import search_projection_providers
 from app.runtime.modules import MODULES_BY_KEY, resolve_runtime_modules
