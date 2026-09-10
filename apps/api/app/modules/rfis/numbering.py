@@ -1,6 +1,7 @@
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint, Uuid, select
+from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint, Uuid
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,24 +32,21 @@ async def allocate_rfi_number(
     organization_id: UUID,
     project_id: UUID,
 ) -> int:
-    counter = await db.scalar(
-        select(RFIProjectCounter)
-        .where(
-            RFIProjectCounter.project_id == project_id,
-            RFIProjectCounter.organization_id == organization_id,
-        )
-        .with_for_update()
-    )
-    if counter is None:
-        counter = RFIProjectCounter(
+    statement = (
+        insert(RFIProjectCounter)
+        .values(
             project_id=project_id,
             organization_id=organization_id,
             next_number=2,
         )
-        db.add(counter)
-        await db.flush()
-        return 1
-    number = counter.next_number
-    counter.next_number += 1
-    await db.flush()
-    return number
+        .on_conflict_do_update(
+            index_elements=[RFIProjectCounter.project_id],
+            set_={"next_number": RFIProjectCounter.next_number + 1},
+            where=RFIProjectCounter.organization_id == organization_id,
+        )
+        .returning(RFIProjectCounter.next_number)
+    )
+    next_number = await db.scalar(statement)
+    if next_number is None:
+        raise ValueError("RFI numbering counter does not belong to this organization")
+    return next_number - 1
