@@ -7,6 +7,7 @@ from app.modules.authorization.models import (
     RolePermission,
 )
 from app.modules.events.models import OutboxEvent
+from app.modules.exports.models import DataExportManifestItem, DataExportRequest
 from app.modules.features.models import OrganizationFeature
 from app.modules.files.models import (
     FileAsset,
@@ -71,6 +72,8 @@ __all__ = [
     "CustomFieldDefinitionRevision",
     "CustomFieldOption",
     "CustomFieldValue",
+    "DataExportManifestItem",
+    "DataExportRequest",
     "DeviceSyncState",
     "FileAsset",
     "FileLink",
