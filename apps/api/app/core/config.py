@@ -1,8 +1,25 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _find_env_file() -> Path | str:
+    candidates = [Path.cwd(), *Path(__file__).resolve().parents]
+    seen: set[Path] = set()
+    for directory in candidates:
+        candidate = directory / ".env"
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if candidate.is_file():
+            return candidate
+    return ".env"
+
+
+_ENV_FILE = _find_env_file()
 
 
 class Settings(BaseSettings):
@@ -25,7 +42,7 @@ class Settings(BaseSettings):
     session_absolute_timeout_seconds: int = Field(default=28800, ge=300)
     session_touch_interval_seconds: int = Field(default=30, ge=10)
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
 
     @model_validator(mode="after")
     def validate_session_security(self) -> "Settings":
