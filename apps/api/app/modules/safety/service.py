@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
@@ -1182,7 +1182,7 @@ async def create_punch_item(
         raise SafetyValidationError("Punch item assignee is required by project configuration")
     if data.get("due_date") is None:
         default_days = int(_setting(config, "safety.punch.default_due_days", 7))
-        data["due_date"] = date.today() + timedelta(days=default_days)
+        data["due_date"] = datetime.now(UTC).date() + timedelta(days=default_days)
     number = await _allocate_number(
         db,
         organization_id=organization_id,
