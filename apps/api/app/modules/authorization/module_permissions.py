@@ -73,4 +73,13 @@ MODULE_PERMISSION_DEFINITIONS: tuple[ModulePermissionDefinition, ...] = (
     ModulePermissionDefinition("commercial.ra_bill.create", "commercial", "ra_bill", "create", "Prepare RA bills from unbilled certified measurements.", PermissionRisk.HIGH),
     ModulePermissionDefinition("commercial.ra_bill.submit", "commercial", "ra_bill", "submit", "Submit an RA bill for certification.", PermissionRisk.CRITICAL),
     ModulePermissionDefinition("commercial.ra_bill.certify", "commercial", "ra_bill", "certify", "Certify RA bills and record payment state transitions.", PermissionRisk.CRITICAL),
+    ModulePermissionDefinition("estimating.module.view", "estimating", "module", "view", "Access estimating and budget controls.", PermissionRisk.MEDIUM),
+    ModulePermissionDefinition("estimating.estimate.view", "estimating", "estimate", "view", "View project estimates and rate analyses.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("estimating.estimate.manage", "estimating", "estimate", "manage", "Create and revise draft estimates.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("estimating.estimate.submit", "estimating", "estimate", "submit", "Submit project estimates for approval.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("estimating.estimate.approve", "estimating", "estimate", "approve", "Approve project estimates.", PermissionRisk.CRITICAL),
+    ModulePermissionDefinition("estimating.rate_analysis.manage", "estimating", "rate_analysis", "manage", "Create versioned rate analyses.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("estimating.budget.view", "estimating", "budget", "view", "View project budget baselines.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("estimating.budget.manage", "estimating", "budget", "manage", "Create and revise draft project budgets.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("estimating.budget.approve", "estimating", "budget", "approve", "Approve a project budget baseline.", PermissionRisk.CRITICAL),
 )
