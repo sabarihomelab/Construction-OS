@@ -162,6 +162,18 @@ FEATURE_REGISTRY: tuple[FeatureSpec, ...] = (
         help_topic="equipment",
     ),
     FeatureSpec(
+        key="commercial",
+        name="Commercial Controls",
+        kind=FeatureKind.MODULE,
+        route="/commercial",
+        required_permissions=("commercial.module.view",),
+        release_state=FeatureReleaseState.PLANNED,
+        sensitivity=FeatureSensitivity.HIGH,
+        display_order=300,
+        offline_enabled=True,
+        help_topic="commercial",
+    ),
+    FeatureSpec(
         key="financials",
         name="Financials",
         kind=FeatureKind.MODULE,
