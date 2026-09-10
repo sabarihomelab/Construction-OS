@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from app.db import model_registry  # noqa: F401
 from app.db.base import Base
-from app.main import app
+from app.main import create_app
 from app.modules.authorization.catalog import PERMISSIONS_BY_KEY
 from app.modules.configuration.models import (
     ConfigurationChangeClass,
@@ -145,7 +145,8 @@ def test_access_context_keeps_configuration_revision_backward_compatible() -> No
 
 
 def test_configuration_router_is_mounted_under_versioned_api() -> None:
-    paths = {getattr(route, "path", None) for route in app.routes}
+    application = create_app()
+    paths = {getattr(route, "path", None) for route in application.routes}
     assert "/api/v1/configuration/modules/{module_key}" in paths
     assert "/api/v1/configuration/projects/{project_id}/modules/{module_key}" in paths
     assert "/api/v1/configuration/preferences/{module_key}/{preference_key:path}" in paths
