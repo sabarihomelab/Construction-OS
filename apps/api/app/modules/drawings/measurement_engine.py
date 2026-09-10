@@ -1,5 +1,4 @@
 from decimal import Decimal, InvalidOperation, localcontext
-from math import sqrt
 from typing import Any
 
 from app.modules.drawings.models import DrawingMeasurementType
@@ -34,6 +33,14 @@ def _points(geometry: dict[str, object]) -> list[Point]:
     return points
 
 
+def _distance(start: Point, end: Point) -> Decimal:
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    with localcontext() as ctx:
+        ctx.prec = 34
+        return (dx * dx + dy * dy).sqrt()
+
+
 def calibration_scale(
     *,
     point_a_x: Decimal,
@@ -44,25 +51,16 @@ def calibration_scale(
 ) -> Decimal:
     if real_length <= 0:
         raise DrawingMeasurementError("Calibration real length must be greater than zero")
-    dx = point_b_x - point_a_x
-    dy = point_b_y - point_a_y
-    with localcontext() as ctx:
-        ctx.prec = 34
-        drawing_length = Decimal(str(sqrt(float(dx * dx + dy * dy))))
-        if drawing_length == 0:
-            raise DrawingMeasurementError("Calibration points must be different")
-        return real_length / drawing_length
+    drawing_length = _distance((point_a_x, point_a_y), (point_b_x, point_b_y))
+    if drawing_length == 0:
+        raise DrawingMeasurementError("Calibration points must be different")
+    return real_length / drawing_length
 
 
 def _polyline_length(points: list[Point]) -> Decimal:
     if len(points) < 2:
         raise DrawingMeasurementError("Length measurement requires at least two points")
-    total = Decimal(0)
-    for start, end in zip(points, points[1:], strict=False):
-        dx = end[0] - start[0]
-        dy = end[1] - start[1]
-        total += Decimal(str(sqrt(float(dx * dx + dy * dy))))
-    return total
+    return sum((_distance(start, end) for start, end in zip(points, points[1:], strict=False)), Decimal(0))
 
 
 def _polygon_area(points: list[Point]) -> Decimal:
