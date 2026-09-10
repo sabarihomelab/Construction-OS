@@ -172,7 +172,9 @@ def _scope_filter(allowed_scopes: Mapping[str, set[str]] | None):
 
     scope_conditions = [SearchDocument.scope_type.is_(None)]
     for scope_type, scope_ids in allowed_scopes.items():
-        if scope_ids:
+        if "*" in scope_ids:
+            scope_conditions.append(SearchDocument.scope_type == scope_type)
+        elif scope_ids:
             scope_conditions.append(
                 and_(
                     SearchDocument.scope_type == scope_type,
@@ -182,6 +184,29 @@ def _scope_filter(allowed_scopes: Mapping[str, set[str]] | None):
     return or_(*scope_conditions)
 
 
+def _permission_filter(
+    permission_keys: set[str],
+    scoped_permissions: Mapping[str, Mapping[str, set[str]]] | None,
+):
+    permission_conditions = [SearchDocument.required_permission_key.is_(None)]
+    if permission_keys:
+        permission_conditions.append(SearchDocument.required_permission_key.in_(permission_keys))
+
+    if scoped_permissions:
+        for scope_type, by_scope_id in scoped_permissions.items():
+            for scope_id, scope_permission_keys in by_scope_id.items():
+                if not scope_permission_keys:
+                    continue
+                permission_conditions.append(
+                    and_(
+                        SearchDocument.scope_type == scope_type,
+                        SearchDocument.scope_id == scope_id,
+                        SearchDocument.required_permission_key.in_(scope_permission_keys),
+                    )
+                )
+    return or_(*permission_conditions)
+
+
 async def search_documents(
     db: AsyncSession,
     *,
@@ -189,6 +214,7 @@ async def search_documents(
     query: str,
     permission_keys: set[str],
     allowed_scopes: Mapping[str, set[str]] | None = None,
+    scoped_permissions: Mapping[str, Mapping[str, set[str]]] | None = None,
     entity_types: set[str] | None = None,
     limit: int = 30,
 ) -> list[SearchResult]:
@@ -202,19 +228,11 @@ async def search_documents(
 
     ts_query = func.websearch_to_tsquery("simple", normalized_query)
     rank = func.ts_rank_cd(SearchDocument.search_vector, ts_query)
-    permission_filter = (
-        or_(
-            SearchDocument.required_permission_key.is_(None),
-            SearchDocument.required_permission_key.in_(permission_keys),
-        )
-        if permission_keys
-        else SearchDocument.required_permission_key.is_(None)
-    )
 
     statement = select(SearchDocument, rank.label("rank")).where(
         SearchDocument.organization_id == organization_id,
         SearchDocument.search_vector.op("@@")(ts_query),
-        permission_filter,
+        _permission_filter(permission_keys, scoped_permissions),
         _scope_filter(allowed_scopes),
     )
     if entity_types:
