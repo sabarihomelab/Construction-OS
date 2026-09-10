@@ -67,6 +67,12 @@ PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
     PermissionSpec(key="drawings.measurement.manage", module="drawings", resource="measurement", action="manage", description="Create calibrations and authoritative drawing measurements.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="drawings.comparison.run", module="drawings", resource="comparison", action="run", description="Run drawing revision comparisons and overlays.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="drawings.drawing.manage", module="drawings", resource="drawing", action="manage", description="Manage drawing sets, processing, archival and drawing configuration.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="rfis.rfi.view", module="rfis", resource="rfi", action="view", description="View RFIs, responses, references and history in the authorized project scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="rfis.rfi.create", module="rfis", resource="rfi", action="create", description="Create draft RFIs in the authorized project scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="rfis.rfi.update", module="rfis", resource="rfi", action="update", description="Edit and open RFIs and add controlled references in the authorized project scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="rfis.rfi.respond", module="rfis", resource="rfi", action="respond", description="Add proposed or official RFI responses in the authorized project scope.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="rfis.rfi.close", module="rfis", resource="rfi", action="close", description="Close answered RFIs in the authorized project scope.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="rfis.rfi.manage", module="rfis", resource="rfi", action="manage", description="Manage RFI responsibility and controlled void actions.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="field.daily_log.view", module="field", resource="daily_log", action="view", description="View daily logs within the authorized scope.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="finance.budget.view", module="finance", resource="budget", action="view", description="View project budget information within the authorized scope.", risk=PermissionRisk.HIGH),
 )
