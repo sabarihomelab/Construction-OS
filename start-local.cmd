@@ -25,6 +25,11 @@ if not exist "docker-compose.yml" (
 )
 
 where docker >nul 2>nul
+if errorlevel 1 if exist "%ProgramFiles%\Docker\Docker\resources\bin\docker.exe" (
+  set "PATH=%ProgramFiles%\Docker\Docker\resources\bin;%PATH%"
+)
+
+where docker >nul 2>nul
 if errorlevel 1 (
   echo [SETUP] Docker was not found. Attempting to install Docker Desktop...
   where winget >nul 2>nul
@@ -45,7 +50,9 @@ if errorlevel 1 (
 
 where docker >nul 2>nul
 if errorlevel 1 (
-  set "PATH=%ProgramFiles%\Docker\Docker\resources\bin;%PATH%"
+  echo [ERROR] Docker was installed but the command is not available yet.
+  echo Finish any Docker Desktop first-run setup and run start-local.cmd again.
+  exit /b 1
 )
 
 if /I "%ACTION%"=="stop" goto :stop
