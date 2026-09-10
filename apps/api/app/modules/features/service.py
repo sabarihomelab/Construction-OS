@@ -13,6 +13,7 @@ from app.modules.authorization.models import (
     Role,
     RolePermission,
 )
+from app.modules.configuration.models import OrganizationConfigurationState
 from app.modules.events.service import enqueue_event
 from app.modules.features.models import OrganizationFeature
 from app.modules.features.registry import (
@@ -137,6 +138,11 @@ async def build_access_context(db: AsyncSession, membership_id: UUID) -> AccessC
             OrganizationAuthorizationState.organization_id == membership.organization_id
         )
     )
+    configuration_revision = await db.scalar(
+        select(OrganizationConfigurationState.revision).where(
+            OrganizationConfigurationState.organization_id == membership.organization_id
+        )
+    )
 
     visible_features = resolve_visible_features(feature_permissions, overrides)
 
@@ -144,6 +150,7 @@ async def build_access_context(db: AsyncSession, membership_id: UUID) -> AccessC
         organization_id=membership.organization_id,
         membership_id=membership.id,
         authorization_revision=authorization_revision or 1,
+        configuration_revision=configuration_revision or 1,
         permissions=sorted(organization_permissions),
         scopes={"project": sorted(project_scope)},
         project_permissions={
@@ -189,9 +196,14 @@ async def set_feature_override(
         raise ValueError("Retired features cannot be enabled")
 
     row = await db.get(OrganizationFeature, (organization_id, feature_key))
+    existing_configuration = dict(row.configuration) if row is not None else {}
+    if configuration is not None and configuration != existing_configuration:
+        raise ValueError(
+            "Feature business configuration must use the registered configuration service"
+        )
+
     previous = {
         "enabled": row.enabled if row is not None else feature.enabled_by_default,
-        "configuration": dict(row.configuration) if row is not None else {},
         "version": row.version if row is not None else None,
     }
 
@@ -200,14 +212,12 @@ async def set_feature_override(
             organization_id=organization_id,
             feature_key=feature_key,
             enabled=enabled,
-            configuration=configuration or {},
+            configuration={},
             updated_by_user_id=actor_user_id,
         )
         db.add(row)
     else:
         row.enabled = enabled
-        if configuration is not None:
-            row.configuration = configuration
         row.version += 1
         row.updated_by_user_id = actor_user_id
 
@@ -222,7 +232,7 @@ async def set_feature_override(
     await record_audit_event(
         db,
         organization_id=organization_id,
-        action="feature.configuration.changed",
+        action="feature.enablement.changed",
         target_type="feature",
         target_id=feature_key,
         actor_type=AuditActorType.USER if actor_user_id is not None else AuditActorType.SYSTEM,
@@ -235,11 +245,13 @@ async def set_feature_override(
             "before": previous,
             "after": {
                 "enabled": row.enabled,
-                "configuration": row.configuration,
                 "version": row.version,
             },
         },
-        metadata={"release_state": feature.release_state.value},
+        metadata={
+            "release_state": feature.release_state.value,
+            "legacy_configuration_preserved": bool(existing_configuration),
+        },
     )
     await enqueue_event(
         db,
