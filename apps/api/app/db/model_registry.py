@@ -189,10 +189,10 @@ from app.modules.workforce.models import (
 
 __all__ = [
     "BOQ",
-    "BOQItem",
-    "BOQRevision",
     "RFI",
     "AuditEvent",
+    "BOQItem",
+    "BOQRevision",
     "BackgroundJob",
     "BackgroundJobAttempt",
     "ClientDevice",
