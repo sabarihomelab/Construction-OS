@@ -44,6 +44,7 @@ from app.modules.drawings.models import (
     DrawingSheet,
 )
 from app.modules.equipment import consumption_models as material_consumption_models  # noqa: F401
+from app.modules.equipment import usage_models as equipment_usage_models  # noqa: F401
 from app.modules.equipment.models import (
     EquipmentAsset,
     EquipmentMaintenance,
