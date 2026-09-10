@@ -24,6 +24,7 @@ from app.modules.governance.models import (
     LegalHold,
     LifecycleRun,
 )
+from app.modules.help.models import TenantKnowledgeChunk, TenantKnowledgeSource
 from app.modules.identity.models import OrganizationMembership, User, UserPreference
 from app.modules.integrations.models import (
     ExternalRecordMapping,
@@ -143,6 +144,8 @@ __all__ = [
     "StorageObject",
     "SyncConflict",
     "SyncMutationReceipt",
+    "TenantKnowledgeChunk",
+    "TenantKnowledgeSource",
     "UploadSession",
     "User",
     "UserPreference",
