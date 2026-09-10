@@ -188,9 +188,9 @@ class ProjectWorkerAssignmentRead(BaseModel):
 
 class TimeEntryWrite(BaseModel):
     work_date: date
-    regular_hours: Decimal = Field(default=Decimal("0"), ge=0, le=24)
-    overtime_hours: Decimal = Field(default=Decimal("0"), ge=0, le=24)
-    double_time_hours: Decimal = Field(default=Decimal("0"), ge=0, le=24)
+    regular_hours: Decimal = Field(default=Decimal(0), ge=0, le=24)
+    overtime_hours: Decimal = Field(default=Decimal(0), ge=0, le=24)
+    double_time_hours: Decimal = Field(default=Decimal(0), ge=0, le=24)
     cost_code: str | None = Field(default=None, max_length=80)
     location: str | None = Field(default=None, max_length=255)
     work_description: str | None = Field(default=None, max_length=4000)
@@ -200,7 +200,7 @@ class TimeEntryWrite(BaseModel):
     @model_validator(mode="after")
     def validate_total_hours(self) -> "TimeEntryWrite":
         total = self.regular_hours + self.overtime_hours + self.double_time_hours
-        if total > Decimal("24"):
+        if total > Decimal(24):
             raise ValueError("total daily hours cannot exceed 24")
         return self
 
