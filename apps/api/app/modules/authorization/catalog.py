@@ -60,6 +60,13 @@ PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
     PermissionSpec(key="documents.document.create", module="documents", resource="document", action="create", description="Create managed documents and draft revisions within the authorized project scope.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="documents.document.publish", module="documents", resource="document", action="publish", description="Publish and supersede controlled document revisions within the authorized project scope.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="documents.document.manage", module="documents", resource="document", action="manage", description="Manage document folders, metadata, specifications, archival and document control.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="drawings.drawing.view", module="drawings", resource="drawing", action="view", description="View drawing sets, sheets and published revisions within the authorized project scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="drawings.drawing.revise", module="drawings", resource="drawing", action="revise", description="Create sheets and drawing revisions within the authorized project scope.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="drawings.drawing.publish", module="drawings", resource="drawing", action="publish", description="Publish or supersede controlled drawing revisions.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="drawings.markup.manage", module="drawings", resource="markup", action="manage", description="Create, update and retire drawing markups.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="drawings.measurement.manage", module="drawings", resource="measurement", action="manage", description="Create calibrations and authoritative drawing measurements.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="drawings.comparison.run", module="drawings", resource="comparison", action="run", description="Run drawing revision comparisons and overlays.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="drawings.drawing.manage", module="drawings", resource="drawing", action="manage", description="Manage drawing sets, processing, archival and drawing configuration.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="field.daily_log.view", module="field", resource="daily_log", action="view", description="View daily logs within the authorized scope.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="finance.budget.view", module="finance", resource="budget", action="view", description="View project budget information within the authorized scope.", risk=PermissionRisk.HIGH),
 )
