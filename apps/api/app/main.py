@@ -5,6 +5,7 @@ from app.core.config import get_settings
 from app.modules.configuration.router import router as configuration_router
 from app.modules.events.router import router as realtime_router
 from app.modules.health.router import router as health_router
+from app.modules.help.router import router as help_router
 from app.modules.offline.router import router as offline_router
 from app.modules.sessions.router import router as session_router
 from app.runtime.bootstrap import mount_runtime_routers, register_runtime_search_providers
@@ -16,7 +17,7 @@ def create_app() -> FastAPI:
     runtime_plan = build_runtime_plan(settings)
     register_runtime_search_providers(runtime_plan)
 
-    application = FastAPI(title=settings.app_name, version="0.11.0")
+    application = FastAPI(title=settings.app_name, version="0.12.0")
     application.state.runtime_plan = runtime_plan
 
     application.add_middleware(
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
     application.include_router(realtime_router, prefix="/api/v1")
     application.include_router(offline_router, prefix="/api/v1")
     application.include_router(configuration_router, prefix="/api/v1")
+    application.include_router(help_router, prefix="/api/v1")
     mount_runtime_routers(application, runtime_plan)
     return application
 
