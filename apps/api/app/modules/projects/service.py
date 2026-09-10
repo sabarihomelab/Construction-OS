@@ -83,9 +83,12 @@ async def create_project(
         data["currency_code"] = str(data["currency_code"]).upper()
     if data.get("country_code"):
         data["country_code"] = str(data["country_code"]).upper()
-    if data.get("target_completion_date") and data.get("start_date"):
-        if data["target_completion_date"] < data["start_date"]:
-            raise ProjectValidationError("Target completion date cannot be before start date")
+    if (
+        data.get("target_completion_date")
+        and data.get("start_date")
+        and data["target_completion_date"] < data["start_date"]
+    ):
+        raise ProjectValidationError("Target completion date cannot be before start date")
 
     project = Project(organization_id=organization_id, **data)
     db.add(project)
@@ -195,9 +198,12 @@ async def update_project(
             value = value.upper()
         setattr(project, key, value)
 
-    if project.target_completion_date and project.start_date:
-        if project.target_completion_date < project.start_date:
-            raise ProjectValidationError("Target completion date cannot be before start date")
+    if (
+        project.target_completion_date
+        and project.start_date
+        and project.target_completion_date < project.start_date
+    ):
+        raise ProjectValidationError("Target completion date cannot be before start date")
 
     project.revision += 1
     await db.flush()
