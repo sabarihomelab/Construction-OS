@@ -11,22 +11,28 @@ from app.modules.rfis.router import router as rfis_router
 from app.modules.sessions.router import router as session_router
 from app.modules.submittals.router import router as submittals_router
 
-settings = get_settings()
-app = FastAPI(title=settings.app_name, version="0.9.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.web_origin],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def create_app() -> FastAPI:
+    settings = get_settings()
+    application = FastAPI(title=settings.app_name, version="0.9.0")
 
-app.include_router(health_router)
-app.include_router(session_router, prefix="/api/v1")
-app.include_router(realtime_router, prefix="/api/v1")
-app.include_router(offline_router, prefix="/api/v1")
-app.include_router(configuration_router, prefix="/api/v1")
-app.include_router(projects_router, prefix="/api/v1")
-app.include_router(rfis_router, prefix="/api/v1")
-app.include_router(submittals_router, prefix="/api/v1")
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=[settings.web_origin],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    application.include_router(health_router)
+    application.include_router(session_router, prefix="/api/v1")
+    application.include_router(realtime_router, prefix="/api/v1")
+    application.include_router(offline_router, prefix="/api/v1")
+    application.include_router(configuration_router, prefix="/api/v1")
+    application.include_router(projects_router, prefix="/api/v1")
+    application.include_router(rfis_router, prefix="/api/v1")
+    application.include_router(submittals_router, prefix="/api/v1")
+    return application
+
+
+app = create_app()
