@@ -66,7 +66,7 @@ class DrawingRendererRegistry:
     def default(self) -> DrawingRenderer:
         if not self._renderers:
             raise RuntimeError("No drawing renderer has been configured")
-        return self._renderers[sorted(self._renderers)[0]]
+        return self._renderers[min(self._renderers)]
 
 
 drawing_renderers = DrawingRendererRegistry()
