@@ -62,6 +62,7 @@ class Role(UUIDTimestampMixin, Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
 
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_roles_id_org"),
         Index(
             "uq_roles_org_key",
             "organization_id",
