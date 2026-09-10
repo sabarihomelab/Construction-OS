@@ -103,6 +103,14 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
         api_router="app.modules.commercial.router:router",
         search_provider_module="app.modules.commercial.search",
     ),
+    ModuleManifest(
+        key="estimating",
+        name="Estimating / Rate Analysis / Budget",
+        dependencies=("commercial",),
+        integrates_with=("equipment", "workforce"),
+        api_router="app.modules.estimating.router:router",
+        search_provider_module="app.modules.estimating.search",
+    ),
 )
 
 MODULES_BY_KEY = {manifest.key: manifest for manifest in MODULE_MANIFESTS}
