@@ -59,7 +59,7 @@ class ProjectRead(BaseModel):
     description: str | None
     status: ProjectStatus
     revision: int
-    configuration_template_version_id: UUID | None
+    configuration_template_version_id: UUID | None = None
     timezone: str | None
     currency_code: str | None
     unit_system: str | None
