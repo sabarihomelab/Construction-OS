@@ -15,8 +15,8 @@ from app.modules.drawings.models import (
 )
 from app.modules.drawings.renderer import (
     DrawingComparisonRequest,
-    DrawingRenderRequest,
     DrawingRendererRegistry,
+    DrawingRenderRequest,
 )
 from app.modules.events.service import enqueue_event
 from app.modules.files.models import FileVersion, StorageObject
