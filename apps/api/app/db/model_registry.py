@@ -18,6 +18,12 @@ from app.modules.files.models import (
     StorageObject,
     UploadSession,
 )
+from app.modules.governance.models import (
+    DataLifecyclePolicy,
+    DataLifecyclePolicyVersion,
+    LegalHold,
+    LifecycleRun,
+)
 from app.modules.identity.models import OrganizationMembership, User, UserPreference
 from app.modules.integrations.models import (
     ExternalRecordMapping,
@@ -93,6 +99,8 @@ __all__ = [
     "DashboardDefinition",
     "DataExportManifestItem",
     "DataExportRequest",
+    "DataLifecyclePolicy",
+    "DataLifecyclePolicyVersion",
     "DeviceSyncState",
     "ExternalRecordMapping",
     "FileAsset",
@@ -101,6 +109,8 @@ __all__ = [
     "FileVersion",
     "IngestionBatch",
     "IntegrationConnector",
+    "LegalHold",
+    "LifecycleRun",
     "MembershipRole",
     "Notification",
     "NotificationDelivery",
