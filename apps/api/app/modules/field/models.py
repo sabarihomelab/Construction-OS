@@ -68,6 +68,12 @@ class DailyReport(UUIDTimestampMixin, Base):
             name="fk_daily_reports_preparer_project_member_org",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["workflow_instance_id", "organization_id"],
+            ["workflow_instances.id", "workflow_instances.organization_id"],
+            name="fk_daily_reports_workflow_org",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint("id", "organization_id", name="uq_daily_reports_id_org"),
         UniqueConstraint(
             "project_id",
