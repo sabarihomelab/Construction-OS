@@ -95,6 +95,14 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
         api_router="app.modules.meetings.router:router",
         search_provider_module="app.modules.meetings.search",
     ),
+    ModuleManifest(
+        key="commercial",
+        name="Commercial Controls",
+        dependencies=("projects",),
+        integrates_with=("field", "workforce", "equipment", "documents", "drawings"),
+        api_router="app.modules.commercial.router:router",
+        search_provider_module="app.modules.commercial.search",
+    ),
 )
 
 MODULES_BY_KEY = {manifest.key: manifest for manifest in MODULE_MANIFESTS}
