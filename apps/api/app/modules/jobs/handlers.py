@@ -14,6 +14,8 @@ class JobHandlerSpec:
     handler: JobHandler
     timeout_seconds: int = 300
     lease_seconds: int = 60
+    profile: str = "general"
+    module_key: str | None = None
 
 
 class JobHandlerRegistry:
@@ -27,8 +29,12 @@ class JobHandlerRegistry:
         *,
         timeout_seconds: int = 300,
         lease_seconds: int = 60,
+        profile: str = "general",
+        module_key: str | None = None,
     ) -> None:
         normalized = job_type.strip()
+        normalized_profile = profile.strip().lower()
+        normalized_module = module_key.strip().lower() if module_key else None
         if not normalized:
             raise ValueError("job_type is required")
         if normalized in self._handlers:
@@ -37,11 +43,15 @@ class JobHandlerRegistry:
             raise ValueError("timeout_seconds must be positive")
         if lease_seconds < 10:
             raise ValueError("lease_seconds must be at least 10")
+        if not normalized_profile:
+            raise ValueError("worker profile is required")
         self._handlers[normalized] = JobHandlerSpec(
             job_type=normalized,
             handler=handler,
             timeout_seconds=timeout_seconds,
             lease_seconds=lease_seconds,
+            profile=normalized_profile,
+            module_key=normalized_module,
         )
 
     def get(self, job_type: str) -> JobHandlerSpec:
@@ -55,6 +65,21 @@ class JobHandlerRegistry:
 
     def registered_job_types(self) -> tuple[str, ...]:
         return tuple(sorted(self._handlers))
+
+    def enabled_job_types(
+        self,
+        *,
+        worker_profiles: set[str] | frozenset[str],
+        module_keys: set[str] | frozenset[str],
+    ) -> tuple[str, ...]:
+        return tuple(
+            sorted(
+                spec.job_type
+                for spec in self._handlers.values()
+                if spec.profile in worker_profiles
+                and (spec.module_key is None or spec.module_key in module_keys)
+            )
+        )
 
 
 job_handlers = JobHandlerRegistry()
