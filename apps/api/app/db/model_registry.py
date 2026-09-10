@@ -6,6 +6,14 @@ from app.modules.authorization.models import (
     Role,
     RolePermission,
 )
+from app.modules.configuration.models import (
+    ConfigurationScopeRevision,
+    ConfigurationValue,
+    ConfigurationValueVersion,
+    MembershipPreference,
+    MembershipPreferenceState,
+    OrganizationConfigurationState,
+)
 from app.modules.documents.models import (
     Document,
     DocumentFolder,
@@ -131,8 +139,11 @@ __all__ = [
     "BackgroundJobAttempt",
     "ClientDevice",
     "ConfigurationHealthCheck",
+    "ConfigurationScopeRevision",
     "ConfigurationTemplate",
     "ConfigurationTemplateVersion",
+    "ConfigurationValue",
+    "ConfigurationValueVersion",
     "CustomFieldDefinition",
     "CustomFieldDefinitionRevision",
     "CustomFieldOption",
@@ -167,6 +178,8 @@ __all__ = [
     "LifecycleRun",
     "MappingProfile",
     "MappingProfileVersion",
+    "MembershipPreference",
+    "MembershipPreferenceState",
     "MembershipRole",
     "Notification",
     "NotificationDelivery",
@@ -180,6 +193,7 @@ __all__ = [
     "OperationsRetentionPolicy",
     "Organization",
     "OrganizationAuthorizationState",
+    "OrganizationConfigurationState",
     "OrganizationFeature",
     "OrganizationMembership",
     "OrganizationSettings",
