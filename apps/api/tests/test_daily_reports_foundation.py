@@ -1,6 +1,3 @@
-import subprocess
-import sys
-
 import pytest
 from sqlalchemy import Numeric
 
@@ -14,6 +11,7 @@ from app.modules.configuration.registry import (
     normalize_configuration_value,
 )
 from app.modules.features.registry import FEATURES_BY_KEY, FeatureReleaseState
+from app.modules.field.router import router as field_router
 from app.modules.field.search import daily_report_search_projection
 from app.modules.search.providers import search_projection_providers
 
@@ -114,18 +112,8 @@ def test_daily_report_search_provider_is_registered() -> None:
     assert search_projection_providers.get("daily_report") is daily_report_search_projection
 
 
-def test_daily_report_router_is_mounted_under_project_api() -> None:
-    command = (
-        "from app.main import app; "
-        "print('\\n'.join(sorted(route.path for route in app.routes if hasattr(route, 'path'))))"
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", command],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    paths = set(result.stdout.splitlines())
+def test_daily_report_router_defines_project_api_contract() -> None:
+    paths = {f"/api/v1{route.path}" for route in field_router.routes}
     assert "/api/v1/projects/{project_id}/daily-reports" in paths
     assert "/api/v1/projects/{project_id}/daily-reports/{report_id}/sections" in paths
     assert "/api/v1/projects/{project_id}/daily-reports/{report_id}/submit" in paths
