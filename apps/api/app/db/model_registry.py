@@ -19,6 +19,12 @@ from app.modules.files.models import (
     UploadSession,
 )
 from app.modules.identity.models import OrganizationMembership, User, UserPreference
+from app.modules.integrations.models import (
+    ExternalRecordMapping,
+    IngestionBatch,
+    IntegrationConnector,
+    StagedExternalRecord,
+)
 from app.modules.jobs.models import BackgroundJob, BackgroundJobAttempt
 from app.modules.metadata.models import (
     CustomFieldDefinition,
@@ -41,6 +47,13 @@ from app.modules.offline.models import (
     SyncMutationReceipt,
 )
 from app.modules.organizations.models import Organization, OrganizationSettings
+from app.modules.reporting.models import (
+    DashboardDefinition,
+    ReportDefinition,
+    ReportDefinitionVersion,
+    ReportRun,
+    SavedView,
+)
 from app.modules.search.models import SearchDocument
 from app.modules.sessions.models import Session
 from app.modules.setup.models import (
@@ -72,13 +85,17 @@ __all__ = [
     "CustomFieldDefinitionRevision",
     "CustomFieldOption",
     "CustomFieldValue",
+    "DashboardDefinition",
     "DataExportManifestItem",
     "DataExportRequest",
     "DeviceSyncState",
+    "ExternalRecordMapping",
     "FileAsset",
     "FileLink",
     "FileVariant",
     "FileVersion",
+    "IngestionBatch",
+    "IntegrationConnector",
     "MembershipRole",
     "Notification",
     "NotificationDelivery",
@@ -95,11 +112,16 @@ __all__ = [
     "OrganizationStorageUsage",
     "OutboxEvent",
     "Permission",
+    "ReportDefinition",
+    "ReportDefinitionVersion",
+    "ReportRun",
     "Role",
     "RolePermission",
+    "SavedView",
     "SearchDocument",
     "Session",
     "SetupRun",
+    "StagedExternalRecord",
     "StorageObject",
     "SyncConflict",
     "SyncMutationReceipt",
