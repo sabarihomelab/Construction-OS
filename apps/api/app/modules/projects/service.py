@@ -14,7 +14,6 @@ from app.modules.projects.models import (
     ProjectMembership,
     ProjectMembershipStatus,
     ProjectRoleAssignment,
-    ProjectStatus,
 )
 from app.modules.search.service import schedule_search_index
 
@@ -84,6 +83,9 @@ async def create_project(
         data["currency_code"] = str(data["currency_code"]).upper()
     if data.get("country_code"):
         data["country_code"] = str(data["country_code"]).upper()
+    if data.get("target_completion_date") and data.get("start_date"):
+        if data["target_completion_date"] < data["start_date"]:
+            raise ProjectValidationError("Target completion date cannot be before start date")
 
     project = Project(organization_id=organization_id, **data)
     db.add(project)
@@ -173,14 +175,20 @@ async def update_project(
     for key, value in changes.items():
         if key not in mutable:
             continue
-        if key == "number" and isinstance(value, str):
+        if key in {"number", "name"}:
+            if not isinstance(value, str) or not value.strip():
+                raise ProjectValidationError(f"Project {key} cannot be empty")
             value = value.strip()
-            if not value:
-                raise ProjectValidationError("Project number cannot be empty")
-        if key == "name" and isinstance(value, str):
-            value = value.strip()
-            if not value:
-                raise ProjectValidationError("Project name cannot be empty")
+        if key == "number" and value != project.number:
+            existing = await db.scalar(
+                select(Project.id).where(
+                    Project.organization_id == organization_id,
+                    Project.number == value,
+                    Project.id != project.id,
+                )
+            )
+            if existing is not None:
+                raise ProjectConflictError("Project number already exists in this company")
         if key == "currency_code" and isinstance(value, str):
             value = value.upper()
         if key == "country_code" and isinstance(value, str):
@@ -261,23 +269,33 @@ async def add_project_member(
     if membership is None:
         raise ProjectValidationError("An active company membership is required")
 
+    normalized_title = title.strip() if title and title.strip() else None
     row = await db.scalar(
         select(ProjectMembership).where(
             ProjectMembership.project_id == project_id,
             ProjectMembership.organization_membership_id == organization_membership_id,
         )
     )
+    changed = False
     if row is None:
         row = ProjectMembership(
             organization_id=organization_id,
             project_id=project_id,
             organization_membership_id=organization_membership_id,
-            title=title.strip() if title else None,
+            title=normalized_title,
         )
         db.add(row)
+        changed = True
     else:
-        row.status = ProjectMembershipStatus.ACTIVE
-        row.title = title.strip() if title else row.title
+        if row.status != ProjectMembershipStatus.ACTIVE:
+            row.status = ProjectMembershipStatus.ACTIVE
+            changed = True
+        if normalized_title is not None and row.title != normalized_title:
+            row.title = normalized_title
+            changed = True
+
+    if not changed:
+        return row
 
     revision = await _bump_authorization_revision(db, organization_id)
     await record_audit_event(
@@ -349,13 +367,15 @@ async def assign_project_role(
             ProjectRoleAssignment.role_id == role_id,
         )
     )
-    if assignment is None:
-        assignment = ProjectRoleAssignment(
-            organization_id=organization_id,
-            project_membership_id=project_membership_id,
-            role_id=role_id,
-        )
-        db.add(assignment)
+    if assignment is not None:
+        return assignment
+
+    assignment = ProjectRoleAssignment(
+        organization_id=organization_id,
+        project_membership_id=project_membership_id,
+        role_id=role_id,
+    )
+    db.add(assignment)
 
     revision = await _bump_authorization_revision(db, organization_id)
     await record_audit_event(
@@ -408,6 +428,8 @@ async def set_project_membership_status(
     )
     if membership is None:
         raise ProjectValidationError("Project membership was not found")
+    if membership.status == status:
+        return membership
 
     previous = membership.status
     membership.status = status
