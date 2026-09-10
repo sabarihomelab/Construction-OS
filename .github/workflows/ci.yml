@@ -43,7 +43,12 @@ jobs:
       - name: Validate Compose configuration
         run: docker compose config --quiet
       - name: Start complete local stack
-        run: docker compose up -d --build
+        run: |
+          if ! docker compose up -d --build; then
+            docker compose ps -a
+            docker compose logs --tail=200 postgres api web
+            exit 1
+          fi
       - name: Wait for API
         run: |
           for attempt in $(seq 1 60); do
@@ -52,8 +57,8 @@ jobs:
             fi
             sleep 2
           done
-          docker compose ps
-          docker compose logs api
+          docker compose ps -a
+          docker compose logs --tail=200 api
           exit 1
       - name: Wait for web
         run: |
@@ -63,8 +68,8 @@ jobs:
             fi
             sleep 2
           done
-          docker compose ps
-          docker compose logs web
+          docker compose ps -a
+          docker compose logs --tail=200 web
           exit 1
       - name: Show local stack status
         run: docker compose ps
