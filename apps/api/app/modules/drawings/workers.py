@@ -10,6 +10,8 @@ from app.modules.drawings.models import (
     DrawingRenderPackage,
     DrawingRevision,
     DrawingRevisionStatus,
+    DrawingSet,
+    DrawingSheet,
 )
 from app.modules.drawings.renderer import (
     DrawingComparisonRequest,
@@ -36,6 +38,26 @@ def _uuid(job: BackgroundJob, key: str) -> UUID:
         raise DrawingWorkerError(f"Drawing job contains invalid {key}") from exc
 
 
+async def _project_id_for_revision(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    revision: DrawingRevision,
+) -> UUID:
+    project_id = await db.scalar(
+        select(DrawingSet.project_id)
+        .join(DrawingSheet, DrawingSheet.drawing_set_id == DrawingSet.id)
+        .where(
+            DrawingSheet.id == revision.sheet_id,
+            DrawingSheet.organization_id == organization_id,
+            DrawingSet.organization_id == organization_id,
+        )
+    )
+    if project_id is None:
+        raise DrawingWorkerError("Drawing revision project was not found")
+    return project_id
+
+
 def register_drawing_handlers(
     jobs: JobHandlerRegistry,
     renderers: DrawingRendererRegistry,
@@ -52,6 +74,11 @@ def register_drawing_handlers(
         )
         if revision is None:
             raise DrawingWorkerError("Drawing revision was not found")
+        project_id = await _project_id_for_revision(
+            db,
+            organization_id=job.organization_id,
+            revision=revision,
+        )
 
         file_version = await db.scalar(
             select(FileVersion).where(
@@ -70,7 +97,9 @@ def register_drawing_handlers(
         if storage_object is None:
             raise DrawingWorkerError("Drawing source storage object was not found")
 
-        renderer = renderers.get(revision.renderer_key) if revision.renderer_key else renderers.default()
+        renderer = (
+            renderers.get(revision.renderer_key) if revision.renderer_key else renderers.default()
+        )
         revision.status = DrawingRevisionStatus.PROCESSING
         await db.flush()
         try:
@@ -118,6 +147,8 @@ def register_drawing_handlers(
             entity_id=revision.id,
             entity_version=revision.render_version,
             required_permission_key="drawings.drawing.view",
+            scope_type="project",
+            scope_id=project_id,
             payload={"render_version": revision.render_version},
         )
         return {"drawing_revision_id": str(revision.id), "render_version": revision.render_version}
@@ -135,10 +166,22 @@ def register_drawing_handlers(
         if comparison is None:
             raise DrawingWorkerError("Drawing comparison was not found")
 
-        base_revision = await db.get(DrawingRevision, comparison.base_revision_id)
-        compare_revision = await db.get(DrawingRevision, comparison.compare_revision_id)
+        base_revision = await db.scalar(
+            select(DrawingRevision).where(
+                DrawingRevision.id == comparison.base_revision_id,
+                DrawingRevision.organization_id == job.organization_id,
+            )
+        )
+        compare_revision = await db.scalar(
+            select(DrawingRevision).where(
+                DrawingRevision.id == comparison.compare_revision_id,
+                DrawingRevision.organization_id == job.organization_id,
+            )
+        )
         if base_revision is None or compare_revision is None:
             raise DrawingWorkerError("Drawing comparison revision was not found")
+        if base_revision.sheet_id != compare_revision.sheet_id:
+            raise DrawingWorkerError("Drawing comparison revisions must belong to the same sheet")
 
         base_package = await db.scalar(
             select(DrawingRenderPackage).where(
@@ -182,6 +225,16 @@ def register_drawing_handlers(
         return {"comparison_id": str(comparison.id), "status": comparison.status.value}
 
     if not jobs.contains("drawings.process_revision"):
-        jobs.register("drawings.process_revision", process_revision, timeout_seconds=900, lease_seconds=120)
+        jobs.register(
+            "drawings.process_revision",
+            process_revision,
+            timeout_seconds=900,
+            lease_seconds=120,
+        )
     if not jobs.contains("drawings.compare_revisions"):
-        jobs.register("drawings.compare_revisions", compare_revisions, timeout_seconds=900, lease_seconds=120)
+        jobs.register(
+            "drawings.compare_revisions",
+            compare_revisions,
+            timeout_seconds=900,
+            lease_seconds=120,
+        )
