@@ -26,6 +26,12 @@ from app.modules.governance.models import (
 )
 from app.modules.help.models import TenantKnowledgeChunk, TenantKnowledgeSource
 from app.modules.identity.models import OrganizationMembership, User, UserPreference
+from app.modules.integrations.mapping_models import (
+    IntegrationConflict,
+    MappingProfile,
+    MappingProfileVersion,
+    SyncCheckpoint,
+)
 from app.modules.integrations.models import (
     ExternalRecordMapping,
     IngestionBatch,
@@ -109,9 +115,12 @@ __all__ = [
     "FileVariant",
     "FileVersion",
     "IngestionBatch",
+    "IntegrationConflict",
     "IntegrationConnector",
     "LegalHold",
     "LifecycleRun",
+    "MappingProfile",
+    "MappingProfileVersion",
     "MembershipRole",
     "Notification",
     "NotificationDelivery",
@@ -142,6 +151,7 @@ __all__ = [
     "SetupRun",
     "StagedExternalRecord",
     "StorageObject",
+    "SyncCheckpoint",
     "SyncConflict",
     "SyncMutationReceipt",
     "TenantKnowledgeChunk",
