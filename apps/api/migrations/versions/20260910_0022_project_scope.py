@@ -25,11 +25,8 @@ _PROJECT_PERMISSIONS = (
 
 
 def upgrade() -> None:
-    op.create_unique_constraint(
-        "uq_organization_memberships_id_org",
-        "organization_memberships",
-        ["id", "organization_id"],
-    )
+    # organization_memberships already has the tenant-safe (id, organization_id)
+    # constraint from the Notifications foundation migration (0011).
     op.create_unique_constraint("uq_roles_id_org", "roles", ["id", "organization_id"])
 
     op.create_table(
@@ -188,4 +185,3 @@ def downgrade() -> None:
     op.drop_table("project_memberships")
     op.drop_table("projects")
     op.drop_constraint("uq_roles_id_org", "roles", type_="unique")
-    op.drop_constraint("uq_organization_memberships_id_org", "organization_memberships", type_="unique")
