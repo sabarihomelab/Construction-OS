@@ -104,6 +104,7 @@ class WorkflowVersion(UUIDTimestampMixin, Base):
         UniqueConstraint(
             "definition_id", "version", name="uq_workflow_versions_definition_version"
         ),
+        UniqueConstraint("id", "organization_id", name="uq_workflow_versions_id_org"),
         UniqueConstraint(
             "id",
             "organization_id",
@@ -291,6 +292,9 @@ class WorkflowTransitionRequest(UUIDTimestampMixin, Base):
             ["workflow_instances.id", "workflow_instances.organization_id"],
             name="fk_workflow_transition_requests_instance_org",
             ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "id", "organization_id", name="uq_workflow_transition_requests_id_org"
         ),
         CheckConstraint(
             "expected_instance_version >= 1",
