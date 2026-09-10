@@ -53,4 +53,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     keys = ",".join(f"'{key}'" for key, *_ in _PERMISSIONS)
-    op.execute(f"DELETE FROM permissions WHERE key IN ({keys})")  # noqa: S608
+    op.execute(f"DELETE FROM permissions WHERE key IN ({keys})")
