@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.rfis.models import RFI, RFIResponse, RFIResponseStatus
+from app.modules.search.providers import search_projection_providers
 from app.modules.search.schemas import SearchProjection
 
 
@@ -58,3 +59,7 @@ async def rfi_search_projection(
         route_hint=f"/projects/{rfi.project_id}/rfis/{rfi.id}",
         source_updated_at=rfi.updated_at,
     )
+
+
+if not search_projection_providers.contains("rfi"):
+    search_projection_providers.register("rfi", rfi_search_projection)
