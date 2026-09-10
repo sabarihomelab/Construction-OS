@@ -109,7 +109,7 @@ def test_project_worker_rates_are_decimal_effective_dated_and_nonnegative() -> N
     with pytest.raises(ValidationError):
         ProjectWorkerRateCreate(
             wage_basis="daily",
-            regular_rate=Decimal("-1"),
+            regular_rate=Decimal(-1),
             effective_from="2026-09-11",
         )
 
