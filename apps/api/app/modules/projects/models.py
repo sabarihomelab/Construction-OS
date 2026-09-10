@@ -42,6 +42,15 @@ def enum_values(enum_class: type[StrEnum]) -> list[str]:
 class Project(UUIDTimestampMixin, Base):
     __tablename__ = "projects"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["configuration_template_version_id", "organization_id"],
+            [
+                "configuration_template_versions.id",
+                "configuration_template_versions.organization_id",
+            ],
+            name="fk_projects_configuration_template_version_org",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint("organization_id", "number", name="uq_projects_org_number"),
         UniqueConstraint("id", "organization_id", name="uq_projects_id_org"),
         CheckConstraint("revision >= 1", name="ck_projects_revision"),
@@ -59,6 +68,9 @@ class Project(UUIDTimestampMixin, Base):
         default=ProjectStatus.PLANNING,
     )
     revision: Mapped[int] = mapped_column(BigInteger, default=1)
+    configuration_template_version_id: Mapped[UUID | None] = mapped_column(
+        Uuid, nullable=True, index=True
+    )
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     currency_code: Mapped[str | None] = mapped_column(String(3), nullable=True)
     unit_system: Mapped[str | None] = mapped_column(String(16), nullable=True)
