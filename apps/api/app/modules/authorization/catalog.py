@@ -63,6 +63,22 @@ PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
         risk=PermissionRisk.HIGH,
     ),
     PermissionSpec(
+        key="admin.setup.view",
+        module="admin",
+        resource="setup",
+        action="view",
+        description="View guided setup, configuration templates, and configuration health.",
+        risk=PermissionRisk.MEDIUM,
+    ),
+    PermissionSpec(
+        key="admin.setup.manage",
+        module="admin",
+        resource="setup",
+        action="manage",
+        description="Create, publish, validate, and apply company configuration templates.",
+        risk=PermissionRisk.HIGH,
+    ),
+    PermissionSpec(
         key="admin.custom_field.view",
         module="admin",
         resource="custom_field",
