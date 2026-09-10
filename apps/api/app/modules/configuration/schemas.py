@@ -48,7 +48,23 @@ class ConfigurationOverrideWrite(BaseModel):
 
 class MembershipPreferenceWrite(BaseModel):
     expected_version: int | None = Field(default=None, ge=1)
+    context_type: PreferenceContextType = PreferenceContextType.COMPANY
+    project_id: UUID | None = None
     value: object
+
+    @model_validator(mode="after")
+    def validate_context(self) -> "MembershipPreferenceWrite":
+        if self.context_type == PreferenceContextType.COMPANY and self.project_id is not None:
+            raise ValueError("Company preference cannot include a project")
+        if self.context_type == PreferenceContextType.PROJECT and self.project_id is None:
+            raise ValueError("Project preference requires project_id")
+        return self
+
+
+class ProjectTemplateAssignmentWrite(BaseModel):
+    expected_project_revision: int = Field(ge=1)
+    template_version_id: UUID | None = None
+    reason: str | None = Field(default=None, max_length=1000)
 
 
 class ResolvedConfigurationSetting(BaseModel):
