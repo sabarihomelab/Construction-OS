@@ -174,6 +174,18 @@ FEATURE_REGISTRY: tuple[FeatureSpec, ...] = (
         help_topic="commercial",
     ),
     FeatureSpec(
+        key="estimating",
+        name="Estimating / Rate Analysis / Budget",
+        kind=FeatureKind.MODULE,
+        route="/estimating",
+        required_permissions=("estimating.module.view",),
+        release_state=FeatureReleaseState.PLANNED,
+        sensitivity=FeatureSensitivity.HIGH,
+        display_order=320,
+        offline_enabled=True,
+        help_topic="estimating",
+    ),
+    FeatureSpec(
         key="financials",
         name="Financials",
         kind=FeatureKind.MODULE,
