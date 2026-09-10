@@ -17,25 +17,107 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 _WORKFORCE_PERMISSIONS = (
-    ("workforce.worker.view", "worker", "view", "View the company worker directory and permitted workforce details.", "medium"),
-    ("workforce.worker.manage", "worker", "manage", "Create, update, link, deactivate and terminate Worker records.", "high"),
-    ("workforce.crew.view", "crew", "view", "View company crews and crew membership.", "medium"),
-    ("workforce.crew.manage", "crew", "manage", "Create and manage crews and crew membership history.", "high"),
-    ("workforce.assignment.view", "assignment", "view", "View worker assignments within the authorized project scope.", "medium"),
-    ("workforce.assignment.manage", "assignment", "manage", "Assign, suspend and end workers within the authorized project scope.", "high"),
-    ("workforce.timecard.view", "timecard", "view", "View timecards and time entries within the authorized project scope.", "medium"),
-    ("workforce.timecard.create", "timecard", "create", "Create project timecards for actively assigned workers.", "medium"),
-    ("workforce.timecard.update", "timecard", "update", "Edit draft or rejected timecard entries.", "medium"),
-    ("workforce.timecard.submit", "timecard", "submit", "Submit timecards under effective project rules and workflow configuration.", "high"),
-    ("workforce.timecard.approve", "timecard", "approve", "Approve or reject timecards through the shared Workflow engine.", "high"),
-    ("workforce.timecard.manage", "timecard", "manage", "Perform controlled timecard administration and correction actions.", "high"),
+    (
+        "workforce.worker.view",
+        "worker",
+        "view",
+        "View the company worker directory and permitted workforce details.",
+        "medium",
+    ),
+    (
+        "workforce.worker.manage",
+        "worker",
+        "manage",
+        "Create, update, link, deactivate and terminate Worker records.",
+        "high",
+    ),
+    (
+        "workforce.crew.view",
+        "crew",
+        "view",
+        "View company crews and crew membership.",
+        "medium",
+    ),
+    (
+        "workforce.crew.manage",
+        "crew",
+        "manage",
+        "Create and manage crews and crew membership history.",
+        "high",
+    ),
+    (
+        "workforce.assignment.view",
+        "assignment",
+        "view",
+        "View worker assignments within the authorized project scope.",
+        "medium",
+    ),
+    (
+        "workforce.assignment.manage",
+        "assignment",
+        "manage",
+        "Assign, suspend and end workers within the authorized project scope.",
+        "high",
+    ),
+    (
+        "workforce.timecard.view",
+        "timecard",
+        "view",
+        "View timecards and time entries within the authorized project scope.",
+        "medium",
+    ),
+    (
+        "workforce.timecard.create",
+        "timecard",
+        "create",
+        "Create project timecards for actively assigned workers.",
+        "medium",
+    ),
+    (
+        "workforce.timecard.update",
+        "timecard",
+        "update",
+        "Edit draft or rejected timecard entries.",
+        "medium",
+    ),
+    (
+        "workforce.timecard.submit",
+        "timecard",
+        "submit",
+        "Submit timecards under effective project rules and workflow configuration.",
+        "high",
+    ),
+    (
+        "workforce.timecard.approve",
+        "timecard",
+        "approve",
+        "Approve or reject timecards through the shared Workflow engine.",
+        "high",
+    ),
+    (
+        "workforce.timecard.manage",
+        "timecard",
+        "manage",
+        "Perform controlled timecard administration and correction actions.",
+        "high",
+    ),
 )
 
 
 def _timestamps() -> list[sa.Column]:
     return [
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
     ]
 
 
@@ -56,7 +138,13 @@ def upgrade() -> None:
         sa.Column("termination_date", sa.Date(), nullable=True),
         sa.Column(
             "status",
-            sa.Enum("active", "inactive", "terminated", name="employmentstatus", native_enum=False),
+            sa.Enum(
+                "active",
+                "inactive",
+                "terminated",
+                name="employmentstatus",
+                native_enum=False,
+            ),
             nullable=False,
             server_default="active",
         ),
@@ -66,7 +154,10 @@ def upgrade() -> None:
         *_timestamps(),
         sa.CheckConstraint("revision >= 1", name="ck_workers_revision"),
         sa.ForeignKeyConstraint(
-            ["organization_id"], ["organizations.id"], name="fk_workers_organization", ondelete="CASCADE"
+            ["organization_id"],
+            ["organizations.id"],
+            name="fk_workers_organization",
+            ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
             ["organization_membership_id", "organization_id"],
@@ -78,13 +169,19 @@ def upgrade() -> None:
         sa.UniqueConstraint("organization_id", "worker_number", name="uq_workers_org_number"),
         sa.UniqueConstraint("id", "organization_id", name="uq_workers_id_org"),
         sa.UniqueConstraint(
-            "organization_id", "organization_membership_id", name="uq_workers_org_membership"
+            "organization_id",
+            "organization_membership_id",
+            name="uq_workers_org_membership",
         ),
     )
     op.create_index("ix_workers_organization_id", "workers", ["organization_id"])
     op.create_index("ix_workers_worker_number", "workers", ["worker_number"])
     op.create_index("ix_workers_org_status", "workers", ["organization_id", "status"])
-    op.create_index("ix_workers_org_name", "workers", ["organization_id", "last_name", "first_name"])
+    op.create_index(
+        "ix_workers_org_name",
+        "workers",
+        ["organization_id", "last_name", "first_name"],
+    )
 
     op.create_table(
         "crews",
@@ -103,7 +200,10 @@ def upgrade() -> None:
         *_timestamps(),
         sa.CheckConstraint("revision >= 1", name="ck_crews_revision"),
         sa.ForeignKeyConstraint(
-            ["organization_id"], ["organizations.id"], name="fk_crews_organization", ondelete="CASCADE"
+            ["organization_id"],
+            ["organizations.id"],
+            name="fk_crews_organization",
+            ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
             ["supervisor_worker_id", "organization_id"],
@@ -127,8 +227,10 @@ def upgrade() -> None:
         sa.Column("role", sa.String(length=120), nullable=True),
         sa.Column("effective_from", sa.Date(), nullable=False),
         sa.Column("effective_to", sa.Date(), nullable=True),
+        sa.Column("revision", sa.BigInteger(), nullable=False, server_default="1"),
         sa.Column("id", sa.Uuid(), nullable=False),
         *_timestamps(),
+        sa.CheckConstraint("revision >= 1", name="ck_crew_memberships_revision"),
         sa.CheckConstraint(
             "effective_to IS NULL OR effective_to >= effective_from",
             name="ck_crew_memberships_date_range",
@@ -147,14 +249,29 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name="pk_crew_memberships"),
         sa.UniqueConstraint(
-            "crew_id", "worker_id", "effective_from", name="uq_crew_memberships_crew_worker_start"
+            "crew_id",
+            "worker_id",
+            "effective_from",
+            name="uq_crew_memberships_crew_worker_start",
         ),
     )
-    op.create_index("ix_crew_memberships_organization_id", "crew_memberships", ["organization_id"])
+    op.create_index(
+        "ix_crew_memberships_organization_id",
+        "crew_memberships",
+        ["organization_id"],
+    )
     op.create_index("ix_crew_memberships_crew_id", "crew_memberships", ["crew_id"])
     op.create_index("ix_crew_memberships_worker_id", "crew_memberships", ["worker_id"])
-    op.create_index("ix_crew_memberships_worker", "crew_memberships", ["organization_id", "worker_id"])
-    op.create_index("ix_crew_memberships_crew", "crew_memberships", ["organization_id", "crew_id"])
+    op.create_index(
+        "ix_crew_memberships_worker",
+        "crew_memberships",
+        ["organization_id", "worker_id"],
+    )
+    op.create_index(
+        "ix_crew_memberships_crew",
+        "crew_memberships",
+        ["organization_id", "crew_id"],
+    )
 
     op.create_table(
         "project_worker_assignments",
@@ -164,7 +281,13 @@ def upgrade() -> None:
         sa.Column("crew_id", sa.Uuid(), nullable=True),
         sa.Column(
             "status",
-            sa.Enum("active", "suspended", "ended", name="projectworkerassignmentstatus", native_enum=False),
+            sa.Enum(
+                "active",
+                "suspended",
+                "ended",
+                name="projectworkerassignmentstatus",
+                native_enum=False,
+            ),
             nullable=False,
             server_default="active",
         ),
@@ -201,13 +324,37 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name="pk_project_worker_assignments"),
         sa.UniqueConstraint(
-            "project_id", "worker_id", name="uq_project_worker_assignments_project_worker"
+            "project_id",
+            "worker_id",
+            name="uq_project_worker_assignments_project_worker",
         ),
-        sa.UniqueConstraint("id", "organization_id", name="uq_project_worker_assignments_id_org"),
+        sa.UniqueConstraint(
+            "project_id",
+            "worker_id",
+            "organization_id",
+            name="uq_project_worker_assignments_project_worker_org",
+        ),
+        sa.UniqueConstraint(
+            "id",
+            "organization_id",
+            name="uq_project_worker_assignments_id_org",
+        ),
     )
-    op.create_index("ix_project_worker_assignments_organization_id", "project_worker_assignments", ["organization_id"])
-    op.create_index("ix_project_worker_assignments_project_id", "project_worker_assignments", ["project_id"])
-    op.create_index("ix_project_worker_assignments_worker_id", "project_worker_assignments", ["worker_id"])
+    op.create_index(
+        "ix_project_worker_assignments_organization_id",
+        "project_worker_assignments",
+        ["organization_id"],
+    )
+    op.create_index(
+        "ix_project_worker_assignments_project_id",
+        "project_worker_assignments",
+        ["project_id"],
+    )
+    op.create_index(
+        "ix_project_worker_assignments_worker_id",
+        "project_worker_assignments",
+        ["worker_id"],
+    )
     op.create_index(
         "ix_project_worker_assignments_project_status",
         "project_worker_assignments",
@@ -264,17 +411,33 @@ def upgrade() -> None:
             ondelete="RESTRICT",
         ),
         sa.ForeignKeyConstraint(
+            ["project_id", "worker_id", "organization_id"],
+            [
+                "project_worker_assignments.project_id",
+                "project_worker_assignments.worker_id",
+                "project_worker_assignments.organization_id",
+            ],
+            name="fk_timecards_project_worker_assignment_org",
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
             ["workflow_instance_id", "organization_id"],
             ["workflow_instances.id", "workflow_instances.organization_id"],
             name="fk_timecards_workflow_org",
             ondelete="RESTRICT",
         ),
         sa.ForeignKeyConstraint(
-            ["created_by_user_id"], ["users.id"], name="fk_timecards_creator", ondelete="SET NULL"
+            ["created_by_user_id"],
+            ["users.id"],
+            name="fk_timecards_creator",
+            ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name="pk_timecards"),
         sa.UniqueConstraint(
-            "project_id", "worker_id", "week_start", name="uq_timecards_project_worker_week"
+            "project_id",
+            "worker_id",
+            "week_start",
+            name="uq_timecards_project_worker_week",
         ),
         sa.UniqueConstraint("id", "organization_id", name="uq_timecards_id_org"),
     )
@@ -283,10 +446,14 @@ def upgrade() -> None:
     op.create_index("ix_timecards_worker_id", "timecards", ["worker_id"])
     op.create_index("ix_timecards_week_start", "timecards", ["week_start"])
     op.create_index("ix_timecards_project_week", "timecards", ["project_id", "week_start"])
-    op.create_index("ix_timecards_project_status", "timecards", ["project_id", "status", "week_start"])
+    op.create_index(
+        "ix_timecards_project_status",
+        "timecards",
+        ["project_id", "status", "week_start"],
+    )
 
     op.create_table(
-        "time_entries",
+        "workforce_time_entries",
         sa.Column("organization_id", sa.Uuid(), nullable=False),
         sa.Column("timecard_id", sa.Uuid(), nullable=False),
         sa.Column("work_date", sa.Date(), nullable=False),
@@ -300,25 +467,50 @@ def upgrade() -> None:
         sa.Column("source_id", sa.String(length=160), nullable=True),
         sa.Column("id", sa.Uuid(), nullable=False),
         *_timestamps(),
-        sa.CheckConstraint("regular_hours >= 0", name="ck_time_entries_regular_hours"),
-        sa.CheckConstraint("overtime_hours >= 0", name="ck_time_entries_overtime_hours"),
-        sa.CheckConstraint("double_time_hours >= 0", name="ck_time_entries_double_time_hours"),
+        sa.CheckConstraint(
+            "regular_hours >= 0",
+            name="ck_workforce_time_entries_regular_hours",
+        ),
+        sa.CheckConstraint(
+            "overtime_hours >= 0",
+            name="ck_workforce_time_entries_overtime_hours",
+        ),
+        sa.CheckConstraint(
+            "double_time_hours >= 0",
+            name="ck_workforce_time_entries_double_time_hours",
+        ),
         sa.CheckConstraint(
             "regular_hours + overtime_hours + double_time_hours <= 24",
-            name="ck_time_entries_daily_hours",
+            name="ck_workforce_time_entries_daily_hours",
         ),
         sa.ForeignKeyConstraint(
             ["timecard_id", "organization_id"],
             ["timecards.id", "timecards.organization_id"],
-            name="fk_time_entries_timecard_org",
+            name="fk_workforce_time_entries_timecard_org",
             ondelete="CASCADE",
         ),
-        sa.PrimaryKeyConstraint("id", name="pk_time_entries"),
+        sa.PrimaryKeyConstraint("id", name="pk_workforce_time_entries"),
     )
-    op.create_index("ix_time_entries_organization_id", "time_entries", ["organization_id"])
-    op.create_index("ix_time_entries_timecard_id", "time_entries", ["timecard_id"])
-    op.create_index("ix_time_entries_work_date", "time_entries", ["work_date"])
-    op.create_index("ix_time_entries_timecard_date", "time_entries", ["timecard_id", "work_date"])
+    op.create_index(
+        "ix_workforce_time_entries_organization_id",
+        "workforce_time_entries",
+        ["organization_id"],
+    )
+    op.create_index(
+        "ix_workforce_time_entries_timecard_id",
+        "workforce_time_entries",
+        ["timecard_id"],
+    )
+    op.create_index(
+        "ix_workforce_time_entries_work_date",
+        "workforce_time_entries",
+        ["work_date"],
+    )
+    op.create_index(
+        "ix_workforce_time_entries_timecard_date",
+        "workforce_time_entries",
+        ["timecard_id", "work_date"],
+    )
 
     op.create_table(
         "timecard_history_events",
@@ -357,12 +549,23 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["actor_user_id"], ["users.id"], name="fk_timecard_history_actor", ondelete="SET NULL"
+            ["actor_user_id"],
+            ["users.id"],
+            name="fk_timecard_history_actor",
+            ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name="pk_timecard_history_events"),
     )
-    op.create_index("ix_timecard_history_events_organization_id", "timecard_history_events", ["organization_id"])
-    op.create_index("ix_timecard_history_timecard", "timecard_history_events", ["timecard_id", "created_at"])
+    op.create_index(
+        "ix_timecard_history_events_organization_id",
+        "timecard_history_events",
+        ["organization_id"],
+    )
+    op.create_index(
+        "ix_timecard_history_timecard",
+        "timecard_history_events",
+        ["timecard_id", "created_at"],
+    )
 
     permissions = sa.table(
         "permissions",
@@ -392,14 +595,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    permissions = sa.table("permissions", sa.column("key", sa.String()))
+    keys = [key for key, *_ in _WORKFORCE_PERMISSIONS]
     op.execute(
-        permissions.delete().where(
-            permissions.c.key.in_([key for key, *_ in _WORKFORCE_PERMISSIONS])
+        sa.text("DELETE FROM role_permissions WHERE permission_key = ANY(:keys)").bindparams(
+            sa.bindparam("keys", value=keys, type_=postgresql.ARRAY(sa.String()))
         )
     )
+    permissions = sa.table("permissions", sa.column("key", sa.String()))
+    op.execute(permissions.delete().where(permissions.c.key.in_(keys)))
     op.drop_table("timecard_history_events")
-    op.drop_table("time_entries")
+    op.drop_table("workforce_time_entries")
     op.drop_table("timecards")
     op.drop_table("project_worker_assignments")
     op.drop_table("crew_memberships")
