@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.audit.models import AuditActorType, AuditRisk
 from app.modules.audit.service import record_audit_event
+from app.modules.commercial.models import Party
 from app.modules.events.service import enqueue_event
 from app.modules.workforce.models import (
     Crew,
@@ -127,9 +128,7 @@ async def end_crew_membership(
     if membership is None:
         raise WorkforceValidationError("Crew membership was not found")
     if membership.revision != expected_revision:
-        raise WorkforceConflictError(
-            "Crew membership changed; refresh before saving"
-        )
+        raise WorkforceConflictError("Crew membership changed; refresh before saving")
     if effective_to < membership.effective_from:
         raise WorkforceValidationError("Crew membership end date cannot be before its start date")
     if membership.effective_to == effective_to:
@@ -179,16 +178,18 @@ async def update_project_worker_assignment(
     if assignment is None:
         raise WorkforceValidationError("Project Worker assignment was not found")
     if assignment.revision != expected_revision:
-        raise WorkforceConflictError(
-            "Project Worker assignment changed; refresh before saving"
-        )
+        raise WorkforceConflictError("Project Worker assignment changed; refresh before saving")
 
     before = {
         "status": assignment.status.value,
         "crew_id": str(assignment.crew_id) if assignment.crew_id else None,
+        "employer_party_id": str(assignment.employer_party_id) if assignment.employer_party_id else None,
+        "engagement_type": assignment.engagement_type.value if assignment.engagement_type else None,
     }
     mutable = {
         "crew_id",
+        "employer_party_id",
+        "engagement_type",
         "project_role",
         "trade",
         "default_cost_code",
@@ -209,6 +210,15 @@ async def update_project_worker_assignment(
         )
         if crew is None or crew.status != CrewStatus.ACTIVE:
             raise WorkforceValidationError("Assigned crew must be active and belong to the company")
+    if assignment.employer_party_id is not None:
+        employer = await db.scalar(
+            select(Party.id).where(
+                Party.id == assignment.employer_party_id,
+                Party.organization_id == organization_id,
+            )
+        )
+        if employer is None:
+            raise WorkforceValidationError("Worker employer Party was not found")
     if assignment.start_date and assignment.end_date and assignment.end_date < assignment.start_date:
         raise WorkforceValidationError("Assignment end date cannot be before start date")
 
@@ -230,6 +240,8 @@ async def update_project_worker_assignment(
             "after": {
                 "status": assignment.status.value,
                 "crew_id": str(assignment.crew_id) if assignment.crew_id else None,
+                "employer_party_id": str(assignment.employer_party_id) if assignment.employer_party_id else None,
+                "engagement_type": assignment.engagement_type.value if assignment.engagement_type else None,
             },
         },
     )
