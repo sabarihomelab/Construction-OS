@@ -1,5 +1,6 @@
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -114,8 +115,6 @@ async def publish_report_version(
     )
     for active in current:
         active.status = ReportVersionStatus.RETIRED
-
-    from datetime import UTC, datetime
 
     version.status = ReportVersionStatus.ACTIVE
     version.published_at = datetime.now(UTC)
