@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     Enum,
+    ForeignKey,
     ForeignKeyConstraint,
     Index,
     Integer,
@@ -46,7 +47,12 @@ class MappingProfile(UUIDTimestampMixin, Base):
             name="fk_mapping_profiles_connector_org",
             ondelete="CASCADE",
         ),
-        UniqueConstraint("organization_id", "connector_id", "key", name="uq_mapping_profiles_connector_key"),
+        UniqueConstraint(
+            "organization_id",
+            "connector_id",
+            "key",
+            name="uq_mapping_profiles_connector_key",
+        ),
         UniqueConstraint("id", "organization_id", name="uq_mapping_profiles_id_org"),
         CheckConstraint("current_version >= 0", name="ck_mapping_profiles_current_version"),
     )
@@ -84,7 +90,9 @@ class MappingProfileVersion(UUIDTimestampMixin, Base):
     )
     mapping_spec: Mapped[dict[str, object]] = mapped_column(JSONB, default=dict)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    published_by_user_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    published_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
 
 class SyncCheckpoint(UUIDTimestampMixin, Base):
@@ -96,7 +104,12 @@ class SyncCheckpoint(UUIDTimestampMixin, Base):
             name="fk_sync_checkpoints_connector_org",
             ondelete="CASCADE",
         ),
-        UniqueConstraint("organization_id", "connector_id", "stream_key", name="uq_sync_checkpoints_stream"),
+        UniqueConstraint(
+            "organization_id",
+            "connector_id",
+            "stream_key",
+            name="uq_sync_checkpoints_stream",
+        ),
         CheckConstraint("revision >= 1", name="ck_sync_checkpoints_revision"),
     )
 
@@ -136,6 +149,8 @@ class IntegrationConflict(UUIDTimestampMixin, Base):
     source_values: Mapped[dict[str, object]] = mapped_column(JSONB, default=dict)
     internal_values: Mapped[dict[str, object]] = mapped_column(JSONB, default=dict)
     resolution: Mapped[dict[str, object]] = mapped_column(JSONB, default=dict)
-    resolved_by_user_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    resolved_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
