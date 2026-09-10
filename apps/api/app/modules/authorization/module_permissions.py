@@ -111,4 +111,10 @@ MODULE_PERMISSION_DEFINITIONS: tuple[ModulePermissionDefinition, ...] = (
     ModulePermissionDefinition("subcontracts.claim.submit", "subcontracts", "claim", "submit", "Submit progress claims for certification.", PermissionRisk.HIGH),
     ModulePermissionDefinition("subcontracts.claim.certify", "subcontracts", "claim", "certify", "Certify or reject progress claims.", PermissionRisk.CRITICAL),
     ModulePermissionDefinition("subcontracts.claim.payment", "subcontracts", "claim", "payment", "Record operational payment state for certified claims.", PermissionRisk.CRITICAL),
+    ModulePermissionDefinition("scheduling.module.view", "scheduling", "module", "view", "Access project scheduling.", PermissionRisk.MEDIUM),
+    ModulePermissionDefinition("scheduling.schedule.view", "scheduling", "schedule", "view", "View schedules, activities, baselines and progress.", PermissionRisk.MEDIUM),
+    ModulePermissionDefinition("scheduling.schedule.manage", "scheduling", "schedule", "manage", "Create and revise schedules, activities and dependencies.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("scheduling.baseline.create", "scheduling", "baseline", "create", "Create immutable project schedule baselines.", PermissionRisk.CRITICAL),
+    ModulePermissionDefinition("scheduling.progress.update", "scheduling", "progress", "update", "Record project schedule progress.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("scheduling.schedule.complete", "scheduling", "schedule", "complete", "Complete an active project schedule.", PermissionRisk.HIGH),
 )
