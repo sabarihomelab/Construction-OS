@@ -17,6 +17,9 @@ venv/
 .env.*.local
 !.env.example
 
+# Installation state and local backups
+.construction-os/
+
 # IDE / OS
 .vscode/
 .idea/
