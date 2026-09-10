@@ -40,6 +40,7 @@ from app.modules.offline.models import (
     SyncMutationReceipt,
 )
 from app.modules.organizations.models import Organization, OrganizationSettings
+from app.modules.search.models import SearchDocument
 from app.modules.sessions.models import Session
 from app.modules.workflows.models import (
     WorkflowApprovalTask,
@@ -84,6 +85,7 @@ __all__ = [
     "Permission",
     "Role",
     "RolePermission",
+    "SearchDocument",
     "Session",
     "StorageObject",
     "SyncConflict",
