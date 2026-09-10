@@ -90,6 +90,8 @@ Usable
 
 For example, an RFI can optionally reference a Drawing when Drawings is available, but a lightweight RFI deployment must not activate the drawing-rendering workload merely because that reference type exists.
 
+Managed installations persist an explicit module list. They do not persist `default`, because a future product release must not silently activate a newly introduced module for an existing customer.
+
 ## Schema/migration policy
 
 All supported product schemas remain on one controlled Alembic migration history. Construction OS does not maintain different customer migration chains according to selected modules.
@@ -131,23 +133,70 @@ Every business module declares:
 - heavy-runtime flag;
 - later, provider/storage/readiness requirements as necessary.
 
+The PowerShell installer reads this same manifest through the installer CLI. Setup must not maintain an independent hardcoded business-module catalog.
+
 This runtime manifest complements, and does not replace, the Feature Registry or Company Configuration registry.
 
-## Native Windows setup
+## Windows setup lifecycle
 
-`setup-local.ps1` remains the simple no-Docker developer/demo entry point. It supports:
+`setup.ps1` is the operator-facing setup and maintenance entry point. It distinguishes a first installation from an existing installation.
 
-- local database mode, which installs/starts PostgreSQL when needed;
-- external database mode, which uses the configured `DATABASE_URL` and does not manage PostgreSQL locally;
-- deployment profile selection;
-- runtime-module selection;
-- storage-provider selection;
-- worker-profile selection;
-- dependency installation and Alembic migration.
+A first installation collects or confirms:
 
-`start-local.ps1` follows the stored database mode. It starts the local PostgreSQL Windows service only for local database mode.
+- environment type and friendly environment name;
+- deployment profile;
+- local or external database mode;
+- external PostgreSQL endpoint when applicable;
+- browser/Web origin and API public URL;
+- explicit business-module selection.
 
-These scripts are developer/demo tooling and a foundation for later production installers. Production deployment packaging must add secret-management, TLS, backups, service accounts, reverse proxy/service registration and provider-specific validation rather than treating development defaults as production configuration.
+Re-running the same setup on an existing installation exposes maintenance actions such as adding modules, upgrade/refresh, reconfiguration, repair and validation. The installer lists currently installed modules and modules present in the current release but not installed.
+
+Module addition is additive. Normal setup does not remove an existing module because historical data or cross-module relationships may depend on it. A future module-deactivation operation must run impact analysis first.
+
+`setup-local.ps1` is the lower-level native dependency/database bootstrap used by the lifecycle installer. It supports local or external PostgreSQL, dependency installation and the common Alembic migration chain.
+
+Installation state is recorded under `.construction-os/install-state.json`; `.env` remains the authoritative runtime configuration. Secret values are not copied into installation history.
+
+Detailed behavior is defined in `docs/operations/INSTALLATION-LIFECYCLE.md`.
+
+## Upgrade and backup rule
+
+An existing installation must have a verified recovery point before migration starts.
+
+Where compatible PostgreSQL tools are available, setup creates and verifies a custom-format `pg_dump` archive. Managed/external databases may instead provide an externally verified backup/snapshot reference. Failure to establish a backup/recovery point blocks migration.
+
+The target version-upgrade order is:
+
+```text
+Read existing installation state
+        ↓
+Validate release/module manifest
+        ↓
+Quiesce writes
+        ↓
+Create + verify database recovery point
+        ↓
+Stage versioned application package
+        ↓
+Preserve environment/secrets/data
+        ↓
+Install dependencies
+        ↓
+Apply common Alembic migration chain
+        ↓
+Run readiness/composition validation
+        ↓
+Start/switch to new version
+        ↓
+Validate final public endpoint
+        ↓
+Record release/module/migration/backup history
+```
+
+The current repository implements the state-aware setup, module addition, backup gate, environment rollback copy and temporary API readiness check. Production packaging still needs versioned release-bundle staging/swap, service quiescing, final public reverse-proxy validation and signed package verification before one-click version rollback can be claimed.
+
+Changing `DATABASE_URL` for an existing installation is treated as a database relocation/data-move operation, not a normal configuration edit.
 
 ## Cost scaling
 
@@ -190,7 +239,3 @@ A customer should pay for workload and resilience they actually need rather than
 An inactive module must not create normal runtime cost merely because its code exists in the release. When a module is not deployment-available, the application should avoid loading its business API router and Search provider. Its dedicated worker profiles should not run or claim jobs. Future frontend builds should lazy-load only visible/active product areas.
 
 Company-level enablement can further hide an available module, but it cannot enable a module that the deployment did not make available.
-
-## Upgrade rule
-
-Deployment selections are configuration, not code forks. Upgrading Construction OS applies the common migration chain and then validates the currently selected deployment composition. Enabling a previously inactive module should normally be a configuration/runtime action followed by readiness validation, not a custom reinstall or manual database change.
