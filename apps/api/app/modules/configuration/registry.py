@@ -4,6 +4,7 @@ from enum import StrEnum
 from uuid import UUID
 
 from app.modules.configuration.models import ConfigurationChangeClass, ConfigurationScopeType
+from app.modules.configuration.module_definitions import MODULE_CONFIGURATION_DEFINITIONS
 
 
 class ConfigurationValueType(StrEnum):
@@ -86,7 +87,7 @@ WEEKDAYS = (
 )
 
 
-CONFIGURATION_DEFINITIONS: tuple[ConfigurationDefinition, ...] = (
+_BASE_CONFIGURATION_DEFINITIONS: tuple[ConfigurationDefinition, ...] = (
     ConfigurationDefinition(
         key="core.audit.enabled",
         module_key="core",
@@ -377,6 +378,24 @@ CONFIGURATION_DEFINITIONS: tuple[ConfigurationDefinition, ...] = (
         mutability=ConfigurationMutability.USER_PREFERENCE,
         description="Personal timecard list columns; this does not change business rules.",
     ),
+)
+
+CONFIGURATION_DEFINITIONS = _BASE_CONFIGURATION_DEFINITIONS + tuple(
+    ConfigurationDefinition(
+        key=definition.key,
+        module_key=definition.module_key,
+        value_type=ConfigurationValueType(definition.value_type),
+        default=definition.default,
+        change_class=definition.change_class,
+        mutability=ConfigurationMutability(definition.mutability),
+        allowed_scopes=BUSINESS_SCOPES if definition.business_scoped else (),
+        allowed_values=definition.allowed_values,
+        min_value=definition.min_value,
+        max_value=definition.max_value,
+        max_length=definition.max_length,
+        description=definition.description,
+    )
+    for definition in MODULE_CONFIGURATION_DEFINITIONS
 )
 
 CONFIGURATION_BY_KEY = {definition.key: definition for definition in CONFIGURATION_DEFINITIONS}
