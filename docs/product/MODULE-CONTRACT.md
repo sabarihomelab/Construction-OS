@@ -336,3 +336,38 @@ The module contract must list:
 Business modules must consume the shared effective-configuration resolver and the existing shared platform engines. They must not create private copies of authorization, custom-field, workflow, notification, audit, file, search, reporting, realtime, offline, template or retention infrastructure.
 
 A module may expose a simple configuration for a small contractor and a richer configuration for an enterprise, but both must execute through the same canonical business engine and object model.
+
+## 22. Deployment/runtime manifest
+
+Every business module must also declare its deployment footprint in the shared runtime module registry. This is separate from company feature enablement.
+
+The runtime manifest must document:
+
+- stable module key and display name;
+- hard module dependencies that must be available for the module to operate;
+- optional cross-module integrations that do not force either module to be installed/enabled;
+- API router registration, when the module exposes HTTP endpoints;
+- Search projection registration, when applicable;
+- background worker profiles required by heavy or isolated workloads;
+- whether the module introduces a heavy runtime dependency;
+- optional external engines/providers such as drawing renderers, OCR, AI or specialized reporting;
+- storage/provider requirements;
+- readiness/health checks required before the deployment can advertise the module as operational.
+
+Deployment availability, company enablement and user authorization are separate gates:
+
+```text
+Deployment available
+        +
+Company feature enabled
+        +
+Role/project permission
+        +
+Effective configuration/workflow state
+        =
+Usable capability
+```
+
+Normal construction business modules remain part of the modular monolith. Do not create one operating-system service or microservice per module merely to make it optional. Runtime savings come from not mounting/loading inactive module routes, providers, scheduled work and UI bundles, and from running heavy workers only where their worker profile is enabled.
+
+All supported product schemas stay on the controlled Alembic migration chain even when a business module is inactive in a deployment. Selective migration histories per customer are prohibited because they make upgrades, re-enablement, support and recovery unsafe. Inactive schema objects do not imply an active runtime.
