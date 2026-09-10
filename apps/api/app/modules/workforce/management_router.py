@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
+from sqlalchemy import select
 
 from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
@@ -11,7 +12,13 @@ from app.modules.workforce.management import (
     update_crew,
     update_project_worker_assignment,
 )
-from app.modules.workforce.models import Crew, CrewMembership, ProjectWorkerAssignment
+from app.modules.workforce.models import (
+    Crew,
+    CrewMembership,
+    ProjectWorkerAssignment,
+    ProjectWorkerRate,
+)
+from app.modules.workforce.rates import create_project_worker_rate, end_project_worker_rate
 from app.modules.workforce.schemas import (
     CrewMembershipEnd,
     CrewMembershipRead,
@@ -19,6 +26,9 @@ from app.modules.workforce.schemas import (
     CrewUpdate,
     ProjectWorkerAssignmentRead,
     ProjectWorkerAssignmentUpdate,
+    ProjectWorkerRateCreate,
+    ProjectWorkerRateEnd,
+    ProjectWorkerRateRead,
 )
 from app.modules.workforce.service import WorkforceConflictError, WorkforceValidationError
 
@@ -62,9 +72,7 @@ async def update_crew_route(
             organization_id=context.organization_id,
             crew_id=crew_id,
             expected_revision=payload.expected_revision,
-            changes=payload.model_dump(
-                exclude={"expected_revision", "reason"}, exclude_unset=True
-            ),
+            changes=payload.model_dump(exclude={"expected_revision", "reason"}, exclude_unset=True),
             actor_user_id=session.user_id,
             session_id=session.id,
             reason=payload.reason,
@@ -132,9 +140,7 @@ async def update_project_worker_assignment_route(
             project_id=project_id,
             assignment_id=assignment_id,
             expected_revision=payload.expected_revision,
-            changes=payload.model_dump(
-                exclude={"expected_revision", "reason"}, exclude_unset=True
-            ),
+            changes=payload.model_dump(exclude={"expected_revision", "reason"}, exclude_unset=True),
             actor_user_id=session.user_id,
             session_id=session.id,
             reason=payload.reason,
@@ -142,6 +148,99 @@ async def update_project_worker_assignment_route(
         await db.commit()
         await db.refresh(assignment)
         return assignment
+    except (WorkforceConflictError, WorkforceValidationError) as exc:
+        await db.rollback()
+        _raise_domain_error(exc)
+
+
+@router.get(
+    "/projects/{project_id}/workforce/assignments/{assignment_id}/rates",
+    response_model=list[ProjectWorkerRateRead],
+)
+async def list_project_worker_rates(
+    project_id: UUID,
+    assignment_id: UUID,
+    db: DbSession,
+    session: CurrentSession,
+) -> list[ProjectWorkerRate]:
+    context = await build_access_context(db, session.membership_id)
+    _require_project_permission(context, project_id, "workforce.rate.view")
+    rows = await db.scalars(
+        select(ProjectWorkerRate)
+        .where(
+            ProjectWorkerRate.organization_id == context.organization_id,
+            ProjectWorkerRate.project_id == project_id,
+            ProjectWorkerRate.assignment_id == assignment_id,
+        )
+        .order_by(ProjectWorkerRate.effective_from.desc(), ProjectWorkerRate.created_at.desc())
+    )
+    return list(rows.all())
+
+
+@router.post(
+    "/projects/{project_id}/workforce/assignments/{assignment_id}/rates",
+    response_model=ProjectWorkerRateRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_project_worker_rate_route(
+    project_id: UUID,
+    assignment_id: UUID,
+    payload: ProjectWorkerRateCreate,
+    db: DbSession,
+    session: CurrentSession,
+    _csrf: CsrfProtected,
+) -> ProjectWorkerRate:
+    context = await build_access_context(db, session.membership_id)
+    _require_project_permission(context, project_id, "workforce.rate.manage")
+    try:
+        rate = await create_project_worker_rate(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            assignment_id=assignment_id,
+            values=payload.model_dump(),
+            actor_user_id=session.user_id,
+            session_id=session.id,
+        )
+        await db.commit()
+        await db.refresh(rate)
+        return rate
+    except (WorkforceConflictError, WorkforceValidationError) as exc:
+        await db.rollback()
+        _raise_domain_error(exc)
+
+
+@router.post(
+    "/projects/{project_id}/workforce/assignments/{assignment_id}/rates/{rate_id}/end",
+    response_model=ProjectWorkerRateRead,
+)
+async def end_project_worker_rate_route(
+    project_id: UUID,
+    assignment_id: UUID,
+    rate_id: UUID,
+    payload: ProjectWorkerRateEnd,
+    db: DbSession,
+    session: CurrentSession,
+    _csrf: CsrfProtected,
+) -> ProjectWorkerRate:
+    context = await build_access_context(db, session.membership_id)
+    _require_project_permission(context, project_id, "workforce.rate.manage")
+    try:
+        rate = await end_project_worker_rate(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            assignment_id=assignment_id,
+            rate_id=rate_id,
+            expected_revision=payload.expected_revision,
+            effective_to=payload.effective_to,
+            actor_user_id=session.user_id,
+            session_id=session.id,
+            reason=payload.reason,
+        )
+        await db.commit()
+        await db.refresh(rate)
+        return rate
     except (WorkforceConflictError, WorkforceValidationError) as exc:
         await db.rollback()
         _raise_domain_error(exc)
