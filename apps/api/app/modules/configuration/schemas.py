@@ -40,9 +40,11 @@ class ConfigurationOverrideWrite(BaseModel):
             raise ValueError("Inherited configuration cannot include an override value")
         if not self.inherit and self.value is None:
             raise ValueError("A configuration value is required unless inherit is true")
-        if self.effective_from is not None:
-            if self.effective_from.tzinfo is None or self.effective_from.utcoffset() is None:
-                raise ValueError("effective_from must include a timezone")
+        if (
+            self.effective_from is not None
+            and (self.effective_from.tzinfo is None or self.effective_from.utcoffset() is None)
+        ):
+            raise ValueError("effective_from must include a timezone")
         return self
 
 
