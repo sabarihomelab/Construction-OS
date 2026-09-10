@@ -56,6 +56,10 @@ PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
     PermissionSpec(key="projects.project.archive", module="projects", resource="project", action="archive", description="Move projects into closeout, complete, or archived states within the authorized scope.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="projects.membership.view", module="projects", resource="membership", action="view", description="View project team memberships within the authorized scope.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="projects.membership.manage", module="projects", resource="membership", action="manage", description="Add, suspend, end, and assign roles to project memberships.", risk=PermissionRisk.CRITICAL),
+    PermissionSpec(key="documents.document.view", module="documents", resource="document", action="view", description="View project documents and issued revisions within the authorized project scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="documents.document.create", module="documents", resource="document", action="create", description="Create managed documents and draft revisions within the authorized project scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="documents.document.publish", module="documents", resource="document", action="publish", description="Publish and supersede controlled document revisions within the authorized project scope.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="documents.document.manage", module="documents", resource="document", action="manage", description="Manage document folders, metadata, specifications, archival and document control.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="field.daily_log.view", module="field", resource="daily_log", action="view", description="View daily logs within the authorized scope.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="finance.budget.view", module="finance", resource="budget", action="view", description="View project budget information within the authorized scope.", risk=PermissionRisk.HIGH),
 )
