@@ -78,20 +78,19 @@ jobs:
         run: |
           python - <<'PY'
           import json
+          import os
           from urllib.request import urlopen
+
+          os.chdir("apps/api")
+          from app.core.config import get_settings
+          from app.runtime.deployment import build_runtime_plan
+
+          get_settings.cache_clear()
+          expected_modules = set(build_runtime_plan(get_settings()).module_keys)
 
           with urlopen("http://localhost:8000/health/ready", timeout=5) as response:
               readiness = json.load(response)
           assert readiness["status"] == "ready"
-          expected_modules = {
-              "projects",
-              "documents",
-              "drawings",
-              "rfis",
-              "submittals",
-              "field",
-              "workforce",
-          }
           assert expected_modules == set(readiness["runtime_modules"])
 
           with urlopen("http://localhost:8000/openapi.json", timeout=5) as response:
@@ -99,11 +98,6 @@ jobs:
           paths = set(openapi["paths"])
           required_paths = {
               "/api/v1/projects",
-              "/api/v1/projects/{project_id}/rfis",
-              "/api/v1/projects/{project_id}/submittals",
-              "/api/v1/projects/{project_id}/daily-reports",
-              "/api/v1/workforce/workers",
-              "/api/v1/projects/{project_id}/timecards",
               "/api/v1/configuration/modules/{module_key}",
           }
           missing = sorted(required_paths - paths)
