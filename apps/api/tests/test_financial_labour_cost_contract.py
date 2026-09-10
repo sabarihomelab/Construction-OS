@@ -3,6 +3,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from fastapi.routing import iter_route_contexts
 
 from app.modules.financials.api import router
 from app.modules.financials.cost_feeds import _entry_cost
@@ -14,7 +15,7 @@ from app.runtime.modules import MODULES_BY_KEY
 
 def test_financial_runtime_uses_composed_router() -> None:
     assert MODULES_BY_KEY["financials"].api_router == "app.modules.financials.api:router"
-    paths = {route.path for route in router.routes if hasattr(route, "path")}
+    paths = {context.path for context in iter_route_contexts(router.routes)}
     assert "/projects/{project_id}/financials/job-cost/from-timecards/{timecard_id}" in paths
 
 
