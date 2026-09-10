@@ -155,6 +155,7 @@ class CrewMembership(UUIDTimestampMixin, Base):
             "effective_from",
             name="uq_crew_memberships_crew_worker_start",
         ),
+        CheckConstraint("revision >= 1", name="ck_crew_memberships_revision"),
         CheckConstraint(
             "effective_to IS NULL OR effective_to >= effective_from",
             name="ck_crew_memberships_date_range",
@@ -169,6 +170,7 @@ class CrewMembership(UUIDTimestampMixin, Base):
     role: Mapped[str | None] = mapped_column(String(120), nullable=True)
     effective_from: Mapped[date] = mapped_column(Date)
     effective_to: Mapped[date | None] = mapped_column(Date, nullable=True)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1)
 
 
 class ProjectWorkerAssignment(UUIDTimestampMixin, Base):
@@ -295,22 +297,24 @@ class Timecard(UUIDTimestampMixin, Base):
 
 
 class TimeEntry(UUIDTimestampMixin, Base):
-    __tablename__ = "time_entries"
+    __tablename__ = "workforce_time_entries"
     __table_args__ = (
         ForeignKeyConstraint(
             ["timecard_id", "organization_id"],
             ["timecards.id", "timecards.organization_id"],
-            name="fk_time_entries_timecard_org",
+            name="fk_workforce_time_entries_timecard_org",
             ondelete="CASCADE",
         ),
-        CheckConstraint("regular_hours >= 0", name="ck_time_entries_regular_hours"),
-        CheckConstraint("overtime_hours >= 0", name="ck_time_entries_overtime_hours"),
-        CheckConstraint("double_time_hours >= 0", name="ck_time_entries_double_time_hours"),
+        CheckConstraint("regular_hours >= 0", name="ck_workforce_time_entries_regular_hours"),
+        CheckConstraint("overtime_hours >= 0", name="ck_workforce_time_entries_overtime_hours"),
+        CheckConstraint(
+            "double_time_hours >= 0", name="ck_workforce_time_entries_double_time_hours"
+        ),
         CheckConstraint(
             "regular_hours + overtime_hours + double_time_hours <= 24",
-            name="ck_time_entries_daily_hours",
+            name="ck_workforce_time_entries_daily_hours",
         ),
-        Index("ix_time_entries_timecard_date", "timecard_id", "work_date"),
+        Index("ix_workforce_time_entries_timecard_date", "timecard_id", "work_date"),
     )
 
     organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
