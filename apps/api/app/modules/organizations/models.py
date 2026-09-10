@@ -6,7 +6,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, UUIDTimestampMixin
 
-
 INDIA_DEFAULT_LOCALE = "en-IN"
 INDIA_DEFAULT_TIMEZONE = "Asia/Kolkata"
 INDIA_DEFAULT_CURRENCY = "INR"
