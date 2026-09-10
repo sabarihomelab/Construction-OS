@@ -1,6 +1,6 @@
 from app.db import model_registry  # noqa: F401
 from app.db.base import Base
-from app.main import app
+from app.main import create_app
 from app.modules.authorization.catalog import PERMISSIONS_BY_KEY
 from app.modules.features.registry import FEATURES_BY_KEY, FeatureReleaseState
 from app.modules.rfis.models import RFIReferenceType, RFIStatus
@@ -72,7 +72,8 @@ def test_rfi_search_provider_is_project_scoped_and_registered() -> None:
 
 
 def test_rfi_router_is_mounted_under_versioned_project_api() -> None:
-    paths = {route.path for route in app.routes if hasattr(route, "path")}
+    application = create_app()
+    paths = {route.path for route in application.routes if hasattr(route, "path")}
     assert "/api/v1/projects/{project_id}/rfis" in paths
     assert "/api/v1/projects/{project_id}/rfis/{rfi_id}/responses" in paths
     assert "/api/v1/projects/{project_id}/rfis/{rfi_id}/history" in paths
