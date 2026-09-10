@@ -9,6 +9,9 @@ from app.core.config import get_settings
 from app.db import model_registry  # noqa: F401
 from app.db.base import Base
 from app.modules.commercial import models as commercial_models  # noqa: F401
+from app.modules.estimating import models as estimating_models  # noqa: F401
+from app.modules.procurement import models as procurement_models  # noqa: F401
+from app.modules.subcontracts import models as subcontract_models  # noqa: F401
 
 config = context.config
 
