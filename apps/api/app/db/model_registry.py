@@ -105,6 +105,14 @@ from app.modules.setup.models import (
     ConfigurationTemplateVersion,
     SetupRun,
 )
+from app.modules.submittals.models import (
+    Submittal,
+    SubmittalHistoryEvent,
+    SubmittalReference,
+    SubmittalReview,
+    SubmittalRevision,
+)
+from app.modules.submittals.numbering import SubmittalProjectCounter
 from app.modules.workflows.models import (
     WorkflowApprovalTask,
     WorkflowDefinition,
@@ -197,6 +205,12 @@ __all__ = [
     "SpecificationSection",
     "StagedExternalRecord",
     "StorageObject",
+    "Submittal",
+    "SubmittalHistoryEvent",
+    "SubmittalProjectCounter",
+    "SubmittalReference",
+    "SubmittalReview",
+    "SubmittalRevision",
     "SyncCheckpoint",
     "SyncConflict",
     "SyncMutationReceipt",
