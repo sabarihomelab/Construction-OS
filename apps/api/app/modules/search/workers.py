@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.jobs.handlers import JobHandlerRegistry
 from app.modules.jobs.models import BackgroundJob
+from app.modules.search.bootstrap import register_builtin_search_providers
 from app.modules.search.providers import SearchProjectionProviderRegistry
 from app.modules.search.service import remove_search_document, upsert_search_document
 
@@ -87,5 +88,6 @@ def register_search_handlers(
     jobs: JobHandlerRegistry,
     providers: SearchProjectionProviderRegistry,
 ) -> None:
+    register_builtin_search_providers()
     jobs.register("search.index_entity", build_index_handler(providers), timeout_seconds=120)
     jobs.register("search.delete_entity", build_delete_handler(), timeout_seconds=60)
