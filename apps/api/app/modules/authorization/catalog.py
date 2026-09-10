@@ -51,6 +51,11 @@ PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
     PermissionSpec(key="files.file.upload", module="files", resource="file", action="upload", description="Upload and attach files within the authorized scope.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="files.file.manage", module="files", resource="file", action="manage", description="Manage file versions, retention, links, retirement, and controlled deletion.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="projects.project.view", module="projects", resource="project", action="view", description="View projects within the authorized scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="projects.project.create", module="projects", resource="project", action="create", description="Create projects for the company.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="projects.project.update", module="projects", resource="project", action="update", description="Update project details within the authorized scope.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="projects.project.archive", module="projects", resource="project", action="archive", description="Move projects into closeout, complete, or archived states within the authorized scope.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="projects.membership.view", module="projects", resource="membership", action="view", description="View project team memberships within the authorized scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="projects.membership.manage", module="projects", resource="membership", action="manage", description="Add, suspend, end, and assign roles to project memberships.", risk=PermissionRisk.CRITICAL),
     PermissionSpec(key="field.daily_log.view", module="field", resource="daily_log", action="view", description="View daily logs within the authorized scope.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="finance.budget.view", module="finance", resource="budget", action="view", description="View project budget information within the authorized scope.", risk=PermissionRisk.HIGH),
 )
