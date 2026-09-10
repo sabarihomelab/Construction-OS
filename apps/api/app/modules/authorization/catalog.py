@@ -73,6 +73,13 @@ PERMISSION_CATALOG: tuple[PermissionSpec, ...] = (
     PermissionSpec(key="rfis.rfi.respond", module="rfis", resource="rfi", action="respond", description="Add proposed or official RFI responses in the authorized project scope.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="rfis.rfi.close", module="rfis", resource="rfi", action="close", description="Close answered RFIs in the authorized project scope.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="rfis.rfi.manage", module="rfis", resource="rfi", action="manage", description="Manage RFI responsibility and controlled void actions.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="submittals.submittal.view", module="submittals", resource="submittal", action="view", description="View Submittals, revisions, reviews, references and history in the authorized project scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="submittals.submittal.create", module="submittals", resource="submittal", action="create", description="Create draft Submittals in the authorized project scope.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="submittals.submittal.update", module="submittals", resource="submittal", action="update", description="Edit Submittals, create revisions and manage controlled references.", risk=PermissionRisk.MEDIUM),
+    PermissionSpec(key="submittals.submittal.submit", module="submittals", resource="submittal", action="submit", description="Submit a Submittal revision for review and assign the reviewer.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="submittals.submittal.review", module="submittals", resource="submittal", action="review", description="Add review comments and issue official Submittal decisions.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="submittals.submittal.close", module="submittals", resource="submittal", action="close", description="Close approved Submittals in the authorized project scope.", risk=PermissionRisk.HIGH),
+    PermissionSpec(key="submittals.submittal.manage", module="submittals", resource="submittal", action="manage", description="Manage Submittal responsibility and controlled void actions.", risk=PermissionRisk.HIGH),
     PermissionSpec(key="field.daily_log.view", module="field", resource="daily_log", action="view", description="View daily logs within the authorized scope.", risk=PermissionRisk.MEDIUM),
     PermissionSpec(key="finance.budget.view", module="finance", resource="budget", action="view", description="View project budget information within the authorized scope.", risk=PermissionRisk.HIGH),
 )
