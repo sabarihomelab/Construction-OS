@@ -24,11 +24,15 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     }
 
     winget install --exact --id Docker.DockerDesktop --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Docker Desktop installation failed.'
+    }
+
     Refresh-DockerPath
 
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Write-Host ''
-        Write-Host 'Docker Desktop was installed, but Windows has not made the Docker command available yet.'
+        Write-Host 'Docker Desktop was installed.'
         Write-Host 'Open Docker Desktop once, finish its first-run setup, then run setup-local.ps1 again.'
         exit 0
     }
@@ -42,15 +46,14 @@ else {
     Write-Host '.env already exists. Keeping your existing values.'
 }
 
-try {
-    docker info *> $null
-}
-catch {
+docker info *> $null
+if ($LASTEXITCODE -ne 0) {
     $dockerDesktop = Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'
     if (Test-Path $dockerDesktop) {
+        Write-Host 'Docker Desktop is installed but not running.'
         Write-Host 'Starting Docker Desktop...'
         Start-Process $dockerDesktop
-        Write-Host 'Docker Desktop is starting. When it shows Ready, run this setup file again.'
+        Write-Host 'When Docker Desktop shows Ready, run setup-local.ps1 again.'
         exit 0
     }
     throw 'Docker is installed but the Docker engine is not running.'
@@ -58,14 +61,20 @@ catch {
 
 Write-Host 'Preparing PostgreSQL image...'
 docker compose pull postgres
+if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to download the PostgreSQL image.'
+}
 
 Write-Host 'Building API and Web images and installing application dependencies...'
 docker compose build api web
+if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to build the local application images.'
+}
 
 Write-Host ''
 Write-Host 'Setup complete.' -ForegroundColor Green
 Write-Host ''
-Write-Host 'To start Construction OS, run this from the repository root:'
+Write-Host 'Start Construction OS with:'
 Write-Host ''
 Write-Host '    docker compose up' -ForegroundColor Cyan
 Write-Host ''
