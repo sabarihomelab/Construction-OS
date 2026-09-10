@@ -31,6 +31,14 @@ from app.modules.drawings.models import (
     DrawingSet,
     DrawingSheet,
 )
+from app.modules.equipment.models import (
+    EquipmentAsset,
+    EquipmentMaintenance,
+    Material,
+    MaterialDelivery,
+    ProjectEquipmentAssignment,
+    ProjectMaterialPlan,
+)
 from app.modules.events.models import OutboxEvent
 from app.modules.exports.models import DataExportManifestItem, DataExportRequest
 from app.modules.features.models import OrganizationFeature
@@ -75,6 +83,16 @@ from app.modules.integrations.models import (
     StagedExternalRecord,
 )
 from app.modules.jobs.models import BackgroundJob, BackgroundJobAttempt
+from app.modules.meetings.models import (
+    Meeting,
+    MeetingActionItem,
+    MeetingAgendaItem,
+    MeetingAttendee,
+    MeetingHistoryEvent,
+    MeetingProjectCounter,
+    MeetingReference,
+    MeetingSeries,
+)
 from app.modules.metadata.models import (
     CustomFieldDefinition,
     CustomFieldDefinitionRevision,
@@ -111,6 +129,16 @@ from app.modules.reporting.models import (
 )
 from app.modules.rfis.models import RFI, RFIHistoryEvent, RFIReference, RFIResponse
 from app.modules.rfis.numbering import RFIProjectCounter
+from app.modules.safety.models import (
+    InspectionResult,
+    InspectionRun,
+    InspectionTemplate,
+    InspectionTemplateVersion,
+    PunchItem,
+    SafetyCorrectiveAction,
+    SafetyProjectCounter,
+    SafetyRecord,
+)
 from app.modules.search.models import SearchDocument
 from app.modules.sessions.models import Session
 from app.modules.setup.models import (
@@ -192,18 +220,34 @@ __all__ = [
     "DrawingRevision",
     "DrawingSet",
     "DrawingSheet",
+    "EquipmentAsset",
+    "EquipmentMaintenance",
     "ExternalRecordMapping",
     "FileAsset",
     "FileLink",
     "FileVariant",
     "FileVersion",
     "IngestionBatch",
+    "InspectionResult",
+    "InspectionRun",
+    "InspectionTemplate",
+    "InspectionTemplateVersion",
     "IntegrationConflict",
     "IntegrationConnector",
     "LegalHold",
     "LifecycleRun",
     "MappingProfile",
     "MappingProfileVersion",
+    "Material",
+    "MaterialDelivery",
+    "Meeting",
+    "MeetingActionItem",
+    "MeetingAgendaItem",
+    "MeetingAttendee",
+    "MeetingHistoryEvent",
+    "MeetingProjectCounter",
+    "MeetingReference",
+    "MeetingSeries",
     "MembershipPreference",
     "MembershipPreferenceState",
     "MembershipRole",
@@ -227,9 +271,12 @@ __all__ = [
     "OutboxEvent",
     "Permission",
     "Project",
+    "ProjectEquipmentAssignment",
+    "ProjectMaterialPlan",
     "ProjectMembership",
     "ProjectRoleAssignment",
     "ProjectWorkerAssignment",
+    "PunchItem",
     "RFIHistoryEvent",
     "RFIProjectCounter",
     "RFIReference",
@@ -239,6 +286,9 @@ __all__ = [
     "ReportRun",
     "Role",
     "RolePermission",
+    "SafetyCorrectiveAction",
+    "SafetyProjectCounter",
+    "SafetyRecord",
     "SavedView",
     "SearchDocument",
     "Session",
