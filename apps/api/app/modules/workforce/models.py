@@ -35,6 +35,24 @@ class CrewStatus(StrEnum):
     INACTIVE = "inactive"
 
 
+class WorkerEngagementType(StrEnum):
+    STAFF = "staff"
+    DIRECT_LABOUR = "direct_labour"
+    CONTRACT_LABOUR = "contract_labour"
+    SUBCONTRACTOR_LABOUR = "subcontractor_labour"
+    VENDOR_CREW = "vendor_crew"
+    OTHER = "other"
+
+
+class WageBasis(StrEnum):
+    HOURLY = "hourly"
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    PIECE_RATE = "piece_rate"
+    CONTRACT = "contract"
+
+
 class ProjectWorkerAssignmentStatus(StrEnum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
@@ -194,6 +212,12 @@ class ProjectWorkerAssignment(UUIDTimestampMixin, Base):
             name="fk_project_worker_assignments_crew_org",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["employer_party_id", "organization_id"],
+            ["commercial_parties.id", "commercial_parties.organization_id"],
+            name="fk_project_worker_assignments_employer_party_org",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint(
             "project_id", "worker_id", name="uq_project_worker_assignments_project_worker"
         ),
@@ -204,6 +228,12 @@ class ProjectWorkerAssignment(UUIDTimestampMixin, Base):
             name="uq_project_worker_assignments_project_worker_org",
         ),
         UniqueConstraint("id", "organization_id", name="uq_project_worker_assignments_id_org"),
+        UniqueConstraint(
+            "id",
+            "project_id",
+            "organization_id",
+            name="uq_project_worker_assignments_scope",
+        ),
         CheckConstraint("revision >= 1", name="ck_project_worker_assignments_revision"),
         CheckConstraint(
             "end_date IS NULL OR start_date IS NULL OR end_date >= start_date",
@@ -214,12 +244,21 @@ class ProjectWorkerAssignment(UUIDTimestampMixin, Base):
             "project_id",
             "status",
         ),
+        Index(
+            "ix_project_worker_assignments_employer",
+            "organization_id",
+            "employer_party_id",
+        ),
     )
 
     organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     project_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     worker_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     crew_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    employer_party_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    engagement_type: Mapped[WorkerEngagementType | None] = mapped_column(
+        Enum(WorkerEngagementType, native_enum=False, values_callable=enum_values), nullable=True
+    )
     status: Mapped[ProjectWorkerAssignmentStatus] = mapped_column(
         Enum(
             ProjectWorkerAssignmentStatus,
@@ -233,6 +272,77 @@ class ProjectWorkerAssignment(UUIDTimestampMixin, Base):
     default_cost_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1)
+
+
+class ProjectWorkerRate(UUIDTimestampMixin, Base):
+    __tablename__ = "project_worker_rates"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["assignment_id", "project_id", "organization_id"],
+            [
+                "project_worker_assignments.id",
+                "project_worker_assignments.project_id",
+                "project_worker_assignments.organization_id",
+            ],
+            name="fk_project_worker_rates_assignment_scope",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["project_id", "worker_id", "organization_id"],
+            [
+                "project_worker_assignments.project_id",
+                "project_worker_assignments.worker_id",
+                "project_worker_assignments.organization_id",
+            ],
+            name="fk_project_worker_rates_worker_assignment_scope",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "assignment_id", "effective_from", name="uq_project_worker_rates_assignment_start"
+        ),
+        UniqueConstraint("id", "organization_id", name="uq_project_worker_rates_id_org"),
+        CheckConstraint("revision >= 1", name="ck_project_worker_rates_revision"),
+        CheckConstraint(
+            "effective_to IS NULL OR effective_to >= effective_from",
+            name="ck_project_worker_rates_date_range",
+        ),
+        CheckConstraint("regular_rate >= 0", name="ck_project_worker_rates_regular_nonnegative"),
+        CheckConstraint(
+            "overtime_rate IS NULL OR overtime_rate >= 0",
+            name="ck_project_worker_rates_overtime_nonnegative",
+        ),
+        CheckConstraint(
+            "double_time_rate IS NULL OR double_time_rate >= 0",
+            name="ck_project_worker_rates_double_time_nonnegative",
+        ),
+        CheckConstraint(
+            "billing_rate IS NULL OR billing_rate >= 0",
+            name="ck_project_worker_rates_billing_nonnegative",
+        ),
+        Index(
+            "ix_project_worker_rates_project_worker_date",
+            "project_id",
+            "worker_id",
+            "effective_from",
+        ),
+    )
+
+    organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    project_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    assignment_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    worker_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    wage_basis: Mapped[WageBasis] = mapped_column(
+        Enum(WageBasis, native_enum=False, values_callable=enum_values)
+    )
+    regular_rate: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    overtime_rate: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    double_time_rate: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    billing_rate: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    currency_code: Mapped[str] = mapped_column(String(3), default="INR")
+    effective_from: Mapped[date] = mapped_column(Date)
+    effective_to: Mapped[date | None] = mapped_column(Date, nullable=True)
+    source_reference: Mapped[str | None] = mapped_column(String(160), nullable=True)
     revision: Mapped[int] = mapped_column(BigInteger, default=1)
 
 
