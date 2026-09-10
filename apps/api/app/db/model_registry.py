@@ -12,6 +12,17 @@ from app.modules.documents.models import (
     DocumentRevision,
     SpecificationSection,
 )
+from app.modules.drawings.models import (
+    DrawingCalibration,
+    DrawingComparison,
+    DrawingMarkup,
+    DrawingMeasurement,
+    DrawingPin,
+    DrawingRenderPackage,
+    DrawingRevision,
+    DrawingSet,
+    DrawingSheet,
+)
 from app.modules.events.models import OutboxEvent
 from app.modules.exports.models import DataExportManifestItem, DataExportRequest
 from app.modules.features.models import OrganizationFeature
@@ -119,6 +130,15 @@ __all__ = [
     "Document",
     "DocumentFolder",
     "DocumentRevision",
+    "DrawingCalibration",
+    "DrawingComparison",
+    "DrawingMarkup",
+    "DrawingMeasurement",
+    "DrawingPin",
+    "DrawingRenderPackage",
+    "DrawingRevision",
+    "DrawingSet",
+    "DrawingSheet",
     "ExternalRecordMapping",
     "FileAsset",
     "FileLink",
