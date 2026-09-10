@@ -15,7 +15,9 @@ from app.modules.configuration.models import (
 from app.modules.configuration.registry import (
     CONFIGURATION_BY_KEY,
     CONFIGURATION_DEFINITIONS,
+    ConfigurationDefinition,
     ConfigurationMutability,
+    ConfigurationValueType,
     normalize_configuration_value,
 )
 from app.modules.configuration.schemas import ConfigurationOverrideWrite
@@ -92,11 +94,6 @@ def test_rfi_configuration_probe_supports_full_business_hierarchy() -> None:
 
 
 def test_decimal_configuration_normalization_is_deterministic_when_used() -> None:
-    from app.modules.configuration.registry import (
-        ConfigurationDefinition,
-        ConfigurationValueType,
-    )
-
     definition = ConfigurationDefinition(
         key="test.rate",
         module_key="test",
