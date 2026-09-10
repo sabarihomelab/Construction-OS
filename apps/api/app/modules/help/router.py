@@ -8,8 +8,8 @@ from app.modules.features.service import build_access_context
 from app.modules.help.assistant import (
     AssistantProviderError,
     AssistantUnavailableError,
-    installation_state_evidence,
     generate_assistant_answer,
+    installation_state_evidence,
     retrieve_product_evidence,
     retrieve_tenant_evidence,
 )
