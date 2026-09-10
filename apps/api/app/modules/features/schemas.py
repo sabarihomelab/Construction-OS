@@ -22,7 +22,7 @@ class AccessContext(BaseModel):
     organization_id: UUID
     membership_id: UUID
     authorization_revision: int = Field(ge=1)
-    configuration_revision: int = Field(ge=1)
+    configuration_revision: int = Field(default=1, ge=1)
     permissions: list[str]
     scopes: dict[str, list[str]] = Field(default_factory=dict)
     project_permissions: dict[str, list[str]] = Field(default_factory=dict)
