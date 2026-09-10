@@ -10,7 +10,6 @@ from app.modules.estimating.models import (
     EstimateStatus,
     ProjectBudget,
     ProjectEstimate,
-    RateAnalysis,
     RateAnalysisComponent,
 )
 from app.modules.estimating.schemas import (
