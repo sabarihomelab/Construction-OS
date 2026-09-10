@@ -1,6 +1,19 @@
 # Construction OS
 
-Construction OS is an all-in-one construction operations platform combining field reporting, project management, financial controls, accounting integrations, and AI-assisted workflows.
+Construction OS is an **India-first construction operating platform** for small and mid-sized civil/general contractors, builders, MEP contractors and specialty subcontractors.
+
+The product goal is one connected project operating system across BOQ, WBS/cost control, workforce, DPR, procurement, materials, equipment, measurement, RA billing, job cost, reporting and accounting integration.
+
+> Complex underneath. Simple on top.
+
+Foreign construction products may be studied as technical/product references, but US/UK workflows, terminology, accounting and compliance do **not** define Construction OS Release 1 priorities.
+
+See:
+
+- `docs/product/INDIA-FIRST-PRODUCT-CONTRACT.md` — current product contract
+- `docs/product/INDIA-REFIT-GAP-ASSESSMENT.md` — keep/modify/deprioritize/new classification of the current repo
+- `docs/product/RELEASE-REQUIREMENTS-BASELINE.md` — India Demo Build acceptance baseline
+- `docs/architecture/IN_APP_ASSISTANT_RAG.md` — in-app support/upgrade AI boundary
 
 ## Current foundation
 
@@ -8,10 +21,31 @@ Construction OS is an all-in-one construction operations platform combining fiel
 - `apps/api` — FastAPI backend
 - PostgreSQL — primary application database
 - PowerShell — native Windows setup, maintenance and local-development workflow
-- Docker Compose — retained as an optional infrastructure/deployment path for later use
+- Docker Compose — optional infrastructure/deployment path
 - GitHub Actions — build/lint/test validation
-- `docs/ARCHITECTURE.md` — product and technical boundaries
-- `docs/operations/INSTALLATION-LIFECYCLE.md` — installation/module/upgrade safety contract
+- shared platform services for authorization, configuration, metadata, workflows, files, audit, notifications, search, realtime/offline, reporting, integrations, governance, help and diagnostics
+
+Existing Projects, Documents/Drawings, RFIs/Submittals, Daily Reports, Workforce, Safety/Inspections/Punch, Equipment/Materials and Meetings foundations are preserved. Their priorities and relationships are being refit around the India contractor workflow rather than rewritten from scratch.
+
+## India Demo Build target
+
+The first meaningful customer demonstration should coherently support a realistic persisted flow:
+
+`Company → Project → Party → WBS/Cost Codes → BOQ → Estimate/Rate Analysis → Budget → Workforce/Attendance → DPR → Material Requirement → Approval → RFQ → Quotes → Comparison → PO → GRN → Site Inventory → Material Consumption → Equipment Usage → Measurement → Subcontract Work Order → Subcontractor RA Bill → Client RA Bill → Job Cost → Dashboard/Reports → Excel/Tally bridge → Closeout basics`
+
+Release 1 is **not** a full replacement for Tally, Primavera/MS Project, AutoCAD/BIM tools, payroll statutory systems or GST-return filing software.
+
+## India defaults
+
+New company setup defaults to:
+
+- country: India (`IN`)
+- locale: `en-IN`
+- timezone: `Asia/Kolkata`
+- base currency: `INR`
+- unit system: metric
+
+These are defaults, not hard global restrictions. Existing stored organization/project settings are preserved and the underlying architecture remains localization-capable.
 
 ## Windows setup and maintenance
 
@@ -21,79 +55,35 @@ Run the operator-facing setup from the Construction OS installation/repository r
 powershell -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
-On a first run, setup collects the environment name/type, deployment profile, local or external PostgreSQL mode, browser/API URLs and the business modules to activate. Module choices come from the same runtime manifest used by the application, and required dependencies are resolved automatically.
+On first run, setup collects environment/deployment/database settings and the business modules to activate. Module choices come from the same runtime manifest used by the application, and required dependencies are resolved automatically.
 
-On an existing installation, rerunning the same command presents maintenance actions including:
+On an existing installation, rerunning the same command supports adding newly available modules, upgrade/refresh, reconfiguration, dependency repair and validation. Existing-install migrations require a verified database backup/snapshot before migration. Successful actions are recorded without secrets under `.construction-os/install-state.json`.
 
-- add business modules that are available in the current release but not yet installed;
-- upgrade/refresh the installed version;
-- reconfigure runtime/environment settings;
-- repair dependencies;
-- validate the installation.
-
-Existing-install migration paths require a verified database backup/snapshot before migration. Successful actions are recorded without secrets under `.construction-os/install-state.json`.
-
-`setup-local.ps1` is the lower-level native dependency/database bootstrap used by `setup.ps1`. It remains useful for development/debugging and scripted setup but is not the normal operator-facing entry point.
-
-### Native dependencies
-
-The low-level setup can:
-
-- install Python 3.12 through `winget` when missing;
-- install Node.js LTS/npm through `winget` when missing;
-- install/start PostgreSQL for local database mode;
-- connect to an existing PostgreSQL endpoint for external database mode without controlling that server;
-- create `.env` from `.env.example`;
-- create `apps/api/.venv`;
-- install/update API and Web dependencies;
-- apply the common Alembic database migration chain.
-
-For a local development database, PostgreSQL installation may ask for the administrator password required to create the `construction` user/database. That administrator password is not persisted by Construction OS.
+`setup-local.ps1` is the lower-level native bootstrap used by `setup.ps1`.
 
 ### Start Construction OS
-
-After setup, start the application with:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start-local.ps1
 ```
 
-The current start script is a native development/demo launcher. It applies pending migrations, starts the FastAPI API and Next.js development server, waits for readiness, and opens the application.
+Default development addresses:
 
-Production packaging still requires Windows service registration, reverse proxy/TLS, managed secrets and versioned release-package staging/swap as documented in `docs/operations/INSTALLATION-LIFECYCLE.md`.
-
-### Local addresses
-
-Default local-development addresses are:
-
-- Web application: `http://localhost:3000`
+- Web: `http://localhost:3000`
 - API: `http://localhost:8000`
-- API liveness: `http://localhost:8000/health`
-- API readiness: `http://localhost:8000/health/ready`
-- API documentation: `http://localhost:8000/docs`
-- PostgreSQL: `localhost:5432`
+- Readiness: `http://localhost:8000/health/ready`
+- API docs: `http://localhost:8000/docs`
 
-To stop local development, close the API and Web PowerShell windows, or press `Ctrl+C` in each window.
+## In-app Construction OS Assistant
 
-## Manual development setup
+Construction OS is being prepared for an optional in-app, evidence-based assistant. Its first role is product help, configuration explanation, release notes, installation/upgrade readiness and rollback guidance using retrieval-augmented context.
 
-The PowerShell scripts are the preferred Windows workflow. Individual services can still be run manually for debugging.
+The assistant is **not an authoritative business engine**. It must never silently perform migrations/upgrades or decide measurement, billing, GST/TDS, payment, budget, certification, safety closure or approvals. Deterministic services and explicit users remain authoritative.
 
-### API
+The assistant is provider-pluggable so a deployment may later choose a local/on-prem model or an approved cloud model without changing business modules.
 
-```powershell
-cd apps/api
-.\.venv\Scripts\python.exe -m alembic upgrade head
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
-```
+## Development direction
 
-### Web
+Major new business development now follows the India dependency path, beginning with Party / Business Directory, WBS / Cost Codes and BOQ before deeper commercial execution modules.
 
-```powershell
-cd apps/web
-npm run dev
-```
-
-## Product direction
-
-Construction OS grows through common platform services and construction domain modules rather than isolated screens. The current branch includes the shared platform foundation for tenancy, authorization, configuration, workflows, files, realtime/offline behavior, search, reporting, governance and related services. Future construction modules plug into those common services instead of rebuilding them independently.
+Every module must reuse shared platform services and preserve tenant/project security, history, configuration, audit, search/reporting, offline behavior where applicable and additive migration safety.
