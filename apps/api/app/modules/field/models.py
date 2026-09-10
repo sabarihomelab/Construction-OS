@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
@@ -94,8 +95,8 @@ class DailyReport(UUIDTimestampMixin, Base):
     revision: Mapped[int] = mapped_column(BigInteger, default=1)
     prepared_by_membership_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     weather_condition: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    temperature_low: Mapped[float | None] = mapped_column(Numeric(8, 2), nullable=True)
-    temperature_high: Mapped[float | None] = mapped_column(Numeric(8, 2), nullable=True)
+    temperature_low: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
+    temperature_high: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
     temperature_unit: Mapped[str | None] = mapped_column(String(12), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     workflow_instance_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
@@ -129,8 +130,8 @@ class DailyReportCrewEntry(UUIDTimestampMixin, Base):
     company_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     trade: Mapped[str | None] = mapped_column(String(120), nullable=True)
     worker_count: Mapped[int] = mapped_column(Integer, default=0)
-    regular_hours: Mapped[float] = mapped_column(Numeric(8, 2), default=0)
-    overtime_hours: Mapped[float] = mapped_column(Numeric(8, 2), default=0)
+    regular_hours: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=0)
+    overtime_hours: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=0)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -152,7 +153,7 @@ class DailyReportWorkEntry(UUIDTimestampMixin, Base):
     description: Mapped[str] = mapped_column(Text)
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cost_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
-    quantity: Mapped[float | None] = mapped_column(Numeric(18, 4), nullable=True)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     unit_code: Mapped[str | None] = mapped_column(String(24), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -174,7 +175,7 @@ class DailyReportEquipmentEntry(UUIDTimestampMixin, Base):
     daily_report_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     equipment_name: Mapped[str] = mapped_column(String(255))
     equipment_reference: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    hours_operated: Mapped[float] = mapped_column(Numeric(8, 2), default=0)
+    hours_operated: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=0)
     status: Mapped[str | None] = mapped_column(String(80), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -196,7 +197,7 @@ class DailyReportDeliveryEntry(UUIDTimestampMixin, Base):
     daily_report_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     supplier: Mapped[str | None] = mapped_column(String(255), nullable=True)
     material: Mapped[str] = mapped_column(String(255))
-    quantity: Mapped[float | None] = mapped_column(Numeric(18, 4), nullable=True)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     unit_code: Mapped[str | None] = mapped_column(String(24), nullable=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ticket_number: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -220,7 +221,7 @@ class DailyReportProductionEntry(UUIDTimestampMixin, Base):
     daily_report_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     description: Mapped[str] = mapped_column(String(500))
     cost_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
-    quantity: Mapped[float] = mapped_column(Numeric(18, 4))
+    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4))
     unit_code: Mapped[str] = mapped_column(String(24))
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -249,7 +250,7 @@ class DailyReportDelayEntry(UUIDTimestampMixin, Base):
     description: Mapped[str] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    lost_hours: Mapped[float | None] = mapped_column(Numeric(8, 2), nullable=True)
+    lost_hours: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
     responsible_party: Mapped[str | None] = mapped_column(String(255), nullable=True)
     schedule_impact: Mapped[bool] = mapped_column(Boolean, default=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
