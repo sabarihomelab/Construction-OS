@@ -188,9 +188,23 @@ def upgrade() -> None:
         type_=sa.Numeric(20, 4),
         existing_nullable=True,
     )
+    op.alter_column(
+        "project_cost_allocations",
+        "unit_code",
+        existing_type=sa.String(24),
+        type_=sa.String(40),
+        existing_nullable=True,
+    )
 
 
 def downgrade() -> None:
+    op.alter_column(
+        "project_cost_allocations",
+        "unit_code",
+        existing_type=sa.String(40),
+        type_=sa.String(24),
+        existing_nullable=True,
+    )
     op.alter_column(
         "project_cost_allocations",
         "quantity",
