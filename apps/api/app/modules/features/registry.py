@@ -117,6 +117,17 @@ FEATURE_REGISTRY: tuple[FeatureSpec, ...] = (
         help_topic="field",
     ),
     FeatureSpec(
+        key="workforce",
+        name="Workforce & Time",
+        kind=FeatureKind.MODULE,
+        route="/workforce",
+        required_permissions=("workforce.worker.view",),
+        release_state=FeatureReleaseState.PLANNED,
+        display_order=220,
+        offline_enabled=True,
+        help_topic="workforce",
+    ),
+    FeatureSpec(
         key="financials",
         name="Financials",
         kind=FeatureKind.MODULE,
