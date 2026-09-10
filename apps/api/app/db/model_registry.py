@@ -137,6 +137,15 @@ from app.modules.workflows.models import (
     WorkflowTransitionRequest,
     WorkflowVersion,
 )
+from app.modules.workforce.models import (
+    Crew,
+    CrewMembership,
+    ProjectWorkerAssignment,
+    Timecard,
+    TimecardHistoryEvent,
+    TimeEntry,
+    Worker,
+)
 
 __all__ = [
     "RFI",
@@ -150,6 +159,8 @@ __all__ = [
     "ConfigurationTemplateVersion",
     "ConfigurationValue",
     "ConfigurationValueVersion",
+    "Crew",
+    "CrewMembership",
     "CustomFieldDefinition",
     "CustomFieldDefinitionRevision",
     "CustomFieldOption",
@@ -218,6 +229,7 @@ __all__ = [
     "Project",
     "ProjectMembership",
     "ProjectRoleAssignment",
+    "ProjectWorkerAssignment",
     "RFIHistoryEvent",
     "RFIProjectCounter",
     "RFIReference",
@@ -245,9 +257,13 @@ __all__ = [
     "SyncMutationReceipt",
     "TenantKnowledgeChunk",
     "TenantKnowledgeSource",
+    "Timecard",
+    "TimecardHistoryEvent",
+    "TimeEntry",
     "UploadSession",
     "User",
     "UserPreference",
+    "Worker",
     "WorkflowApprovalTask",
     "WorkflowDefinition",
     "WorkflowHistoryEvent",
