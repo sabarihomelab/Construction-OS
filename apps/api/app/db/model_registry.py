@@ -33,6 +33,16 @@ from app.modules.offline.models import (
 )
 from app.modules.organizations.models import Organization, OrganizationSettings
 from app.modules.sessions.models import Session
+from app.modules.workflows.models import (
+    WorkflowApprovalTask,
+    WorkflowDefinition,
+    WorkflowHistoryEvent,
+    WorkflowInstance,
+    WorkflowState,
+    WorkflowTransition,
+    WorkflowTransitionRequest,
+    WorkflowVersion,
+)
 
 __all__ = [
     "AuditEvent",
@@ -66,4 +76,12 @@ __all__ = [
     "UploadSession",
     "User",
     "UserPreference",
+    "WorkflowApprovalTask",
+    "WorkflowDefinition",
+    "WorkflowHistoryEvent",
+    "WorkflowInstance",
+    "WorkflowState",
+    "WorkflowTransition",
+    "WorkflowTransitionRequest",
+    "WorkflowVersion",
 ]
