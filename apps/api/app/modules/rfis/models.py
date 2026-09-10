@@ -71,9 +71,13 @@ class RFI(UUIDTimestampMixin, Base):
             ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
-            ["ball_in_court_membership_id", "organization_id"],
-            ["organization_memberships.id", "organization_memberships.organization_id"],
-            name="fk_rfis_ball_in_court_membership_org",
+            ["project_id", "ball_in_court_membership_id", "organization_id"],
+            [
+                "project_memberships.project_id",
+                "project_memberships.organization_membership_id",
+                "project_memberships.organization_id",
+            ],
+            name="fk_rfis_ball_in_court_project_member_org",
             ondelete="RESTRICT",
         ),
         UniqueConstraint("id", "organization_id", name="uq_rfis_id_org"),
