@@ -59,7 +59,8 @@ def knowledge_source_is_visible(
         return source.scope_id is None
     if source.scope_id is None or allowed_scopes is None:
         return False
-    return source.scope_id in allowed_scopes.get(source.scope_type, set())
+    allowed = allowed_scopes.get(source.scope_type, set())
+    return "*" in allowed or source.scope_id in allowed
 
 
 async def queue_knowledge_reindex(
