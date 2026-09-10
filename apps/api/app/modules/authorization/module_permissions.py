@@ -117,4 +117,6 @@ MODULE_PERMISSION_DEFINITIONS: tuple[ModulePermissionDefinition, ...] = (
     ModulePermissionDefinition("scheduling.baseline.create", "scheduling", "baseline", "create", "Create immutable project schedule baselines.", PermissionRisk.CRITICAL),
     ModulePermissionDefinition("scheduling.progress.update", "scheduling", "progress", "update", "Record project schedule progress.", PermissionRisk.HIGH),
     ModulePermissionDefinition("scheduling.schedule.complete", "scheduling", "schedule", "complete", "Complete an active project schedule.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("workforce.rate.view", "workforce", "rate", "view", "View permitted project worker commercial rates.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("workforce.rate.manage", "workforce", "rate", "manage", "Create and retire effective-dated project worker commercial rates.", PermissionRisk.CRITICAL),
 )
