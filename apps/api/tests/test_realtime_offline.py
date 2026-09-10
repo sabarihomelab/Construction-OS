@@ -49,6 +49,20 @@ def test_realtime_event_requires_permission_when_declared() -> None:
     assert event_is_visible(event, {"rfi.view"})
 
 
+def test_recipient_event_is_visible_only_to_matching_membership() -> None:
+    recipient = uuid4()
+    event = OutboxEvent(
+        organization_id=uuid4(),
+        recipient_membership_id=recipient,
+        event_type="notification.created",
+        entity_type="notification",
+        payload={},
+    )
+    assert event_is_visible(event, set(), membership_id=recipient)
+    assert not event_is_visible(event, set(), membership_id=uuid4())
+    assert not event_is_visible(event, set())
+
+
 def test_scoped_realtime_event_defaults_to_deny_without_scope_context() -> None:
     event = OutboxEvent(
         organization_id=uuid4(),
@@ -60,7 +74,11 @@ def test_scoped_realtime_event_defaults_to_deny_without_scope_context() -> None:
         payload={},
     )
     assert not event_is_visible(event, {"rfi.view"})
-    assert event_is_visible(event, {"rfi.view"}, {"project": {"project-123"}})
+    assert event_is_visible(
+        event,
+        {"rfi.view"},
+        allowed_scopes={"project": {"project-123"}},
+    )
 
 
 def test_offline_request_hash_is_order_independent() -> None:
