@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from uuid import UUID
 
@@ -6,12 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.audit.models import AuditActorType, AuditRisk
 from app.modules.audit.service import record_audit_event
-from app.modules.documents.models import DocumentRevision, SpecificationSection
-from app.modules.drawings.models import DrawingRevision
+from app.modules.documents.models import Document, DocumentRevision, SpecificationSection
+from app.modules.drawings.models import DrawingRevision, DrawingSet, DrawingSheet
 from app.modules.events.service import enqueue_event
-from app.modules.identity.models import MembershipStatus, OrganizationMembership
+from app.modules.notifications.models import NotificationCategory
 from app.modules.notifications.service import create_notification
-from app.modules.projects.models import Project
+from app.modules.projects.models import (
+    Project,
+    ProjectMembership,
+    ProjectMembershipStatus,
+)
 from app.modules.rfis.models import (
     RFI,
     RFIHistoryEvent,
@@ -32,6 +37,13 @@ class RFIValidationError(ValueError):
 
 class RFIConflictError(ValueError):
     pass
+
+
+def _reference_uuid(reference_id: UUID | str) -> UUID:
+    try:
+        return reference_id if isinstance(reference_id, UUID) else UUID(reference_id)
+    except ValueError as exc:
+        raise RFIValidationError("Reference id must be a UUID") from exc
 
 
 async def _history(
@@ -87,6 +99,54 @@ async def _publish_change(
     )
 
 
+async def _require_active_project_membership(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    project_id: UUID,
+    organization_membership_id: UUID,
+) -> None:
+    membership = await db.scalar(
+        select(ProjectMembership.id).where(
+            ProjectMembership.organization_id == organization_id,
+            ProjectMembership.project_id == project_id,
+            ProjectMembership.organization_membership_id == organization_membership_id,
+            ProjectMembership.status == ProjectMembershipStatus.ACTIVE,
+        )
+    )
+    if membership is None:
+        raise RFIValidationError("Ball-in-court member must be active on this project")
+
+
+async def _notify_ball_in_court(
+    db: AsyncSession,
+    *,
+    rfi: RFI,
+    recipient_membership_id: UUID,
+    actor_user_id: UUID | None,
+    correlation_id: UUID | None,
+) -> None:
+    await create_notification(
+        db,
+        organization_id=rfi.organization_id,
+        recipient_membership_id=recipient_membership_id,
+        event_type="rfi.ball_in_court",
+        category=NotificationCategory.ACTION_REQUIRED,
+        reason_code="rfi.ball_in_court",
+        reason_text="You are currently responsible for this RFI.",
+        title=f"RFI {rfi.number} requires your response",
+        message=rfi.subject,
+        required_permission_key="rfis.rfi.respond",
+        scope_type="project",
+        scope_id=rfi.project_id,
+        entity_type="rfi",
+        entity_id=rfi.id,
+        dedupe_key=f"rfi:{rfi.id}:ball-in-court:v{rfi.version}",
+        created_by_user_id=actor_user_id,
+        correlation_id=correlation_id,
+    )
+
+
 async def create_rfi(
     db: AsyncSession,
     *,
@@ -110,15 +170,12 @@ async def create_rfi(
     if not normalized_subject or not normalized_question:
         raise RFIValidationError("RFI subject and question are required")
     if ball_in_court_membership_id is not None:
-        membership = await db.scalar(
-            select(OrganizationMembership.id).where(
-                OrganizationMembership.id == ball_in_court_membership_id,
-                OrganizationMembership.organization_id == organization_id,
-                OrganizationMembership.status == MembershipStatus.ACTIVE,
-            )
+        await _require_active_project_membership(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            organization_membership_id=ball_in_court_membership_id,
         )
-        if membership is None:
-            raise RFIValidationError("Ball-in-court membership is not active in this company")
 
     number = await allocate_rfi_number(
         db,
@@ -166,6 +223,65 @@ async def create_rfi(
     return rfi
 
 
+async def update_rfi(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    rfi_id: UUID,
+    expected_version: int,
+    changes: Mapping[str, object],
+    actor_user_id: UUID,
+    correlation_id: UUID | None = None,
+) -> RFI:
+    rfi = await db.scalar(
+        select(RFI)
+        .where(RFI.id == rfi_id, RFI.organization_id == organization_id)
+        .with_for_update()
+    )
+    if rfi is None:
+        raise RFIValidationError("RFI was not found")
+    if rfi.version != expected_version:
+        raise RFIConflictError("RFI changed; refresh before updating")
+    if rfi.status in {RFIStatus.CLOSED, RFIStatus.VOID}:
+        raise RFIConflictError("Closed or void RFIs cannot be edited")
+
+    allowed = {"subject", "question", "priority", "due_date"}
+    unknown = set(changes) - allowed
+    if unknown:
+        raise RFIValidationError(f"Unsupported RFI fields: {', '.join(sorted(unknown))}")
+
+    for key, value in changes.items():
+        if key in {"subject", "question"}:
+            normalized = str(value or "").strip()
+            if not normalized:
+                raise RFIValidationError(f"RFI {key} cannot be blank")
+            setattr(rfi, key, normalized)
+        elif key == "priority":
+            rfi.priority = str(value).strip() if value is not None else None
+        elif key == "due_date":
+            if value is not None and not isinstance(value, date):
+                raise RFIValidationError("RFI due_date must be a date")
+            rfi.due_date = value
+
+    rfi.version += 1
+    await db.flush()
+    await _history(
+        db,
+        rfi=rfi,
+        event_type=RFIHistoryType.UPDATED,
+        actor_user_id=actor_user_id,
+        summary="RFI details updated",
+    )
+    await _publish_change(
+        db,
+        rfi=rfi,
+        event_type="rfi.updated",
+        actor_user_id=actor_user_id,
+        correlation_id=correlation_id,
+    )
+    return rfi
+
+
 async def open_rfi(
     db: AsyncSession,
     *,
@@ -205,22 +321,12 @@ async def open_rfi(
         correlation_id=correlation_id,
     )
     if rfi.ball_in_court_membership_id is not None:
-        await create_notification(
+        await _notify_ball_in_court(
             db,
-            organization_id=organization_id,
+            rfi=rfi,
             recipient_membership_id=rfi.ball_in_court_membership_id,
-            category="action_required",
-            title=f"RFI {rfi.number} requires your response",
-            body=rfi.subject,
-            reason_code="rfi.ball_in_court",
-            reason_text="You are currently responsible for this RFI.",
-            required_permission_key="rfis.rfi.respond",
-            scope_type="project",
-            scope_id=str(rfi.project_id),
-            entity_type="rfi",
-            entity_id=str(rfi.id),
-            entity_version=rfi.version,
-            dedupe_key=f"rfi:{rfi.id}:opened:v{rfi.version}",
+            actor_user_id=actor_user_id,
+            correlation_id=correlation_id,
         )
     return rfi
 
@@ -244,16 +350,15 @@ async def set_ball_in_court(
         raise RFIValidationError("RFI was not found")
     if rfi.version != expected_version:
         raise RFIConflictError("RFI changed; refresh before changing responsibility")
+    if rfi.status in {RFIStatus.CLOSED, RFIStatus.VOID}:
+        raise RFIConflictError("Closed or void RFIs cannot change responsibility")
     if membership_id is not None:
-        membership = await db.scalar(
-            select(OrganizationMembership.id).where(
-                OrganizationMembership.id == membership_id,
-                OrganizationMembership.organization_id == organization_id,
-                OrganizationMembership.status == MembershipStatus.ACTIVE,
-            )
+        await _require_active_project_membership(
+            db,
+            organization_id=organization_id,
+            project_id=rfi.project_id,
+            organization_membership_id=membership_id,
         )
-        if membership is None:
-            raise RFIValidationError("Ball-in-court membership is not active in this company")
     if rfi.ball_in_court_membership_id == membership_id:
         return rfi
     rfi.ball_in_court_membership_id = membership_id
@@ -273,6 +378,14 @@ async def set_ball_in_court(
         actor_user_id=actor_user_id,
         correlation_id=correlation_id,
     )
+    if membership_id is not None and rfi.status == RFIStatus.OPEN:
+        await _notify_ball_in_court(
+            db,
+            rfi=rfi,
+            recipient_membership_id=membership_id,
+            actor_user_id=actor_user_id,
+            correlation_id=correlation_id,
+        )
     return rfi
 
 
@@ -364,35 +477,55 @@ async def add_reference(
     if rfi is None:
         raise RFIValidationError("RFI was not found")
     reference_key = str(reference_id)
+
     if reference_type == RFIReferenceType.DRAWING_REVISION:
+        target_id = _reference_uuid(reference_id)
         target = await db.scalar(
-            select(DrawingRevision.id).where(
-                DrawingRevision.id == UUID(reference_key),
+            select(DrawingRevision.id)
+            .join(DrawingSheet, DrawingSheet.id == DrawingRevision.sheet_id)
+            .join(DrawingSet, DrawingSet.id == DrawingSheet.drawing_set_id)
+            .where(
+                DrawingRevision.id == target_id,
                 DrawingRevision.organization_id == organization_id,
+                DrawingSheet.organization_id == organization_id,
+                DrawingSet.organization_id == organization_id,
+                DrawingSet.project_id == rfi.project_id,
             )
         )
         if target is None:
-            raise RFIValidationError("Drawing revision reference was not found")
+            raise RFIValidationError("Drawing revision reference was not found in this project")
     elif reference_type == RFIReferenceType.SPECIFICATION_SECTION:
+        target_id = _reference_uuid(reference_id)
         target = await db.scalar(
-            select(SpecificationSection.id).where(
-                SpecificationSection.id == UUID(reference_key),
+            select(SpecificationSection.id)
+            .join(Document, Document.id == SpecificationSection.document_id)
+            .where(
+                SpecificationSection.id == target_id,
                 SpecificationSection.organization_id == organization_id,
+                Document.organization_id == organization_id,
+                Document.project_id == rfi.project_id,
             )
         )
         if target is None:
-            raise RFIValidationError("Specification section reference was not found")
+            raise RFIValidationError("Specification section reference was not found in this project")
     elif reference_type == RFIReferenceType.DOCUMENT_REVISION:
+        target_id = _reference_uuid(reference_id)
         target = await db.scalar(
-            select(DocumentRevision.id).where(
-                DocumentRevision.id == UUID(reference_key),
+            select(DocumentRevision.id)
+            .join(Document, Document.id == DocumentRevision.document_id)
+            .where(
+                DocumentRevision.id == target_id,
                 DocumentRevision.organization_id == organization_id,
+                Document.organization_id == organization_id,
+                Document.project_id == rfi.project_id,
             )
         )
         if target is None:
-            raise RFIValidationError("Document revision reference was not found")
+            raise RFIValidationError("Document revision reference was not found in this project")
     elif reference_type in {RFIReferenceType.SCHEDULE_ACTIVITY, RFIReferenceType.CHANGE_EVENT}:
         raise RFIValidationError("This reference type is not available until its module is installed")
+    elif reference_type == RFIReferenceType.CUSTOM and not reference_key.strip():
+        raise RFIValidationError("Custom RFI reference id is required")
 
     existing = await db.scalar(
         select(RFIReference).where(
@@ -413,6 +546,20 @@ async def add_reference(
     db.add(reference)
     rfi.version += 1
     await db.flush()
+    await _history(
+        db,
+        rfi=rfi,
+        event_type=RFIHistoryType.UPDATED,
+        actor_user_id=None,
+        summary=f"Reference added: {reference_type.value}",
+    )
+    await _publish_change(
+        db,
+        rfi=rfi,
+        event_type="rfi.reference.added",
+        actor_user_id=None,
+        correlation_id=None,
+    )
     return reference
 
 
@@ -451,6 +598,62 @@ async def close_rfi(
         db,
         rfi=rfi,
         event_type="rfi.closed",
+        actor_user_id=actor_user_id,
+        correlation_id=correlation_id,
+    )
+    return rfi
+
+
+async def void_rfi(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    rfi_id: UUID,
+    expected_version: int,
+    actor_user_id: UUID,
+    reason: str,
+    correlation_id: UUID | None = None,
+) -> RFI:
+    reason_text = reason.strip()
+    if not reason_text:
+        raise RFIValidationError("A reason is required to void an RFI")
+    rfi = await db.scalar(
+        select(RFI)
+        .where(RFI.id == rfi_id, RFI.organization_id == organization_id)
+        .with_for_update()
+    )
+    if rfi is None:
+        raise RFIValidationError("RFI was not found")
+    if rfi.version != expected_version:
+        raise RFIConflictError("RFI changed; refresh before voiding")
+    if rfi.status in {RFIStatus.CLOSED, RFIStatus.VOID}:
+        raise RFIConflictError("Closed or already void RFIs cannot be voided")
+    rfi.status = RFIStatus.VOID
+    rfi.ball_in_court_membership_id = None
+    rfi.version += 1
+    await db.flush()
+    await _history(
+        db,
+        rfi=rfi,
+        event_type=RFIHistoryType.VOIDED,
+        actor_user_id=actor_user_id,
+        summary=f"RFI voided: {reason_text}",
+    )
+    await record_audit_event(
+        db,
+        organization_id=organization_id,
+        action="rfi.voided",
+        target_type="rfi",
+        target_id=str(rfi.id),
+        actor_type=AuditActorType.USER,
+        actor_user_id=actor_user_id,
+        risk=AuditRisk.HIGH,
+        changes={"reason": reason_text, "number": rfi.number},
+    )
+    await _publish_change(
+        db,
+        rfi=rfi,
+        event_type="rfi.voided",
         actor_user_id=actor_user_id,
         correlation_id=correlation_id,
     )
