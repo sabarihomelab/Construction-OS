@@ -145,6 +145,26 @@ class ConfigurationScopeRevision(Base):
     )
 
 
+class MembershipPreferenceState(Base):
+    __tablename__ = "membership_preference_states"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["membership_id", "organization_id"],
+            ["organization_memberships.id", "organization_memberships.organization_id"],
+            name="fk_membership_preference_states_membership_org",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("revision >= 1", name="ck_membership_preference_states_revision"),
+    )
+
+    membership_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class MembershipPreference(UUIDTimestampMixin, Base):
     __tablename__ = "membership_preferences"
     __table_args__ = (
