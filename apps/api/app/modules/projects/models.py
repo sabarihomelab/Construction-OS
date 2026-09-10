@@ -92,6 +92,12 @@ class ProjectMembership(UUIDTimestampMixin, Base):
             "organization_membership_id",
             name="uq_project_memberships_project_membership",
         ),
+        UniqueConstraint(
+            "project_id",
+            "organization_membership_id",
+            "organization_id",
+            name="uq_project_memberships_project_member_org",
+        ),
         UniqueConstraint("id", "organization_id", name="uq_project_memberships_id_org"),
         Index("ix_project_memberships_org_status", "organization_id", "status"),
     )
