@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    ForeignKeyConstraint,
     Identity,
     Index,
     Integer,
@@ -36,6 +37,12 @@ def enum_values(enum_class: type[StrEnum]) -> list[str]:
 class OutboxEvent(UUIDTimestampMixin, Base):
     __tablename__ = "outbox_events"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["recipient_membership_id", "organization_id"],
+            ["organization_memberships.id", "organization_memberships.organization_id"],
+            name="fk_outbox_events_recipient_membership_org",
+            ondelete="CASCADE",
+        ),
         UniqueConstraint("sequence", name="uq_outbox_events_sequence"),
         CheckConstraint("event_schema_version >= 1", name="ck_outbox_events_schema_version"),
         CheckConstraint("publish_attempts >= 0", name="ck_outbox_events_publish_attempts"),
@@ -50,11 +57,18 @@ class OutboxEvent(UUIDTimestampMixin, Base):
         ),
         Index("ix_outbox_events_org_sequence", "organization_id", "sequence"),
         Index("ix_outbox_events_status_available", "status", "available_at"),
+        Index(
+            "ix_outbox_events_recipient_sequence",
+            "organization_id",
+            "recipient_membership_id",
+            "sequence",
+        ),
     )
 
     organization_id: Mapped[UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), index=True
     )
+    recipient_membership_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     sequence: Mapped[int] = mapped_column(BigInteger, Identity(), nullable=False, index=True)
     event_type: Mapped[str] = mapped_column(String(160), index=True)
     event_schema_version: Mapped[int] = mapped_column(Integer, default=1)
