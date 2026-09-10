@@ -230,6 +230,8 @@ def register_drawing_handlers(
             process_revision,
             timeout_seconds=900,
             lease_seconds=120,
+            profile="drawings",
+            module_key="drawings",
         )
     if not jobs.contains("drawings.compare_revisions"):
         jobs.register(
@@ -237,4 +239,6 @@ def register_drawing_handlers(
             compare_revisions,
             timeout_seconds=900,
             lease_seconds=120,
+            profile="drawings",
+            module_key="drawings",
         )
