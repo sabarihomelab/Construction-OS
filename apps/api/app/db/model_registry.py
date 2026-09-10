@@ -18,6 +18,7 @@ from app.modules.files.models import (
     UploadSession,
 )
 from app.modules.identity.models import OrganizationMembership, User, UserPreference
+from app.modules.jobs.models import BackgroundJob, BackgroundJobAttempt
 from app.modules.metadata.models import (
     CustomFieldDefinition,
     CustomFieldDefinitionRevision,
@@ -35,6 +36,8 @@ from app.modules.sessions.models import Session
 
 __all__ = [
     "AuditEvent",
+    "BackgroundJob",
+    "BackgroundJobAttempt",
     "ClientDevice",
     "CustomFieldDefinition",
     "CustomFieldDefinitionRevision",
