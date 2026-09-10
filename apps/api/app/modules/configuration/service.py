@@ -17,6 +17,7 @@ from app.modules.configuration.models import (
     ConfigurationValueVersion,
     MembershipPreference,
     MembershipPreferenceState,
+    OrganizationConfigurationState,
     PreferenceContextType,
 )
 from app.modules.configuration.registry import (
@@ -91,6 +92,29 @@ async def _validate_scope_target(
     )
     if version is None:
         raise ConfigurationValidationError("Project-template configuration scope was not found")
+
+
+async def _bump_organization_revision(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+) -> int:
+    statement = (
+        pg_insert(OrganizationConfigurationState)
+        .values(organization_id=organization_id, revision=1)
+        .on_conflict_do_update(
+            index_elements=["organization_id"],
+            set_={
+                "revision": OrganizationConfigurationState.revision + 1,
+                "updated_at": func.now(),
+            },
+        )
+        .returning(OrganizationConfigurationState.revision)
+    )
+    revision = await db.scalar(statement)
+    if revision is None:
+        raise RuntimeError("Organization configuration revision could not be updated")
+    return revision
 
 
 async def _bump_scope_revision(
@@ -237,12 +261,16 @@ async def set_configuration_override(
         reason=reason,
     )
     db.add(version)
-    revision = await _bump_scope_revision(
+    scope_revision = await _bump_scope_revision(
         db,
         organization_id=organization_id,
         module_key=module_key,
         scope_type=scope_type,
         scope_id=scope_id,
+    )
+    organization_revision = await _bump_organization_revision(
+        db,
+        organization_id=organization_id,
     )
     await db.flush()
 
@@ -286,7 +314,7 @@ async def set_configuration_override(
         event_type="configuration.changed",
         entity_type="configuration",
         entity_id=configuration_key,
-        entity_version=revision,
+        entity_version=organization_revision,
         scope_type="project" if project_scope else None,
         scope_id=scope_id if project_scope else None,
         actor_user_id=actor_user_id,
@@ -296,7 +324,8 @@ async def set_configuration_override(
             "configuration_key": configuration_key,
             "scope_type": scope_type.value,
             "scope_id": str(scope_id),
-            "configuration_revision": revision,
+            "configuration_revision": scope_revision,
+            "organization_configuration_revision": organization_revision,
         },
     )
     return version
@@ -454,6 +483,10 @@ async def assign_project_configuration_template(
             scope_type=ConfigurationScopeType.PROJECT,
             scope_id=project_id,
         )
+    organization_revision = await _bump_organization_revision(
+        db,
+        organization_id=organization_id,
+    )
     await db.flush()
 
     await record_audit_event(
@@ -479,12 +512,16 @@ async def assign_project_configuration_template(
         event_type="configuration.project_template.changed",
         entity_type="project",
         entity_id=project.id,
-        entity_version=project.revision,
+        entity_version=organization_revision,
         scope_type="project",
         scope_id=project.id,
         actor_user_id=actor_user_id,
         session_id=session_id,
-        payload={"module_key": "*", "configuration_revisions": revisions},
+        payload={
+            "module_key": "*",
+            "configuration_revisions": revisions,
+            "organization_configuration_revision": organization_revision,
+        },
     )
     return project
 
@@ -595,9 +632,7 @@ async def resolve_effective_configuration(
         for definition in definitions
     }
 
-    targets = [
-        ScopeTarget(ConfigurationScopeType.COMPANY, organization_id),
-    ]
+    targets = [ScopeTarget(ConfigurationScopeType.COMPANY, organization_id)]
     if project is not None and project.configuration_template_version_id is not None:
         targets.append(
             ScopeTarget(
