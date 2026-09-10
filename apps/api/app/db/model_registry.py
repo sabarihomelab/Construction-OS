@@ -46,6 +46,11 @@ from app.modules.offline.models import (
     SyncConflict,
     SyncMutationReceipt,
 )
+from app.modules.operations.models import (
+    OperationalEvent,
+    OperationalHealthSnapshot,
+    OperationsRetentionPolicy,
+)
 from app.modules.organizations.models import Organization, OrganizationSettings
 from app.modules.reporting.models import (
     DashboardDefinition,
@@ -104,6 +109,9 @@ __all__ = [
     "NotificationPreference",
     "NotificationSettings",
     "NotificationSubscription",
+    "OperationalEvent",
+    "OperationalHealthSnapshot",
+    "OperationsRetentionPolicy",
     "Organization",
     "OrganizationAuthorizationState",
     "OrganizationFeature",
