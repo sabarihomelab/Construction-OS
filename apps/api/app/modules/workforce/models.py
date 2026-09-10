@@ -71,7 +71,7 @@ class Worker(UUIDTimestampMixin, Base):
             ["organization_membership_id", "organization_id"],
             ["organization_memberships.id", "organization_memberships.organization_id"],
             name="fk_workers_org_membership_org",
-            ondelete="SET NULL",
+            ondelete="RESTRICT",
         ),
         UniqueConstraint("organization_id", "worker_number", name="uq_workers_org_number"),
         UniqueConstraint("id", "organization_id", name="uq_workers_id_org"),
@@ -114,7 +114,7 @@ class Crew(UUIDTimestampMixin, Base):
             ["supervisor_worker_id", "organization_id"],
             ["workers.id", "workers.organization_id"],
             name="fk_crews_supervisor_worker_org",
-            ondelete="SET NULL",
+            ondelete="RESTRICT",
         ),
         UniqueConstraint("organization_id", "name", name="uq_crews_org_name"),
         UniqueConstraint("id", "organization_id", name="uq_crews_id_org"),
@@ -190,7 +190,7 @@ class ProjectWorkerAssignment(UUIDTimestampMixin, Base):
             ["crew_id", "organization_id"],
             ["crews.id", "crews.organization_id"],
             name="fk_project_worker_assignments_crew_org",
-            ondelete="SET NULL",
+            ondelete="RESTRICT",
         ),
         UniqueConstraint(
             "project_id", "worker_id", name="uq_project_worker_assignments_project_worker"
