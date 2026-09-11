@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.modules.financials.commitment_router import router as commitment_router
 from app.modules.financials.equipment_feed_router import router as equipment_feed_router
 from app.modules.financials.feed_router import router as feed_router
 from app.modules.financials.mapping_router import router as mapping_router
@@ -12,3 +13,4 @@ router.include_router(mapping_router)
 router.include_router(feed_router)
 router.include_router(material_feed_router)
 router.include_router(equipment_feed_router)
+router.include_router(commitment_router)
