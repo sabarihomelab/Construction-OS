@@ -135,6 +135,7 @@ class PurchaseOrderLineRead(BaseModel):
 
 class GoodsReceiptCreate(BaseModel):
     purchase_order_id: UUID
+    stock_location_id: UUID | None = None
     received_at: datetime
     challan_number: str | None = Field(default=None, max_length=120)
     supplier_invoice_number: str | None = Field(default=None, max_length=120)
@@ -146,6 +147,7 @@ class GoodsReceiptRead(BaseModel):
     id: UUID
     project_id: UUID
     purchase_order_id: UUID
+    stock_location_id: UUID | None
     number: str
     status: GoodsReceiptStatus
     received_at: datetime
@@ -185,3 +187,7 @@ class GoodsReceiptLineRead(BaseModel):
 class RevisionAction(BaseModel):
     expected_revision: int = Field(ge=1)
     reason: str | None = Field(default=None, max_length=1000)
+
+
+class GoodsReceiptReceiveAction(RevisionAction):
+    stock_location_id: UUID | None = None
