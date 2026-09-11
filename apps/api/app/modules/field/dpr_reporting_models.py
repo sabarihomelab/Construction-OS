@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
@@ -12,6 +13,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -167,13 +169,102 @@ class DPRTemplateVersion(UUIDTimestampMixin, Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class DailyReportMaterialEntry(UUIDTimestampMixin, Base):
+    __tablename__ = "daily_report_material_entries"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["daily_report_id", "organization_id"],
+            ["daily_reports.id", "daily_reports.organization_id"],
+            name="fk_daily_report_material_report_org",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["project_id", "organization_id"],
+            ["projects.id", "projects.organization_id"],
+            name="fk_daily_report_material_project_org",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["material_id", "organization_id"],
+            ["materials.id", "materials.organization_id"],
+            name="fk_daily_report_material_material_org",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["wbs_code_id", "project_id", "organization_id"],
+            ["project_wbs_codes.id", "project_wbs_codes.project_id", "project_wbs_codes.organization_id"],
+            name="fk_daily_report_material_wbs_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["boq_item_id", "project_id", "organization_id"],
+            ["project_boq_items.id", "project_boq_items.project_id", "project_boq_items.organization_id"],
+            name="fk_daily_report_material_boq_scope",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("id", "organization_id", name="uq_daily_report_material_id_org"),
+        CheckConstraint("quantity > 0", name="ck_daily_report_material_quantity"),
+        Index("ix_daily_report_material_report", "daily_report_id"),
+        Index("ix_daily_report_material_project_wbs", "project_id", "wbs_code_id"),
+    )
+
+    organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    project_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    daily_report_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    material_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    material_name: Mapped[str] = mapped_column(String(255))
+    quantity: Mapped[Decimal] = mapped_column(Numeric(20, 4))
+    unit_code: Mapped[str] = mapped_column(String(40))
+    wbs_code_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    boq_item_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class DPRSourceLink(UUIDTimestampMixin, Base):
+    __tablename__ = "dpr_source_links"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["daily_report_id", "organization_id"],
+            ["daily_reports.id", "daily_reports.organization_id"],
+            name="fk_dpr_source_links_report_org",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "daily_report_id",
+            "section_name",
+            "source_type",
+            "source_id",
+            name="uq_dpr_source_links_report_source",
+        ),
+        Index("ix_dpr_source_links_entry", "entry_type", "entry_id"),
+        Index("ix_dpr_source_links_report", "daily_report_id", "section_name"),
+    )
+
+    organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    daily_report_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    section_name: Mapped[str] = mapped_column(String(40))
+    entry_type: Mapped[str] = mapped_column(String(80))
+    entry_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    source_type: Mapped[str] = mapped_column(String(80))
+    source_id: Mapped[str] = mapped_column(String(160))
+    source_revision: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    source_snapshot: Mapped[dict[str, object]] = mapped_column(JSONB, default=dict)
+
+
 class DPRRenderRecord(UUIDTimestampMixin, Base):
     __tablename__ = "dpr_render_records"
     __table_args__ = (
         ForeignKeyConstraint(
-            ["daily_report_id", "project_id", "organization_id"],
-            ["daily_reports.id", "daily_reports.project_id", "daily_reports.organization_id"],
-            name="fk_dpr_render_records_report_scope",
+            ["daily_report_id", "organization_id"],
+            ["daily_reports.id", "daily_reports.organization_id"],
+            name="fk_dpr_render_records_report_org",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["project_id", "organization_id"],
+            ["projects.id", "projects.organization_id"],
+            name="fk_dpr_render_records_project_org",
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
