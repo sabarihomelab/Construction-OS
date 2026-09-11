@@ -150,6 +150,16 @@ class AttendanceRepository(
         syncScheduler.scheduleOnce()
     }
 
+    suspend fun markRemainingPresent(registerId: String) {
+        requireEditable(registerId)
+        dao.markUnmarkedAndDirty(
+            registerId = registerId,
+            markStatus = MARK_PRESENT,
+            updatedAt = System.currentTimeMillis(),
+        )
+        syncScheduler.scheduleOnce()
+    }
+
     suspend fun markWorker(registerId: String, assignmentId: String, markStatus: String) {
         require(markStatus in MARK_STATUSES) { "Unsupported attendance mark" }
         requireEditable(registerId)

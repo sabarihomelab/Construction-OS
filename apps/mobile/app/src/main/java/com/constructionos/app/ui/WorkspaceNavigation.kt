@@ -12,6 +12,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,6 +33,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.constructionos.app.core.attendance.AttendanceRepository
+import com.constructionos.app.core.authorization.ProjectActionMode
+import com.constructionos.app.core.authorization.ProjectHomeAction
+import com.constructionos.app.core.authorization.ProjectHomeActionKey
 import com.constructionos.app.core.authorization.projectHomeActions
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.network.SessionContextResponse
@@ -38,11 +44,19 @@ import com.constructionos.app.core.workspace.WorkspaceCoordinator
 
 private const val PROJECT_SELECTOR_ROUTE = "project-selector"
 private const val PROJECT_HOME_ROUTE = "project-home/{projectId}"
+private const val ATTENDANCE_ROUTE = "attendance/{projectId}"
+
+private enum class ProjectTab(val label: String) {
+    HOME("Home"),
+    FIELD("Field"),
+    MORE("More"),
+}
 
 @Composable
 fun WorkspaceNavigation(
     context: SessionContextResponse,
     workspace: WorkspaceCoordinator,
+    attendanceRepository: AttendanceRepository,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -117,14 +131,36 @@ fun WorkspaceNavigation(
                     },
                 )
             } else {
-                ProjectHomeScreen(
+                ProjectWorkspaceScreen(
                     project = project,
                     context = context,
-                    onChangeProject = {
+                    attendanceRepository = attendanceRepository,
+                    onChooseProject = {
                         restoreSavedSelection = false
                         navController.navigate(PROJECT_SELECTOR_ROUTE)
                     },
+                    onOpenAttendance = {
+                        navController.navigate(attendanceRoute(project.id))
+                    },
                     onLogout = onLogout,
+                )
+            }
+        }
+
+        composable(
+            route = ATTENDANCE_ROUTE,
+            arguments = listOf(navArgument("projectId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId").orEmpty()
+            val project = projects.firstOrNull { it.id == projectId }
+            if (project == null) {
+                MissingProjectScreen(onChooseProject = { navController.popBackStack() })
+            } else {
+                AttendanceScreen(
+                    project = project,
+                    context = context,
+                    repository = attendanceRepository,
+                    onBack = { navController.popBackStack() },
                 )
             }
         }
@@ -226,96 +262,261 @@ private fun ProjectSelectorScreen(
 }
 
 @Composable
-private fun ProjectHomeScreen(
+private fun ProjectWorkspaceScreen(
     project: ProjectEntity,
     context: SessionContextResponse,
-    onChangeProject: () -> Unit,
+    attendanceRepository: AttendanceRepository,
+    onChooseProject: () -> Unit,
+    onOpenAttendance: () -> Unit,
     onLogout: () -> Unit,
 ) {
+    var selectedTab by rememberSaveable(project.id) { mutableStateOf(ProjectTab.HOME.name) }
     val actions = remember(context, project.id) { context.projectHomeActions(project.id) }
+    val pendingFlow = remember(project.id) { attendanceRepository.observePendingMutationCount(project.id) }
+    val attentionFlow = remember(project.id) { attendanceRepository.observeAttentionCount(project.id) }
+    val pending by pendingFlow.collectAsState(initial = 0)
+    val attention by attentionFlow.collectAsState(initial = 0)
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+        ) {
             Text("Construction OS", style = MaterialTheme.typography.labelLarge)
-            Text(project.name, style = MaterialTheme.typography.headlineMedium)
+            Text(project.name, style = MaterialTheme.typography.headlineSmall)
             Text(
                 "${project.number} • ${project.status}",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
             )
         }
 
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Project home", style = MaterialTheme.typography.titleLarge)
-                TextButton(onClick = onChangeProject) { Text("Change project") }
-            }
+        when (ProjectTab.valueOf(selectedTab)) {
+            ProjectTab.HOME -> ProjectHomeContent(
+                actions = actions,
+                pending = pending,
+                attention = attention,
+                onOpenAttendance = onOpenAttendance,
+                modifier = Modifier.weight(1f),
+            )
+
+            ProjectTab.FIELD -> ProjectFieldContent(
+                actions = actions,
+                onOpenAttendance = onOpenAttendance,
+                modifier = Modifier.weight(1f),
+            )
+
+            ProjectTab.MORE -> ProjectMoreContent(
+                project = project,
+                onChooseProject = onChooseProject,
+                onLogout = onLogout,
+                modifier = Modifier.weight(1f),
+            )
         }
 
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Ready for field work", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Current project data is kept on this device and syncs on explicit app events when internet is available.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
-            }
-        }
-
-        item {
-            Text("Available workflows", style = MaterialTheme.typography.titleMedium)
-        }
-
-        if (actions.isEmpty()) {
-            item {
-                Text(
-                    "No mobile field workflows are available for your current project access.",
-                    style = MaterialTheme.typography.bodyMedium,
+        NavigationBar {
+            ProjectTab.entries.forEach { tab ->
+                NavigationBarItem(
+                    selected = selectedTab == tab.name,
+                    onClick = { selectedTab = tab.name },
+                    icon = {},
+                    label = { Text(tab.label) },
                 )
             }
-        } else {
-            items(actions, key = { it.key.name }) { action ->
+            NavigationBarItem(
+                selected = false,
+                onClick = onChooseProject,
+                icon = {},
+                label = { Text("Projects") },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProjectHomeContent(
+    actions: List<ProjectHomeAction>,
+    pending: Int,
+    attention: Int,
+    onOpenAttendance: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Text("Today", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Your daily work and anything needing attention.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
+
+        if (attention > 0) {
+            item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(action.title, style = MaterialTheme.typography.titleMedium)
+                        Text("Needs attention", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            action.subtitle,
-                            style = MaterialTheme.typography.bodyMedium,
+                            "$attention attendance sync issue${if (attention == 1) "" else "s"} need review.",
+                            color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.padding(top = 4.dp),
                         )
+                    }
+                }
+            }
+        } else if (pending > 0) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Saved on device", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Available for this project",
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(top = 10.dp),
+                            "$pending attendance change${if (pending == 1) "" else "s"} will sync when network is available.",
+                            modifier = Modifier.padding(top = 4.dp),
                         )
                     }
                 }
             }
         }
 
+        if (actions.isEmpty()) {
+            item {
+                Text(
+                    "No mobile workflows are available for your current project permissions.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        } else {
+            items(actions, key = { it.key.name }) { action ->
+                ProjectActionCard(
+                    action = action,
+                    onClick = when (action.key) {
+                        ProjectHomeActionKey.ATTENDANCE -> onOpenAttendance
+                        ProjectHomeActionKey.DAILY_REPORT -> null
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectFieldContent(
+    actions: List<ProjectHomeAction>,
+    onOpenAttendance: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         item {
+            Text("Field", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Only field workflows allowed for this project are shown.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
+        items(actions, key = { it.key.name }) { action ->
+            ProjectActionCard(
+                action = action,
+                onClick = when (action.key) {
+                    ProjectHomeActionKey.ATTENDANCE -> onOpenAttendance
+                    ProjectHomeActionKey.DAILY_REPORT -> null
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProjectActionCard(
+    action: ProjectHomeAction,
+    onClick: (() -> Unit)?,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Event-driven sync enabled", style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = onLogout) { Text("Sign out") }
+                Text(action.title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    when (action.mode) {
+                        ProjectActionMode.WORK -> "Work"
+                        ProjectActionMode.REVIEW -> "Review"
+                        ProjectActionMode.VIEW -> "View"
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                )
             }
+            Text(
+                action.subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            if (onClick != null) {
+                TextButton(
+                    onClick = onClick,
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
+                    Text("Open")
+                }
+            } else {
+                Text(
+                    "Mobile screen is the next implementation section.",
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectMoreContent(
+    project: ProjectEntity,
+    onChooseProject: () -> Unit,
+    onLogout: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Text("More", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Project information and account actions. Additional tools appear only when their mobile workflow is ready and authorized.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Project", style = MaterialTheme.typography.titleMedium)
+                    Text(project.name, modifier = Modifier.padding(top = 4.dp))
+                    Text(project.number, style = MaterialTheme.typography.bodySmall)
+                    project.locality?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                }
+            }
+        }
+        item {
+            OutlinedButton(
+                onClick = onChooseProject,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Change project") }
+        }
+        item {
+            TextButton(
+                onClick = onLogout,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Sign out") }
         }
     }
 }
@@ -339,3 +540,4 @@ private fun MissingProjectScreen(onChooseProject: () -> Unit) {
 }
 
 private fun projectHomeRoute(projectId: String): String = "project-home/$projectId"
+private fun attendanceRoute(projectId: String): String = "attendance/$projectId"

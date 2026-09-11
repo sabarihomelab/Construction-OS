@@ -182,6 +182,26 @@ interface AttendanceDao {
             sync_state = 'saved_on_device',
             local_updated_at = :updatedAt
         WHERE register_id = :registerId
+          AND mark_status = 'not_marked'
+        """,
+    )
+    suspend fun markUnmarkedLocally(registerId: String, markStatus: String, updatedAt: Long)
+
+    @Query(
+        """
+        UPDATE attendance_entries
+        SET mark_status = :markStatus,
+            regular_hours = CASE
+                WHEN :markStatus IN ('not_marked', 'absent', 'leave', 'weekly_off') THEN '0'
+                ELSE regular_hours
+            END,
+            overtime_hours = CASE
+                WHEN :markStatus IN ('not_marked', 'absent', 'leave', 'weekly_off') THEN '0'
+                ELSE overtime_hours
+            END,
+            sync_state = 'saved_on_device',
+            local_updated_at = :updatedAt
+        WHERE register_id = :registerId
           AND assignment_id = :assignmentId
         """,
     )
@@ -307,6 +327,12 @@ interface AttendanceDao {
     @Transaction
     suspend fun markAllAndDirty(registerId: String, markStatus: String, updatedAt: Long) {
         markAllLocally(registerId, markStatus, updatedAt)
+        updateRegisterSyncState(registerId, AttendanceSyncState.SAVED_ON_DEVICE, updatedAt)
+    }
+
+    @Transaction
+    suspend fun markUnmarkedAndDirty(registerId: String, markStatus: String, updatedAt: Long) {
+        markUnmarkedLocally(registerId, markStatus, updatedAt)
         updateRegisterSyncState(registerId, AttendanceSyncState.SAVED_ON_DEVICE, updatedAt)
     }
 

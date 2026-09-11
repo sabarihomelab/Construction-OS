@@ -73,6 +73,7 @@ fun ConstructionOsApp() {
             is AuthUiState.Authenticated -> WorkspaceNavigation(
                 context = current.context,
                 workspace = container.workspaceCoordinator,
+                attendanceRepository = container.attendanceRepository,
                 modifier = Modifier.padding(padding),
                 onLogout = {
                     scope.launch {

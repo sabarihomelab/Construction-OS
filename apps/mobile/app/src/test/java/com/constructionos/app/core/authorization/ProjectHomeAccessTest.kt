@@ -19,15 +19,32 @@ class ProjectHomeAccessTest {
             features = listOf(
                 feature("workforce", mobileEnabled = true),
                 feature("field", mobileEnabled = true),
-                feature("projects", mobileEnabled = true),
             ),
         )
 
+        val actions = context.projectHomeActions("project-1")
         assertEquals(
             listOf(ProjectHomeActionKey.ATTENDANCE, ProjectHomeActionKey.DAILY_REPORT),
-            context.projectHomeActions("project-1").map { it.key },
+            actions.map { it.key },
         )
+        assertEquals(ProjectActionMode.VIEW, actions.first().mode)
+        assertEquals(ProjectActionMode.WORK, actions.last().mode)
         assertEquals(emptyList<ProjectHomeAction>(), context.projectHomeActions("project-2"))
+    }
+
+    @Test
+    fun `review only attendance permission keeps attendance visible`() {
+        val context = context(
+            permissions = emptyList(),
+            projectPermissions = mapOf(
+                "project-1" to listOf("workforce.attendance.approve"),
+            ),
+            features = listOf(feature("workforce", mobileEnabled = true)),
+        )
+
+        val action = context.projectHomeActions("project-1").single()
+        assertEquals(ProjectHomeActionKey.ATTENDANCE, action.key)
+        assertEquals(ProjectActionMode.REVIEW, action.mode)
     }
 
     @Test
