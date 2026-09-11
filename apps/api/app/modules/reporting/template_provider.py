@@ -31,6 +31,7 @@ class ReportDataContract:
     version: int
     scalar_paths: tuple[str, ...]
     collections: tuple[CollectionContract, ...]
+    source_revision_path: str
     dynamic_prefixes: tuple[str, ...] = ()
     required_permission_key: str | None = None
 
@@ -49,6 +50,7 @@ PayloadBuilder = Callable[
     [AsyncSession, UUID, UUID | None, UUID],
     Awaitable[dict[str, object]],
 ]
+DefaultLayoutFactory = Callable[[], ReportLayoutSpec]
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +58,7 @@ class ReportDataProvider:
     contract: ReportDataContract
     source_entity_type: str
     build_payload: PayloadBuilder
+    default_layout: DefaultLayoutFactory
 
 
 class ReportDataProviderRegistry:
@@ -70,6 +73,8 @@ class ReportDataProviderRegistry:
             raise ValueError(f"Report provider already registered: {key}")
         if provider.contract.version < 1:
             raise ValueError("Report provider contract version must be positive")
+        if not provider.contract.source_revision_path.strip():
+            raise ValueError("Report provider source_revision_path is required")
         self._providers[key] = provider
 
     def get(self, key: str) -> ReportDataProvider:
