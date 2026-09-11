@@ -11,7 +11,9 @@ import com.constructionos.app.core.network.AttendanceOfflineMutationRequest
 import com.constructionos.app.core.network.AttendanceRegisterCreateRequest
 import com.constructionos.app.core.network.AttendanceRegisterDetailResponse
 import com.constructionos.app.core.network.AttendanceRegisterResponse
+import com.constructionos.app.core.network.AttendanceRequiredReasonActionRequest
 import com.constructionos.app.core.network.AttendanceRosterResponse
+import com.constructionos.app.core.network.AttendanceVersionActionRequest
 import com.constructionos.app.core.network.ConstructionOsApi
 import com.constructionos.app.core.offline.DeviceRegistrar
 import com.constructionos.app.core.offline.WorkspaceSyncScheduler
@@ -172,6 +174,74 @@ class AttendanceRepository(
         syncScheduler.scheduleOnce()
     }
 
+    suspend fun submitRegister(projectId: String, registerId: String, reason: String? = null) {
+        val register = requireReadyServerRegister(registerId)
+        require(register.status == STATUS_DRAFT || register.status == STATUS_REJECTED) {
+            "Only draft or rejected attendance can be submitted."
+        }
+        val entries = dao.entries(register.id)
+        require(entries.isNotEmpty() && entries.none { it.markStatus == MARK_NOT_MARKED }) {
+            "Mark every worker before submitting attendance."
+        }
+        val remote = api.submitAttendance(
+            projectId = projectId,
+            registerId = register.id,
+            request = AttendanceVersionActionRequest(
+                expectedRevision = register.revision,
+                reason = reason?.trim()?.takeIf { it.isNotEmpty() },
+            ),
+        )
+        cacheActionResult(remote)
+    }
+
+    suspend fun approveRegister(projectId: String, registerId: String, reason: String? = null) {
+        val register = requireReadyServerRegister(registerId)
+        require(register.status == STATUS_IN_REVIEW) { "Attendance is not awaiting review." }
+        val remote = api.approveAttendance(
+            projectId = projectId,
+            registerId = register.id,
+            request = AttendanceVersionActionRequest(
+                expectedRevision = register.revision,
+                reason = reason?.trim()?.takeIf { it.isNotEmpty() },
+            ),
+        )
+        cacheActionResult(remote)
+    }
+
+    suspend fun rejectRegister(projectId: String, registerId: String, reason: String) {
+        val register = requireReadyServerRegister(registerId)
+        require(register.status == STATUS_IN_REVIEW) { "Attendance is not awaiting review." }
+        val normalizedReason = reason.trim()
+        require(normalizedReason.isNotEmpty()) { "Add a reason before rejecting attendance." }
+        val remote = api.rejectAttendance(
+            projectId = projectId,
+            registerId = register.id,
+            request = AttendanceRequiredReasonActionRequest(
+                expectedRevision = register.revision,
+                reason = normalizedReason,
+            ),
+        )
+        cacheActionResult(remote)
+    }
+
+    suspend fun reopenRegister(projectId: String, registerId: String, reason: String) {
+        val register = requireReadyServerRegister(registerId)
+        require(register.status in REOPENABLE_STATUSES) {
+            "Only submitted, in-review, or approved attendance can be reopened."
+        }
+        val normalizedReason = reason.trim()
+        require(normalizedReason.isNotEmpty()) { "Add a reason before reopening attendance." }
+        val remote = api.reopenAttendance(
+            projectId = projectId,
+            registerId = register.id,
+            request = AttendanceRequiredReasonActionRequest(
+                expectedRevision = register.revision,
+                reason = normalizedReason,
+            ),
+        )
+        cacheActionResult(remote)
+    }
+
     suspend fun clearProject(projectId: String) {
         dao.clearRoster(projectId)
     }
@@ -183,10 +253,35 @@ class AttendanceRepository(
         }
     }
 
+    private suspend fun requireReadyServerRegister(registerId: String): AttendanceRegisterEntity {
+        val register = requireNotNull(dao.registerById(registerId)) { "Attendance register was not found" }
+        require(syncScheduler.isNetworkAvailable()) {
+            "Connect to the internet to complete this workflow action."
+        }
+        require(register.revision > 0 && register.syncState == AttendanceSyncState.SYNCED) {
+            "Finish syncing attendance before continuing."
+        }
+        require(dao.dirtyEntryCount(register.id) == 0 && !hasActiveMutation(register.id)) {
+            "Finish syncing attendance before continuing."
+        }
+        return register
+    }
+
     private suspend fun hasActiveMutation(registerId: String): Boolean =
         dao.activeMutationCount(registerId, OP_CREATE) > 0 ||
             dao.activeMutationCount(registerId, OP_REPLACE) > 0 ||
             dao.activeMutationCount(registerId, OP_SUBMIT) > 0
+
+    private suspend fun cacheActionResult(remote: AttendanceRegisterResponse) {
+        dao.updateRegisterFromServer(
+            registerId = remote.id,
+            status = remote.status,
+            revision = remote.revision,
+            syncState = AttendanceSyncState.SYNCED,
+            serverUpdatedAt = remote.updatedAt,
+            localUpdatedAt = System.currentTimeMillis(),
+        )
+    }
 
     private suspend fun cacheServerDetail(detail: AttendanceRegisterDetailResponse) {
         val now = System.currentTimeMillis()
@@ -197,6 +292,9 @@ class AttendanceRepository(
 
     companion object {
         const val STATUS_DRAFT = "draft"
+        const val STATUS_SUBMITTED = "submitted"
+        const val STATUS_IN_REVIEW = "in_review"
+        const val STATUS_APPROVED = "approved"
         const val STATUS_REJECTED = "rejected"
         const val MARK_NOT_MARKED = "not_marked"
         const val MARK_PRESENT = "present"
@@ -208,6 +306,7 @@ class AttendanceRepository(
         const val OP_REPLACE = "replace_entries"
         const val OP_SUBMIT = "submit"
 
+        val REOPENABLE_STATUSES = setOf(STATUS_SUBMITTED, STATUS_IN_REVIEW, STATUS_APPROVED)
         val MARK_STATUSES = setOf(
             MARK_NOT_MARKED,
             MARK_PRESENT,

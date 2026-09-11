@@ -116,6 +116,11 @@ data class AttendanceVersionActionRequest(
     val reason: String? = null,
 )
 
+data class AttendanceRequiredReasonActionRequest(
+    @SerializedName("expected_revision") val expectedRevision: Int,
+    val reason: String,
+)
+
 data class AttendanceOfflineMutationRequest(
     @SerializedName("device_id") val deviceId: String,
     @SerializedName("client_mutation_id") val clientMutationId: String,

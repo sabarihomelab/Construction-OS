@@ -85,6 +85,9 @@ fun AttendanceScreen(
 
     val canCreate = context.hasProjectPermission(project.id, "workforce.attendance.create")
     val canUpdate = context.hasProjectPermission(project.id, "workforce.attendance.update")
+    val canSubmit = context.hasProjectPermission(project.id, "workforce.attendance.submit")
+    val canApprove = context.hasProjectPermission(project.id, "workforce.attendance.approve")
+    val canReopen = context.hasProjectPermission(project.id, "workforce.attendance.reopen")
     val selectedLocalDate = LocalDate.parse(selectedDate)
 
     LaunchedEffect(selectedDate) {
@@ -134,16 +137,26 @@ fun AttendanceScreen(
         }
 
         if (register != null) {
-            Text(
-                text = syncStateLabel(register.syncState),
-                color = if (register.syncState == AttendanceSyncState.NEEDS_ATTENTION) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(top = 10.dp),
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = register.status.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Text(
+                    text = syncStateLabel(register.syncState),
+                    color = if (register.syncState == AttendanceSyncState.NEEDS_ATTENTION) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
         }
 
         if (message != null) {
@@ -180,6 +193,9 @@ fun AttendanceScreen(
             register = register,
             repository = repository,
             canUpdate = canUpdate,
+            canSubmit = canSubmit,
+            canApprove = canApprove,
+            canReopen = canReopen,
             selectedTab = AttendanceTab.valueOf(selectedTab),
             selectedMoreStatus = AttendanceMoreStatus.valueOf(selectedMoreStatus),
             search = search,
@@ -237,6 +253,9 @@ private fun AttendanceRegisterBoard(
     register: AttendanceRegisterEntity,
     repository: AttendanceRepository,
     canUpdate: Boolean,
+    canSubmit: Boolean,
+    canApprove: Boolean,
+    canReopen: Boolean,
     selectedTab: AttendanceTab,
     selectedMoreStatus: AttendanceMoreStatus,
     search: String,
@@ -342,13 +361,14 @@ private fun AttendanceRegisterBoard(
             }
         }
 
-        if (!editable) {
+        if (!editable && register.status in setOf(
+                AttendanceRepository.STATUS_SUBMITTED,
+                AttendanceRepository.STATUS_IN_REVIEW,
+                AttendanceRepository.STATUS_APPROVED,
+            )
+        ) {
             Text(
-                if (register.status in setOf("submitted", "in_review", "approved")) {
-                    "${register.status.replace('_', ' ')} • read only until an authorized user reopens it"
-                } else {
-                    "Read-only attendance"
-                },
+                "Read only unless an authorized user reopens this register.",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 10.dp),
             )
@@ -443,6 +463,151 @@ private fun AttendanceRegisterBoard(
                         Spacer(modifier = Modifier.weight(1f))
                     }
                 }
+            }
+        }
+
+        AttendanceWorkflowActions(
+            register = register,
+            repository = repository,
+            remaining = remaining,
+            canSubmit = canSubmit,
+            canApprove = canApprove,
+            canReopen = canReopen,
+            onError = onError,
+        )
+    }
+}
+
+@Composable
+private fun AttendanceWorkflowActions(
+    register: AttendanceRegisterEntity,
+    repository: AttendanceRepository,
+    remaining: Int,
+    canSubmit: Boolean,
+    canApprove: Boolean,
+    canReopen: Boolean,
+    onError: (String?) -> Unit,
+) {
+    val canShowSubmit = canSubmit && register.status in setOf(
+        AttendanceRepository.STATUS_DRAFT,
+        AttendanceRepository.STATUS_REJECTED,
+    )
+    val canShowReview = canApprove && register.status == AttendanceRepository.STATUS_IN_REVIEW
+    val canShowReopen = canReopen && register.status in AttendanceRepository.REOPENABLE_STATUSES
+    if (!canShowSubmit && !canShowReview && !canShowReopen) return
+
+    var reason by rememberSaveable(register.id) { mutableStateOf("") }
+    var busy by remember(register.id) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val serverReady = register.revision > 0 && register.syncState == AttendanceSyncState.SYNCED
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+    ) {
+        if (canShowSubmit) {
+            Button(
+                onClick = {
+                    scope.launch {
+                        busy = true
+                        onError(null)
+                        runCatching {
+                            repository.submitRegister(register.projectId, register.id)
+                        }.onFailure {
+                            onError(it.message ?: "Attendance could not be submitted")
+                        }
+                        busy = false
+                    }
+                },
+                enabled = remaining == 0 && serverReady && !busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Submit attendance")
+            }
+            when {
+                remaining > 0 -> Text(
+                    "$remaining worker${if (remaining == 1) " is" else "s are"} still unmarked.",
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+
+                !serverReady -> Text(
+                    "Saved. Submit becomes available after the register finishes syncing.",
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
+
+        if (canShowReview || canShowReopen) {
+            OutlinedTextField(
+                value = reason,
+                onValueChange = { reason = it },
+                label = { Text(if (canShowReview) "Review note / reason" else "Reason for reopening") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+            )
+        }
+
+        if (canShowReview) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            onError(null)
+                            runCatching {
+                                repository.rejectRegister(register.projectId, register.id, reason)
+                            }.onSuccess { reason = "" }
+                                .onFailure { onError(it.message ?: "Attendance could not be rejected") }
+                            busy = false
+                        }
+                    },
+                    enabled = serverReady && reason.isNotBlank() && !busy,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Reject") }
+                Button(
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            onError(null)
+                            runCatching {
+                                repository.approveRegister(register.projectId, register.id, reason)
+                            }.onSuccess { reason = "" }
+                                .onFailure { onError(it.message ?: "Attendance could not be approved") }
+                            busy = false
+                        }
+                    },
+                    enabled = serverReady && !busy,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Approve") }
+            }
+        }
+
+        if (canShowReopen) {
+            TextButton(
+                onClick = {
+                    scope.launch {
+                        busy = true
+                        onError(null)
+                        runCatching {
+                            repository.reopenRegister(register.projectId, register.id, reason)
+                        }.onSuccess { reason = "" }
+                            .onFailure { onError(it.message ?: "Attendance could not be reopened") }
+                        busy = false
+                    }
+                },
+                enabled = serverReady && reason.isNotBlank() && !busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Reopen for correction")
             }
         }
     }

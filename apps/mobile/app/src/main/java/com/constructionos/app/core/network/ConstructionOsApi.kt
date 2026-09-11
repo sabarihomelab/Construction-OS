@@ -53,6 +53,34 @@ interface ConstructionOsApi {
         @Path("registerId") registerId: String,
     ): AttendanceRegisterDetailResponse
 
+    @POST("projects/{projectId}/workforce/attendance/{registerId}/submit")
+    suspend fun submitAttendance(
+        @Path("projectId") projectId: String,
+        @Path("registerId") registerId: String,
+        @Body request: AttendanceVersionActionRequest,
+    ): AttendanceRegisterResponse
+
+    @POST("projects/{projectId}/workforce/attendance/{registerId}/approve")
+    suspend fun approveAttendance(
+        @Path("projectId") projectId: String,
+        @Path("registerId") registerId: String,
+        @Body request: AttendanceVersionActionRequest,
+    ): AttendanceRegisterResponse
+
+    @POST("projects/{projectId}/workforce/attendance/{registerId}/reject")
+    suspend fun rejectAttendance(
+        @Path("projectId") projectId: String,
+        @Path("registerId") registerId: String,
+        @Body request: AttendanceRequiredReasonActionRequest,
+    ): AttendanceRegisterResponse
+
+    @POST("projects/{projectId}/workforce/attendance/{registerId}/reopen")
+    suspend fun reopenAttendance(
+        @Path("projectId") projectId: String,
+        @Path("registerId") registerId: String,
+        @Body request: AttendanceRequiredReasonActionRequest,
+    ): AttendanceRegisterResponse
+
     @POST("projects/{projectId}/workforce/attendance/offline/mutations")
     suspend fun submitAttendanceMutation(
         @Path("projectId") projectId: String,
