@@ -141,7 +141,7 @@ def _columns(block: ReportBlock, rows: list[dict[str, object]]) -> list[tuple[st
         return [(item.key, item.label or _label(item.key)) for item in configured]
     if not rows:
         return []
-    return [(key, _label(key)) for key in rows[0].keys() if key not in {"id", "source"}]
+    return [(key, _label(key)) for key in rows[0] if key not in {"id", "source"}]
 
 
 def _block_empty(payload: Mapping[str, object], block: ReportBlock) -> bool:
