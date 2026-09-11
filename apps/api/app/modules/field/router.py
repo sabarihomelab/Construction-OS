@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
+from app.modules.field.dpr_jobs import enqueue_dpr_approval_report
 from app.modules.field.models import (
     DailyReport,
     DailyReportCrewEntry,
@@ -281,6 +282,12 @@ async def submit_report(
             session_id=session.id,
             reason=payload.reason,
         )
+        await enqueue_dpr_approval_report(
+            db,
+            report=report,
+            actor_user_id=session.user_id,
+            session_id=session.id,
+        )
         await db.commit()
         await db.refresh(report)
         return report
@@ -310,6 +317,12 @@ async def approve_report(
             actor_user_id=session.user_id,
             session_id=session.id,
             reason=payload.reason,
+        )
+        await enqueue_dpr_approval_report(
+            db,
+            report=report,
+            actor_user_id=session.user_id,
+            session_id=session.id,
         )
         await db.commit()
         await db.refresh(report)
