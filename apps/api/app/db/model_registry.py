@@ -53,6 +53,8 @@ from app.modules.equipment.models import (
     ProjectEquipmentAssignment,
     ProjectMaterialPlan,
 )
+from app.modules.estimating import history_models as estimating_history_models  # noqa: F401
+from app.modules.estimating import models as estimating_models  # noqa: F401
 from app.modules.events.models import OutboxEvent
 from app.modules.exports.models import DataExportManifestItem, DataExportRequest
 from app.modules.features.models import OrganizationFeature
