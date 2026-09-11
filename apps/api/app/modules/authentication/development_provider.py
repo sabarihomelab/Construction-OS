@@ -27,7 +27,7 @@ class DevelopmentAuthenticationProvider:
         ):
             raise ValueError("Development authentication failed")
         if not isinstance(email, str):
-            raise ValueError("Development authentication email is required")
+            raise TypeError("Development authentication email is required")
 
         normalized_email = email.strip().lower()
         if not normalized_email or "@" not in normalized_email:
