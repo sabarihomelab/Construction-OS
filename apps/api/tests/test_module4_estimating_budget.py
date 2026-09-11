@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from app.db import model_registry as _model_registry  # noqa: F401
 from app.db.base import Base
-from app.modules.configuration.registry import CONFIGURATION_DEFINITIONS_BY_KEY
+from app.modules.configuration.registry import CONFIGURATION_BY_KEY
 from app.modules.estimating.governed_router import router
 from app.modules.estimating.governed_service import rate_breakdown
 from app.modules.features.registry import FEATURES_BY_KEY, FeatureReleaseState
@@ -72,7 +72,7 @@ def test_estimating_company_defaults_are_configurable_not_transaction_hardcoded(
         "estimating.rate_analysis.default_overhead_percent",
         "estimating.rate_analysis.default_profit_percent",
     ):
-        definition = CONFIGURATION_DEFINITIONS_BY_KEY[key]
+        definition = CONFIGURATION_BY_KEY[key]
         assert definition.module_key == "estimating"
         assert definition.value_type.value == "decimal"
         assert definition.configurable is True
