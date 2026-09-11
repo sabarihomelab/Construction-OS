@@ -76,7 +76,7 @@ async def wbs_search_projection(
         subtitle=row.kind.value,
         body=row.description or "",
         keywords=[row.code, row.name, row.kind.value, row.status.value],
-        route_hint=f"/projects/{row.project_id}/commercial/wbs",
+        route_hint=f"/projects/{row.project_id}/commercial/wbs/{row.id}",
         source_updated_at=row.updated_at,
     )
 
