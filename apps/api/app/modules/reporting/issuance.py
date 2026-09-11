@@ -8,9 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.audit.models import AuditActorType, AuditRisk
 from app.modules.audit.service import record_audit_event
 from app.modules.files.generated import store_generated_file
+from app.modules.reporting.template_execution import render_template_version
 from app.modules.reporting.template_models import ReportRenderRecord, TemplateOutputFormat
 from app.modules.reporting.template_provider import report_data_providers, resolve_path
-from app.modules.reporting.template_renderer import render_report
 from app.modules.reporting.template_schemas import ReportLayoutSpec
 from app.modules.reporting.template_service import resolve_template_version
 from app.modules.reporting.type_registry import ReportGenerationTrigger, report_types
@@ -74,7 +74,14 @@ async def issue_report(
         explicit_version_id=template_version_id,
     )
     layout = ReportLayoutSpec.model_validate(template_version.layout_spec)
-    content, content_type, extension = render_report(payload, layout, output_format)
+    content, content_type, extension = await render_template_version(
+        db,
+        organization_id=organization_id,
+        template_version=template_version,
+        payload=payload,
+        layout=layout,
+        output_format=output_format,
+    )
     source_revision_value = resolve_path(payload, provider.contract.source_revision_path)
     try:
         source_revision = int(str(source_revision_value))
