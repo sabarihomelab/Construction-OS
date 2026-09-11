@@ -89,8 +89,8 @@ def _insert_collection_table(
         cells = table.add_row().cells
         for index, (key, _) in enumerate(columns):
             cells[index].text = _string(item.get(key))
-    marker._p.addnext(table._tbl)  # noqa: SLF001
-    marker._element.getparent().remove(marker._element)  # noqa: SLF001
+    marker._p.addnext(table._tbl)
+    marker._element.getparent().remove(marker._element)
 
 
 def render_uploaded_docx(
@@ -123,7 +123,10 @@ def render_uploaded_docx(
                 key=lambda column: (column.order, column.key),
             )
             if configured:
-                columns = [(column.key, column.label or column.key.replace("_", " ").title()) for column in configured]
+                columns = [
+                    (column.key, column.label or column.key.replace("_", " ").title())
+                    for column in configured
+                ]
             elif rows:
                 columns = [
                     (field, field.replace("_", " ").title())
