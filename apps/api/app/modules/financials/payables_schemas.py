@@ -18,15 +18,20 @@ class VendorBillCreate(BaseModel):
     notes: str | None = Field(default=None, max_length=4000)
 
 
+class VendorBillReceiptMatchCreate(BaseModel):
+    goods_receipt_line_id: UUID
+    matched_quantity: Decimal = Field(gt=0)
+
+
 class VendorBillLineCreate(BaseModel):
     purchase_order_line_id: UUID
-    goods_receipt_line_id: UUID | None = None
     quantity: Decimal = Field(gt=0)
     unit_price: Decimal = Field(ge=0)
     hsn_sac: str | None = Field(default=None, max_length=16)
     tax_code: str | None = Field(default=None, max_length=40)
     tax_rate: Decimal | None = Field(default=None, ge=0)
     tax_amount: Decimal = Field(default=Decimal(0), ge=0)
+    receipt_matches: list[VendorBillReceiptMatchCreate] = Field(default_factory=list)
 
 
 class VendorBillTransition(BaseModel):
@@ -35,13 +40,21 @@ class VendorBillTransition(BaseModel):
     reason: str | None = Field(default=None, max_length=1000)
 
 
+class VendorBillReceiptMatchRead(BaseModel):
+    id: UUID
+    vendor_bill_line_id: UUID
+    goods_receipt_line_id: UUID
+    matched_quantity: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class VendorBillLineRead(BaseModel):
     id: UUID
     vendor_bill_id: UUID
     project_id: UUID
     line_number: int
     purchase_order_line_id: UUID
-    goods_receipt_line_id: UUID | None
     material_id: UUID | None
     wbs_code_id: UUID | None
     boq_item_id: UUID | None
@@ -60,6 +73,7 @@ class VendorBillLineRead(BaseModel):
     quantity_variance: Decimal
     price_variance_amount: Decimal
     match_status: VendorBillMatchStatus
+    receipt_matches: list[VendorBillReceiptMatchRead] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
