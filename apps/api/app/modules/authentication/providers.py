@@ -46,5 +46,9 @@ class AuthenticationProviderRegistry:
         except KeyError as exc:
             raise ValueError(f"Unknown authentication provider: {key}") from exc
 
+    def keys(self) -> tuple[str, ...]:
+        return tuple(sorted(self._providers))
 
+
+AUTHENTICATION_PROVIDERS = AuthenticationProviderRegistry()
 AuthenticationCallback = Awaitable[AuthenticationAssertion]
