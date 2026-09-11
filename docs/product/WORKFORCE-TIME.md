@@ -6,7 +6,7 @@ Workforce is the India-first labour foundation for Worker identity, crews, proje
 
 It supports direct labour, contract labour, subcontractor labour, vendor crews and staff without turning every Worker into an application User.
 
-The core Release 1 flow is:
+The core Release 1 field flow is:
 
 ```text
 Company Worker
@@ -14,10 +14,10 @@ Company Worker
 → Crew / employer Party / engagement / trade
 → Daily Attendance Register
 → Approved Attendance
-→ DPR crew summary / downstream labour-cost input
+→ DPR crew summary
 ```
 
-Weekly Timecards remain available for detailed commercial time capture. They do not replace the faster daily site muster workflow.
+Weekly Timecards remain available for detailed commercial time capture and are the current governed source for labour job-cost posting. They do not replace the faster daily site muster workflow.
 
 ## Worker is not User
 
@@ -196,7 +196,9 @@ Rates are sensitive. Daily attendance responses do **not** expose:
 
 A supervisor can therefore mark attendance without being allowed to view Worker commercial rates.
 
-Downstream Job Cost may combine approved attendance/time with an applicable governed rate when the wage basis can be calculated safely. Workforce does not invent conversions for monthly/weekly/contract wages and does not post accounting entries itself.
+The current governed labour-cost posting path consumes approved Weekly Timecards and applicable Project Worker Rates. It rejects unsafe cases instead of guessing a missing rate. Daily Attendance does not automatically create a second job-cost posting path because that could double count labour. Any future Attendance-to-Timecard or Attendance-to-Job-Cost automation must define an explicit reconciliation/source-of-truth rule first.
+
+Workforce does not invent conversions for monthly/weekly/contract wages and does not post statutory payroll accounting itself.
 
 ## Weekly Timecards
 
@@ -210,7 +212,8 @@ They support:
 - configuration-driven validation;
 - shared Workflow approval;
 - append-oriented history;
-- search projection.
+- search projection;
+- governed downstream labour job-cost posting.
 
 Daily Attendance and Weekly Timecards have different field UX purposes. They must not become two independent sources of truth for the same downstream cost without an explicit integration rule.
 
@@ -274,4 +277,4 @@ Module 5 now provides:
 - responsive Worker / Staffing / Attendance workspace;
 - project and attendance deep-link routes.
 
-Further cross-module work belongs to later modules: DPR consumption of the approved summary, governed labour-cost posting, reporting dashboards, import/export/payroll adapters and offline hardening.
+Further cross-module work belongs to later modules: DPR consumption of the approved summary, explicit Attendance/Timecard reconciliation if automated, reporting dashboards, import/export/payroll adapters and offline hardening.
