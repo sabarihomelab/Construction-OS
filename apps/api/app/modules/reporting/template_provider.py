@@ -123,11 +123,12 @@ def _validate_block(block: ReportBlock, contract: ReportDataContract) -> None:
                 raise ReportTemplateValidationError(
                     f"Field group references an unknown provider path: {path}"
                 )
-    if block.kind == ReportBlockKind.IMAGE:
-        if block.image_placeholder is None or not contract.path_allowed(block.image_placeholder):
-            raise ReportTemplateValidationError(
-                f"Image block references an unknown provider path: {block.image_placeholder}"
-            )
+    if block.kind == ReportBlockKind.IMAGE and (
+        block.image_placeholder is None or not contract.path_allowed(block.image_placeholder)
+    ):
+        raise ReportTemplateValidationError(
+            f"Image block references an unknown provider path: {block.image_placeholder}"
+        )
     if block.kind == ReportBlockKind.TABLE:
         collections = contract.collection_map()
         if block.data_key not in collections:
