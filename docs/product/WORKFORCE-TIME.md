@@ -1,118 +1,129 @@
-# Workforce & Time
+# Workforce / Contract Labour / Attendance
 
 ## Purpose
 
-Workforce & Time is the shared construction labor foundation for worker identity, crews, project staffing and approved project time. It is one configurable module used by both small contractors and larger enterprises.
+Workforce is the India-first labour foundation for Worker identity, crews, project staffing, daily site attendance and governed project time.
 
-It does not make an application login the same object as a Worker, and it does not embed country-specific payroll or statutory tax logic into time capture.
+It supports direct labour, contract labour, subcontractor labour, vendor crews and staff without turning every Worker into an application User.
+
+The core Release 1 flow is:
+
+```text
+Company Worker
+→ Project Worker Assignment
+→ Crew / employer Party / engagement / trade
+→ Daily Attendance Register
+→ Approved Attendance
+→ DPR crew summary / downstream labour-cost input
+```
+
+Weekly Timecards remain available for detailed commercial time capture. They do not replace the faster daily site muster workflow.
+
+## Worker is not User
+
+A `Worker` is a company workforce identity. An `OrganizationMembership` is an application login/access identity.
+
+A Worker may exist with no login at all. This is normal for site labour, contract labour, subcontractor labour, vendor crews, imported worker masters and payroll integrations.
+
+A Worker may optionally link to an Organization Membership, but the link does not grant project access. Project application access remains controlled by Project Membership, Role Assignment and Authorization.
 
 ## Object model
 
 ```text
 Company
 ├── Worker
-│   └── optional linked Organization Membership / login
+│   └── optional Organization Membership / login
 ├── Crew
-│   └── dated Crew Membership history
+│   └── effective-dated Crew Membership
 └── Project
     └── Project Worker Assignment
-        ├── project role / trade / crew
-        ├── optional employer Party and engagement type
-        ├── effective-dated Project Worker Rates
+        ├── crew
+        ├── employer Party
+        ├── engagement type
+        ├── project role / trade
+        ├── effective-dated commercial rates
+        ├── Daily Attendance Entry
         └── Weekly Timecard
-            ├── Time Entries
-            ├── shared Workflow instance when approval is enabled
-            └── append-oriented history
 ```
 
-A Worker can exist without a Construction OS login. This is required for subcontract labor, field workers who do not use the application directly, imported workforce records and future payroll/integration scenarios.
+A Worker belongs to the company and may be assigned to multiple projects without duplicating identity.
 
-A Worker belongs to the company, not to one project. The same Worker can be assigned to multiple Projects without duplicating worker identity. Each Project Worker Assignment carries that project's role, trade, crew, engagement/employer context, dates and status.
+## Project assignment
 
-Worker assignment and application visibility are separate concepts. Assigning a Worker to Project A does not create a login or grant access to Project A. Application users receive project visibility only through Project Membership, Role Assignment and Authorization. Likewise, a Worker assigned to Projects A and B can have an application user that is allowed to see only Project A.
+A Worker must be assigned to a Project before attendance or project time can be recorded.
 
-## Protected identity versus configurable presentation
+Project Worker Assignment carries project-specific context:
 
-Stable record IDs, tenant ownership, project relationships, revisions, workflow identity and historical references are protected platform data and cannot be deleted by company configuration.
+- crew;
+- employer Party;
+- engagement type (`staff`, `direct_labour`, `contract_labour`, `subcontractor_labour`, `vendor_crew`, `other`);
+- project role;
+- trade;
+- assignment dates;
+- active/suspended/ended state;
+- legacy default cost-code text where still present.
 
-Protected or standard attributes may still be hidden from normal user experiences when configuration permits. Hiding a field is not the same as deleting its stored identity.
+Attendance itself can use the authoritative project WBS / Cost Code foreign key. The attendance service does not rely on free-text cost code when WBS allocation is required.
 
-Worker business attributes are exposed through the common Configuration and Metadata engines. Company administrators can control supported standard-field presentation and business requirements, while company-specific attributes use the shared typed Custom Field system. Historically used custom fields/options are retired rather than physically deleted.
+## Daily attendance / muster
 
-The Workforce module must not create customer-specific columns or database tables for ordinary configurable attributes.
+Daily attendance is the field-first source of truth for who worked on site.
 
-## Configuration hierarchy
-
-Workforce uses the common effective-configuration hierarchy:
+One `AttendanceRegister` exists per:
 
 ```text
-Platform Default
-→ Company
-→ Project Template
-→ Project
-→ User Preference
+Project + Attendance Date + Shift
 ```
 
-Current registered rules include:
+Creating a register can automatically populate all active Project Worker Assignments valid on that date. This avoids supervisors typing the same Worker list every day.
 
-- standard Worker field presentation/requirements;
-- timecard week-start day;
-- cost-code requirement;
-- overtime availability;
-- double-time availability;
-- maximum daily hours;
-- whether approval is required;
-- shared Workflow definition and transition keys;
-- personal timecard list columns.
+Each attendance entry records:
 
-A submitted timecard stores only the small configuration context needed to preserve historical meaning. Future changes to company/project rules do not reinterpret an already submitted or approved timecard.
+- exact Project Worker Assignment;
+- Worker;
+- crew;
+- employer Party;
+- engagement type;
+- trade;
+- attendance mark;
+- regular hours;
+- overtime hours;
+- optional authoritative WBS / Cost Code;
+- location;
+- notes;
+- source type/reference;
+- immutable context snapshot.
 
-## Worker and crew lifecycle
+Supported marks are:
 
-Workers use active, inactive and terminated lifecycle states. Ordinary application behavior does not hard-delete historical Worker identity that is referenced by timecards or staffing records.
+- `not_marked`;
+- `present`;
+- `absent`;
+- `half_day`;
+- `leave`;
+- `weekly_off`.
 
-Crew membership is effective-dated and versioned. Ending membership updates the end date with optimistic revision protection; it does not delete the historical fact that the Worker belonged to the crew.
+Non-working marks cannot carry work hours. Daily hours are constrained by the effective Workforce configuration.
 
-Crews can be deactivated without deleting their historical membership or project assignment references.
+## Why attendance snapshots context
 
-## Multi-project worker assignment
+Crew, trade, employer and engagement can change later on the Project Worker Assignment.
 
-A Worker must be explicitly assigned to a Project before a project timecard can be created.
+An approved attendance record must still mean what it meant on the attendance date. Therefore each attendance entry snapshots the assignment/Worker context used when the register was edited.
 
-The database enforces tenant-safe Project, Worker and Project Worker Assignment relationships. A Worker assigned only to Project A cannot receive a Project B timecard through a forgotten API/service check.
+Historical attendance is not reinterpreted when the Worker changes crew, employer or trade later.
 
-Project assignment supports trade, project role, default cost code, crew, start/end dates and active/suspended/ended status. It can also identify the project-specific engagement type such as staff, direct labour, contract labour, subcontractor labour or vendor crew.
+## Attendance lifecycle
 
-Where labour is supplied by another business, `employer_party_id` can point to the company-level Party directory. The relationship is optional so the Workforce module remains usable for direct employees even when Commercial workflows are not active.
+Attendance is revision protected.
 
-The same Worker may have different project context. For example, one Worker may be a carpenter in Project A and a crew supervisor in Project B, with different crews and commercial rates. These are assignment facts and do not duplicate the Worker master.
-
-## Project worker commercial rates
-
-Commercial rate information is effective-dated and belongs to the exact Project Worker Assignment. It is not stored on the company Worker master because the same Worker may have different rates in different projects or periods.
-
-Supported wage bases are hourly, daily, weekly, monthly, piece-rate and contract. A rate record can hold regular cost rate plus optional overtime, double-time and billing rates. Monetary values use Decimal database columns.
-
-Rate periods must not overlap for the same Project Worker Assignment. Historical rates are ended with an effective date and retained rather than overwritten. Downstream Job Cost should resolve the rate applicable to the work date and persist the resulting cost/rule context so a later rate change does not rewrite historical cost.
-
-Worker rates are sensitive commercial information. They are not included in ordinary Worker or assignment responses and require separate project-scoped permissions:
-
-- `workforce.rate.view`
-- `workforce.rate.manage`
-
-A supervisor can therefore be permitted to assign workers and approve attendance without being allowed to see wage or billing rates.
-
-## Timecard lifecycle
-
-Timecard business state is revision protected. Draft/rejected timecards can be edited; submitted review behavior is controlled by effective configuration.
-
-For a simple company with approval disabled:
+With approval disabled:
 
 ```text
 Draft → Submit → Approved
 ```
 
-For an enterprise with approval enabled:
+With approval enabled:
 
 ```text
 Draft → Submit → In Review
@@ -124,105 +135,143 @@ Draft → Submit → In Review
            Rework      Approved
 ```
 
-Approval is not a separate Workforce approval engine. Workforce starts and transitions the shared Workflow/Approval engine configured for the project.
+Attendance does not create a private approval engine. It uses the shared Workflow engine configured for the project.
 
-Timecard history is append-oriented and records business lifecycle events separately from the global Audit log.
+Draft/rejected registers can be edited. Approved registers cannot be silently rewritten through the normal edit API.
 
-## Time entries
+Attendance business lifecycle events are append-oriented in `workforce_attendance_history_events` in addition to the global Audit log.
 
-Time values use fixed precision Decimal database columns. Floating-point hours are not used.
+## Configurable rules
 
-A time entry belongs to exactly one tenant-owned timecard and records:
+Attendance uses the common configuration hierarchy:
 
-- work date;
-- regular hours;
-- overtime hours;
-- double-time hours;
-- cost code;
-- location;
-- work description;
-- source type/reference.
+```text
+Platform Default
+→ Company
+→ Project Template
+→ Project
+→ User Preference
+```
 
-The effective project configuration controls whether cost code, overtime and double time are allowed and the maximum daily hours. Entries must fall inside the selected timecard week.
+Registered attendance rules include:
 
-The physical table is `workforce_time_entries`; the legacy unsafe scaffold table `time_entries` is intentionally not recreated.
+- whether WBS / Cost Code is required for working marks;
+- whether attendance approval is required;
+- shared Workflow definition key;
+- approve transition key;
+- reject transition key;
+- resubmit transition key.
+
+The register snapshots the relevant effective configuration context when submitted so future rule changes do not rewrite historical meaning.
+
+Existing Timecard configuration remains independent and continues to control week start, overtime, double time, maximum hours, approval and timecard workflow transitions.
+
+## DPR integration
+
+Approved attendance exposes a DPR-ready crew summary grouped by:
+
+- employer Party;
+- crew;
+- trade.
+
+The summary contains Worker count, present count, absent count, regular hours and overtime hours.
+
+This is intentionally a derived contract. Workforce does not create duplicate DPR crew rows by itself. The Field/DPR workflow can consume the approved attendance summary when the DPR module is completed/refit.
+
+No DPR summary is exposed from draft/rejected/in-review attendance.
+
+## Project Worker commercial rates
+
+Commercial worker rates remain effective-dated on the exact Project Worker Assignment.
+
+Supported wage bases include hourly, daily, weekly, monthly, piece-rate and contract.
+
+Rates are sensitive. Daily attendance responses do **not** expose:
+
+- regular cost rate;
+- overtime rate;
+- double-time rate;
+- billing rate;
+- wage basis.
+
+A supervisor can therefore mark attendance without being allowed to view Worker commercial rates.
+
+Downstream Job Cost may combine approved attendance/time with an applicable governed rate when the wage basis can be calculated safely. Workforce does not invent conversions for monthly/weekly/contract wages and does not post accounting entries itself.
+
+## Weekly Timecards
+
+Weekly Timecards remain the detailed time-entry workflow for companies that need them.
+
+They support:
+
+- project/Worker/week uniqueness;
+- regular/overtime/double-time hours;
+- cost-code/location/work description;
+- configuration-driven validation;
+- shared Workflow approval;
+- append-oriented history;
+- search projection.
+
+Daily Attendance and Weekly Timecards have different field UX purposes. They must not become two independent sources of truth for the same downstream cost without an explicit integration rule.
 
 ## Authorization
 
-Atomic capabilities are:
+Existing Workforce permissions continue for Worker, Crew, Assignment, Rate and Timecard actions.
 
-- `workforce.worker.view`
-- `workforce.worker.manage`
-- `workforce.crew.view`
-- `workforce.crew.manage`
-- `workforce.assignment.view`
-- `workforce.assignment.manage`
-- `workforce.rate.view`
-- `workforce.rate.manage`
-- `workforce.timecard.view`
-- `workforce.timecard.create`
-- `workforce.timecard.update`
-- `workforce.timecard.submit`
-- `workforce.timecard.approve`
-- `workforce.timecard.manage`
+Daily Attendance adds project-scoped capabilities:
 
-Worker/Crew directory actions are company scoped. Project assignment, project worker rate and timecard permissions are evaluated against the exact project. UI hiding is never treated as authorization.
+- `workforce.attendance.view`
+- `workforce.attendance.create`
+- `workforce.attendance.update`
+- `workforce.attendance.submit`
+- `workforce.attendance.approve`
 
-## Shared platform integrations
+UI visibility never replaces server-side authorization.
 
-Workforce reuses, rather than reimplements:
+## Platform integrations
 
-- Authorization and project scope;
-- Company/App Configuration;
-- typed Custom Fields/Metadata;
-- Workflow/Approval;
+Workforce reuses:
+
+- tenant/project isolation;
+- Authorization;
+- Configuration;
+- shared Workflow/Approval;
 - Audit;
-- Realtime events;
-- Search projections;
-- Background Jobs when future imports/exports require them;
-- Reporting datasets/views when exposed;
-- Offline mutation/idempotency contracts for future field UI;
-- retention/governance rules;
-- integration gateway/mapping for payroll/accounting exports;
-- the shared Party directory when an external labour employer needs to be identified.
+- realtime Events;
+- Search for existing Worker/Timecard projections;
+- Party directory for labour employer context;
+- WBS / Cost Codes for authoritative cost allocation;
+- offline infrastructure for future field sync hardening.
 
-## Search
+`workforce` remains a normal runtime module with `projects` as its only hard dependency. Commercial and Field are optional integrations.
 
-The shared Search registry contains approved projections for Worker and Timecard entities. Timecard results are project scoped and require `workforce.timecard.view`; Worker results require `workforce.worker.view`.
+## Payroll / statutory boundary
 
-Sensitive Project Worker Rates are intentionally not exposed through the ordinary Worker search projection.
+Construction OS Release 1 does not become a payroll engine here.
 
-Search is derived data and never grants access to the underlying entity.
+Workforce does not calculate country-specific payroll taxes, PF/ESI, labour-law statutory deductions, benefits, payslips or GL entries.
 
-## Deployment / installer behavior
+Its responsibility is authoritative labour identity, project assignment, attendance/time evidence and governed commercial context for downstream project controls and integrations.
 
-`workforce` is a normal business runtime module with `projects` as its only hard dependency. Field Operations, Equipment, Safety and the Commercial Party directory are optional integrations, not required dependencies.
+## Release 1 Module 5 completion
 
-Therefore an existing Construction OS installation can add Workforce later through `setup.ps1` without automatically activating those optional modules or a heavyweight worker profile. The common Alembic migration chain already contains the Workforce schema; runtime activation controls route/search/UI availability.
+Module 5 now provides:
 
-## Payroll, Job Cost and accounting boundary
+- Worker master independent of application User;
+- Crew lifecycle and effective membership;
+- multi-project Worker assignment;
+- employer Party and engagement context;
+- effective-dated sensitive Worker rates;
+- weekly governed Timecards;
+- daily India-first attendance/muster registers;
+- bulk active-worker population;
+- fast field marking and hours;
+- WBS-aware allocation;
+- configurable shared Workflow approval;
+- append-oriented attendance history;
+- immutable assignment context snapshots;
+- approved DPR summary contract;
+- responsive Worker / Staffing / Attendance workspace;
+- project and attendance deep-link routes.
 
-Approved timecards are authoritative labor-time input. Project Worker Rates provide governed commercial context for Job Cost, but Workforce does not post accounting entries itself.
-
-Job Cost can combine approved time with the effective project rate and retain a source reference back to the Worker assignment/time entry. Country-specific payroll calculations, statutory taxes, benefits, wage rules and general-ledger posting belong to later payroll/accounting/integration packages.
-
-This separation lets Construction OS support multiple projects, labour suppliers and external payroll/accounting systems without changing historical time capture.
-
-## Release 1 remaining work
-
-The current work establishes the backend/domain foundation. Release 1 still requires, as applicable:
-
-- responsive Worker/Crew/Project staffing UI;
-- configuration-driven Worker forms and custom-field rendering;
-- fast field time-entry experience;
-- offline timecard draft queue/sync/conflict handling;
-- shared Workflow task/reviewer UX;
-- notifications for assigned/reviewed timecards;
-- import/export and payroll/accounting mapping packages;
-- Workforce and labour-cost reporting datasets and production dashboards;
-- attachment/comment surfaces where required by final workflows;
-- configuration health rules for incompatible time policies;
-- cross-tenant/project end-to-end authorization tests;
-- accessibility, performance and field usability acceptance.
-
-The Feature Registry remains `PLANNED` until those customer-facing Release 1 requirements are complete.
+Further cross-module work belongs to later modules: DPR consumption of the approved summary, governed labour-cost posting, reporting dashboards, import/export/payroll adapters and offline hardening.
