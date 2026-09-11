@@ -81,8 +81,12 @@ class ReportRenderRecordRead(BaseModel):
     source_revision: int
     template_version_id: UUID
     output_format: TemplateOutputFormat
+    generation_trigger: str
     content_sha256: str
+    output_filename: str
     output_file_asset_id: UUID | None
+    output_file_version: int | None
+    issued_at: datetime | None
     generated_by_user_id: UUID | None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
