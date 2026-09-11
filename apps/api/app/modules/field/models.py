@@ -76,6 +76,12 @@ class DailyReport(UUIDTimestampMixin, Base):
         ),
         UniqueConstraint("id", "organization_id", name="uq_daily_reports_id_org"),
         UniqueConstraint(
+            "id",
+            "project_id",
+            "organization_id",
+            name="uq_daily_reports_scope",
+        ),
+        UniqueConstraint(
             "project_id",
             "report_date",
             "shift_code",
