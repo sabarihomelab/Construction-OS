@@ -29,6 +29,7 @@ if not report_types.contains(DPR_REPORT_TYPE_KEY):
             supports_section_selection=True,
             stores_issued_output=True,
             issued_output_formats=("pdf", "docx"),
+            default_output_format="pdf",
             filename_pattern="{{project.number}}-DPR-{{report.date}}-{{report.shift}}-R{{report.revision}}",
             required_permission_key="field.daily_report.view",
         )
