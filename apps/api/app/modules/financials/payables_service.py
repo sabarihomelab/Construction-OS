@@ -465,9 +465,13 @@ async def _refresh_bill(
         bill.match_status = VendorBillMatchStatus.UNCHECKED
     elif VendorBillMatchStatus.MISSING_RECEIPT in statuses:
         bill.match_status = VendorBillMatchStatus.MISSING_RECEIPT
-    elif VendorBillMatchStatus.QUANTITY_AND_PRICE_VARIANCE in statuses:
-        bill.match_status = VendorBillMatchStatus.QUANTITY_AND_PRICE_VARIANCE
-    elif VendorBillMatchStatus.QUANTITY_VARIANCE in statuses and VendorBillMatchStatus.PRICE_VARIANCE in statuses:
+    elif (
+        VendorBillMatchStatus.QUANTITY_AND_PRICE_VARIANCE in statuses
+        or (
+            VendorBillMatchStatus.QUANTITY_VARIANCE in statuses
+            and VendorBillMatchStatus.PRICE_VARIANCE in statuses
+        )
+    ):
         bill.match_status = VendorBillMatchStatus.QUANTITY_AND_PRICE_VARIANCE
     elif VendorBillMatchStatus.QUANTITY_VARIANCE in statuses:
         bill.match_status = VendorBillMatchStatus.QUANTITY_VARIANCE
