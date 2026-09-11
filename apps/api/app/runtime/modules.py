@@ -60,7 +60,7 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
         name="Field Operations",
         dependencies=("projects",),
         integrates_with=("documents", "drawings", "rfis", "workforce", "equipment", "safety"),
-        api_router="app.modules.field.router:router",
+        api_router="app.modules.field.api:router",
         search_provider_module="app.modules.field.search",
     ),
     ModuleManifest(
