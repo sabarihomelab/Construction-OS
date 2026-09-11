@@ -9,6 +9,7 @@ from app.modules.equipment.consumption_models import MaterialConsumptionStatus
 
 class MaterialConsumptionCreate(BaseModel):
     material_id: UUID
+    stock_location_id: UUID
     wbs_code_id: UUID | None = None
     boq_item_id: UUID | None = None
     consumption_date: date
@@ -33,6 +34,7 @@ class MaterialConsumptionRead(BaseModel):
     organization_id: UUID
     project_id: UUID
     material_id: UUID
+    stock_location_id: UUID | None
     wbs_code_id: UUID | None
     boq_item_id: UUID | None
     consumption_date: date
