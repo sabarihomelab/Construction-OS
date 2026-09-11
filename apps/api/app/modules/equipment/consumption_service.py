@@ -12,6 +12,11 @@ from app.modules.equipment.consumption_models import (
     MaterialConsumption,
     MaterialConsumptionStatus,
 )
+from app.modules.equipment.inventory_service import (
+    InventoryValidationError,
+    record_material_consumption_stock,
+    require_stock_location,
+)
 from app.modules.equipment.models import Material, MaterialStatus
 from app.modules.events.service import enqueue_event
 from app.modules.projects.models import (
@@ -150,6 +155,19 @@ async def create_material_consumption(
     material_id = values.get("material_id")
     if not isinstance(material_id, UUID):
         raise MaterialConsumptionValidationError("material_id is required")
+    stock_location_id = values.get("stock_location_id")
+    if not isinstance(stock_location_id, UUID):
+        raise MaterialConsumptionValidationError("stock_location_id is required")
+    try:
+        await require_stock_location(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            stock_location_id=stock_location_id,
+        )
+    except InventoryValidationError as exc:
+        raise MaterialConsumptionValidationError(str(exc)) from exc
+
     unit_code = str(values.get("unit_code") or "").strip()
     wbs_code_id = values.get("wbs_code_id")
     boq_item_id = values.get("boq_item_id")
@@ -194,6 +212,7 @@ async def create_material_consumption(
         changes={
             "project_id": str(project_id),
             "material_id": str(material_id),
+            "stock_location_id": str(stock_location_id),
             "quantity": record.quantity,
             "unit_code": record.unit_code,
         },
@@ -254,6 +273,10 @@ async def post_material_consumption(
         raise MaterialConsumptionValidationError(
             "Only a draft material consumption can be posted"
         )
+    if record.stock_location_id is None:
+        raise MaterialConsumptionValidationError(
+            "A stock location is required before material consumption can be posted"
+        )
 
     await _validate_references(
         db,
@@ -275,6 +298,29 @@ async def post_material_consumption(
         )
 
     record.total_cost = _money(record.quantity * record.unit_cost)
+    try:
+        await record_material_consumption_stock(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            stock_location_id=record.stock_location_id,
+            material_id=record.material_id,
+            wbs_code_id=record.wbs_code_id,
+            boq_item_id=record.boq_item_id,
+            quantity=record.quantity,
+            unit_code=record.unit_code,
+            consumption_date=record.consumption_date,
+            consumption_id=record.id,
+            source_reference=record.source_reference,
+            unit_cost_snapshot=record.unit_cost,
+            currency_code=record.currency_code,
+            membership_id=membership_id,
+            actor_user_id=actor_user_id,
+            session_id=session_id,
+        )
+    except InventoryValidationError as exc:
+        raise MaterialConsumptionValidationError(str(exc)) from exc
+
     record.status = MaterialConsumptionStatus.POSTED
     record.posted_by_membership_id = membership_id
     record.posted_at = datetime.now(UTC)
@@ -295,6 +341,7 @@ async def post_material_consumption(
         changes={
             "project_id": str(project_id),
             "material_id": str(record.material_id),
+            "stock_location_id": str(record.stock_location_id),
             "quantity": record.quantity,
             "unit_cost": record.unit_cost,
             "total_cost": record.total_cost,
@@ -317,6 +364,7 @@ async def post_material_consumption(
         session_id=session_id,
         payload={
             "material_id": str(record.material_id),
+            "stock_location_id": str(record.stock_location_id),
             "quantity": str(record.quantity),
             "total_cost": str(record.total_cost),
             "currency_code": record.currency_code,
