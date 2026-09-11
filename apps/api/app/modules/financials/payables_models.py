@@ -150,12 +150,6 @@ class VendorBillLine(UUIDTimestampMixin, Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
-            ["goods_receipt_line_id", "project_id", "organization_id"],
-            ["goods_receipt_lines.id", "goods_receipt_lines.project_id", "goods_receipt_lines.organization_id"],
-            name="fk_vendor_bill_lines_grn_line_scope",
-            ondelete="RESTRICT",
-        ),
-        ForeignKeyConstraint(
             ["material_id", "organization_id"],
             ["materials.id", "materials.organization_id"],
             name="fk_vendor_bill_lines_material_org",
@@ -174,6 +168,7 @@ class VendorBillLine(UUIDTimestampMixin, Base):
             ondelete="RESTRICT",
         ),
         UniqueConstraint("vendor_bill_id", "line_number", name="uq_vendor_bill_lines_number"),
+        UniqueConstraint("id", "project_id", "organization_id", name="uq_vendor_bill_lines_scope"),
         CheckConstraint("quantity > 0", name="ck_vendor_bill_lines_quantity"),
         CheckConstraint("unit_price >= 0", name="ck_vendor_bill_lines_unit_price"),
         CheckConstraint("taxable_value >= 0", name="ck_vendor_bill_lines_taxable_value"),
@@ -183,7 +178,6 @@ class VendorBillLine(UUIDTimestampMixin, Base):
         CheckConstraint("matched_quantity >= 0", name="ck_vendor_bill_lines_matched_quantity"),
         CheckConstraint("quantity_variance >= 0", name="ck_vendor_bill_lines_quantity_variance"),
         Index("ix_vendor_bill_lines_project_po", "project_id", "purchase_order_line_id"),
-        Index("ix_vendor_bill_lines_project_grn", "project_id", "goods_receipt_line_id"),
         Index("ix_vendor_bill_lines_project_wbs", "project_id", "wbs_code_id"),
     )
 
@@ -192,7 +186,6 @@ class VendorBillLine(UUIDTimestampMixin, Base):
     vendor_bill_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     line_number: Mapped[int] = mapped_column(BigInteger)
     purchase_order_line_id: Mapped[UUID] = mapped_column(Uuid, index=True)
-    goods_receipt_line_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     material_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     wbs_code_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     boq_item_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
@@ -214,3 +207,34 @@ class VendorBillLine(UUIDTimestampMixin, Base):
         Enum(VendorBillMatchStatus, native_enum=False, values_callable=enum_values),
         default=VendorBillMatchStatus.UNCHECKED,
     )
+
+
+class VendorBillReceiptMatch(UUIDTimestampMixin, Base):
+    __tablename__ = "vendor_bill_receipt_matches"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["vendor_bill_line_id", "project_id", "organization_id"],
+            ["vendor_bill_lines.id", "vendor_bill_lines.project_id", "vendor_bill_lines.organization_id"],
+            name="fk_vendor_bill_receipt_matches_line_scope",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["goods_receipt_line_id", "project_id", "organization_id"],
+            ["goods_receipt_lines.id", "goods_receipt_lines.project_id", "goods_receipt_lines.organization_id"],
+            name="fk_vendor_bill_receipt_matches_grn_line_scope",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "vendor_bill_line_id",
+            "goods_receipt_line_id",
+            name="uq_vendor_bill_receipt_matches_line_grn",
+        ),
+        CheckConstraint("matched_quantity > 0", name="ck_vendor_bill_receipt_matches_quantity"),
+        Index("ix_vendor_bill_receipt_matches_grn", "goods_receipt_line_id"),
+    )
+
+    organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    project_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    vendor_bill_line_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    goods_receipt_line_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    matched_quantity: Mapped[Decimal] = mapped_column(Numeric(20, 4))
