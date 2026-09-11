@@ -41,7 +41,7 @@ internal fun SessionContextResponse.canViewAttendance(projectId: String): Boolea
 
 internal fun attendanceDateFor(project: ProjectEntity): String {
     val zoneId = project.timezone
-        ?.let { runCatching(ZoneId::of).getOrNull() }
+        ?.let { timezone -> runCatching { ZoneId.of(timezone) }.getOrNull() }
         ?: ZoneId.systemDefault()
     return LocalDate.now(zoneId).toString()
 }
