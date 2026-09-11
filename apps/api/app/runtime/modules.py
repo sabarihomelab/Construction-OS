@@ -62,6 +62,7 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
         integrates_with=("documents", "drawings", "rfis", "workforce", "equipment", "safety"),
         api_router="app.modules.field.api:router",
         search_provider_module="app.modules.field.search",
+        worker_profiles=("reporting",),
     ),
     ModuleManifest(
         key="workforce",
