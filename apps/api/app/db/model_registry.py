@@ -184,6 +184,7 @@ from app.modules.workflows.models import (
     WorkflowTransitionRequest,
     WorkflowVersion,
 )
+from app.modules.workforce import attendance_models as workforce_attendance_models  # noqa: F401
 from app.modules.workforce.models import (
     Crew,
     CrewMembership,
