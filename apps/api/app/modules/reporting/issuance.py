@@ -53,6 +53,11 @@ async def issue_report(
     report_type = report_types.get(report_type_key)
     if not report_type.stores_issued_output:
         raise ReportIssuanceError(f"{report_type.name} does not store issued outputs")
+    if output_format.value not in report_type.issued_output_formats:
+        raise ReportIssuanceError(
+            f"Issued {report_type.name} output format must be one of: "
+            f"{', '.join(report_type.issued_output_formats)}"
+        )
     if generation_trigger not in report_type.allowed_triggers:
         raise ReportIssuanceError(
             f"Generation trigger {generation_trigger.value!r} is not allowed for {report_type.name}"
