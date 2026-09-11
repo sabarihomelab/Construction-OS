@@ -60,10 +60,11 @@ def resolve_visible_features(
         if cached is not None:
             return cached
 
+        module_key = feature.key.split(".", 1)[0]
         if (
             deployment_modules is not None
-            and feature.key in MODULES_BY_KEY
-            and feature.key not in deployment_modules
+            and module_key in MODULES_BY_KEY
+            and module_key not in deployment_modules
         ):
             visibility[feature.key] = False
             return False
