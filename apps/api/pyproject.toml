@@ -33,5 +33,7 @@ line-length = 100
 "app/modules/commercial/boq_service.py" = ["B023", "FURB157", "I001"]
 "app/modules/commercial/service.py" = ["FURB157", "I001"]
 "app/modules/configuration/registry.py" = ["FURB157"]
+"app/modules/estimating/governed_router.py" = ["FURB157", "I001"]
+"app/modules/estimating/governed_service.py" = ["F401", "FURB157", "I001"]
 "app/modules/scheduling/service.py" = ["SIM102"]
 "app/modules/workforce/router.py" = ["I001"]
