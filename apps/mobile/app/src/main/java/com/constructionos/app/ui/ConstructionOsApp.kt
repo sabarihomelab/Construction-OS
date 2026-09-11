@@ -2,7 +2,6 @@ package com.constructionos.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,7 +17,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,10 +30,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.constructionos.app.core.AppContainer
 import com.constructionos.app.core.auth.AuthUiState
-import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.network.NativeMembershipOption
-import com.constructionos.app.core.network.SessionContextResponse
-import com.constructionos.app.core.workspace.WorkspaceCoordinator
 import kotlinx.coroutines.launch
 
 @Composable
@@ -75,7 +70,7 @@ fun ConstructionOsApp() {
                 },
             )
 
-            is AuthUiState.Authenticated -> AuthenticatedScreen(
+            is AuthUiState.Authenticated -> WorkspaceNavigation(
                 context = current.context,
                 workspace = container.workspaceCoordinator,
                 modifier = Modifier.padding(padding),
@@ -207,120 +202,6 @@ private fun MembershipSelectionScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun AuthenticatedScreen(
-    context: SessionContextResponse,
-    workspace: WorkspaceCoordinator,
-    onLogout: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val projectFlow = remember(context.organizationId) {
-        workspace.projects(context.organizationId)
-    }
-    val projects by projectFlow.collectAsState(initial = emptyList())
-    var selectedProjectId by remember(context.organizationId) {
-        mutableStateOf(workspace.selectedProjectId(context.organizationId))
-    }
-
-    LaunchedEffect(
-        context.organizationId,
-        context.authorizationRevision,
-        context.configurationRevision,
-    ) {
-        workspace.onAuthenticated(context)
-    }
-
-    LaunchedEffect(projects, selectedProjectId) {
-        val selected = selectedProjectId
-        if (selected != null && projects.none { it.id == selected }) {
-            workspace.clearProjectSelection(context.organizationId)
-            selectedProjectId = null
-        }
-    }
-
-    val selectedProject = projects.firstOrNull { it.id == selectedProjectId }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(20.dp),
-    ) {
-        Text("Construction OS", style = MaterialTheme.typography.headlineMedium)
-        Text(
-            text = "Projects available to this account",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-
-        if (selectedProject != null) {
-            SelectedProjectSummary(
-                project = selectedProject,
-                modifier = Modifier.padding(top = 16.dp),
-            )
-        }
-
-        if (projects.isEmpty()) {
-            Text(
-                text = "No cached projects yet. The app will refresh automatically when online.",
-                modifier = Modifier.padding(top = 24.dp),
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(top = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(projects, key = { it.id }) { project ->
-                    OutlinedButton(
-                        onClick = {
-                            workspace.selectProject(context.organizationId, project.id)
-                            selectedProjectId = project.id
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.Start,
-                        ) {
-                            Text(project.name, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                text = "${project.number} • ${project.status}",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Offline project cache enabled", style = MaterialTheme.typography.bodySmall)
-            Button(onClick = onLogout) {
-                Text("Sign out")
-            }
-        }
-    }
-}
-
-@Composable
-private fun SelectedProjectSummary(
-    project: ProjectEntity,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Text("Selected project", style = MaterialTheme.typography.labelLarge)
-        Text(project.name, style = MaterialTheme.typography.headlineSmall)
-        Text("${project.number} • revision ${project.revision}")
     }
 }
 
