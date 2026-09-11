@@ -7,8 +7,8 @@ from pydantic import ValidationError
 from app.db.base import Base
 from app.modules.authorization.catalog import PERMISSIONS_BY_KEY
 from app.modules.commercial import models as commercial_models  # noqa: F401
+from app.modules.commercial.api import router as commercial_router
 from app.modules.commercial.models import BOQStatus, MeasurementStatus, RABillStatus
-from app.modules.commercial.router import router as commercial_router
 from app.modules.commercial.schemas import (
     BOQCreate,
     MeasurementCreate,
@@ -86,19 +86,25 @@ def test_india_commercial_permission_catalog_is_complete() -> None:
 def test_commercial_runtime_is_project_scoped_and_installer_visible() -> None:
     manifest = MODULES_BY_KEY["commercial"]
     assert manifest.dependencies == ("projects",)
-    assert manifest.api_router == "app.modules.commercial.router:router"
+    assert manifest.api_router == "app.modules.commercial.api:router"
     assert {item.key for item in resolve_runtime_modules("commercial")} == {"projects", "commercial"}
     feature = FEATURES_BY_KEY["commercial"]
     assert feature.required_permissions == ("commercial.module.view",)
     assert feature.release_state == FeatureReleaseState.PLANNED
     assert feature.offline_enabled
+    party_feature = FEATURES_BY_KEY["commercial.parties"]
+    assert party_feature.release_state == FeatureReleaseState.AVAILABLE
+    assert party_feature.route == "/commercial/parties"
 
 
 def test_commercial_api_exposes_real_workflow_routes() -> None:
     paths = _paths()
     required = {
         "/commercial/parties",
+        "/commercial/parties/{party_id}",
         "/projects/{project_id}/commercial/parties",
+        "/projects/{project_id}/commercial/party-assignments",
+        "/projects/{project_id}/commercial/party-assignments/{assignment_id}",
         "/projects/{project_id}/commercial/wbs",
         "/projects/{project_id}/commercial/boqs",
         "/projects/{project_id}/commercial/boqs/{boq_id}/items",
