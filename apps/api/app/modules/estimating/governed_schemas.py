@@ -17,7 +17,7 @@ from app.modules.estimating.schemas import (
 
 
 class EstimateDetailRead(EstimateRead):
-    items: list[EstimateItemRead] = []
+    items: list[EstimateItemRead] = Field(default_factory=list)
     item_count: int
     total_selling_amount: Decimal
     approval_snapshot_count: int
@@ -63,7 +63,7 @@ class RateAnalysisDetailRead(RateAnalysisRead):
 
 
 class BudgetDetailRead(BudgetRead):
-    lines: list[BudgetLineRead] = []
+    lines: list[BudgetLineRead] = Field(default_factory=list)
     line_count: int
     total_amount: Decimal
     approval_snapshot_count: int
