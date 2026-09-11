@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Response, status
+from sqlalchemy import select
 
 from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
@@ -18,7 +19,10 @@ from app.modules.field.dpr_service import (
     list_work_progress,
     replace_work_progress,
 )
+from app.modules.field.models import DailyReport, DailyReportStatus
+from app.modules.files.generated import GeneratedFileError, read_file_version_bytes
 from app.modules.projects.access import project_permission_is_allowed
+from app.modules.reporting.issuance import ReportIssuanceError, issue_report
 from app.modules.reporting.template_api_schemas import (
     ReportBrandingRead,
     ReportBrandingUpdate,
@@ -27,6 +31,7 @@ from app.modules.reporting.template_api_schemas import (
     ReportTemplateRead,
     ReportTemplateVersionRead,
 )
+from app.modules.reporting.template_models import ReportRenderRecord, ReportTemplate
 from app.modules.reporting.template_provider import report_data_providers
 from app.modules.reporting.template_schemas import (
     ReportTemplateCreate,
@@ -47,6 +52,7 @@ from app.modules.reporting.template_service import (
     render_report_instance,
     update_branding,
 )
+from app.modules.reporting.type_registry import report_types
 from app.modules.sessions.deps import CsrfProtected, CurrentSession
 
 router = APIRouter(tags=["daily-progress-reports"])
@@ -63,22 +69,52 @@ def _require_permission(context, project_id: UUID, permission_key: str) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
 
 
+def _require_organization_permission(context, permission_key: str) -> None:
+    if permission_key not in set(context.permissions):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+
+
 def _domain_error(exc: Exception) -> None:
     if isinstance(exc, (DPRConflictError, ReportTemplateConflictError)):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
 
+async def _require_template_manage_scope(db: DbSession, context, project_id: UUID, template_id: UUID) -> None:
+    template = await db.scalar(
+        select(ReportTemplate).where(
+            ReportTemplate.id == template_id,
+            ReportTemplate.organization_id == context.organization_id,
+            ReportTemplate.report_type_key == DPR_REPORT_TYPE_KEY,
+            ReportTemplate.active.is_(True),
+        )
+    )
+    if template is None or template.project_id not in {None, project_id}:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DPR template not found")
+    if template.project_id is None:
+        _require_organization_permission(context, "field.dpr.template.manage")
+    else:
+        _require_permission(context, project_id, "field.dpr.template.manage")
+
+
+async def _load_report(db: DbSession, organization_id: UUID, project_id: UUID, report_id: UUID) -> DailyReport:
+    report = await db.scalar(
+        select(DailyReport).where(
+            DailyReport.id == report_id,
+            DailyReport.organization_id == organization_id,
+            DailyReport.project_id == project_id,
+        )
+    )
+    if report is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Daily Progress Report not found")
+    return report
+
+
 @router.get(
     "/projects/{project_id}/daily-reports/{report_id}/work-progress",
     response_model=list[DPRWorkProgressRead],
 )
-async def get_work_progress(
-    project_id: UUID,
-    report_id: UUID,
-    db: DbSession,
-    session: CurrentSession,
-):
+async def get_work_progress(project_id: UUID, report_id: UUID, db: DbSession, session: CurrentSession):
     context = await build_access_context(db, session.membership_id)
     _require_permission(context, project_id, "field.daily_report.view")
     return await list_work_progress(
@@ -171,10 +207,7 @@ async def get_dpr_contract(
     )
 
 
-@router.get(
-    "/projects/{project_id}/dpr-templates",
-    response_model=list[ReportTemplateRead],
-)
+@router.get("/projects/{project_id}/dpr-templates", response_model=list[ReportTemplateRead])
 async def get_templates(project_id: UUID, db: DbSession, session: CurrentSession):
     context = await build_access_context(db, session.membership_id)
     _require_permission(context, project_id, "field.dpr.template.view")
@@ -199,7 +232,10 @@ async def post_template(
     _csrf: CsrfProtected,
 ):
     context = await build_access_context(db, session.membership_id)
-    _require_permission(context, project_id, "field.dpr.template.manage")
+    if payload.company_wide:
+        _require_organization_permission(context, "field.dpr.template.manage")
+    else:
+        _require_permission(context, project_id, "field.dpr.template.manage")
     try:
         row = await create_template(
             db,
@@ -252,7 +288,7 @@ async def post_template_version(
     _csrf: CsrfProtected,
 ):
     context = await build_access_context(db, session.membership_id)
-    _require_permission(context, project_id, "field.dpr.template.manage")
+    await _require_template_manage_scope(db, context, project_id, template_id)
     try:
         row = await create_template_version(
             db,
@@ -285,7 +321,7 @@ async def publish_version(
     _csrf: CsrfProtected,
 ):
     context = await build_access_context(db, session.membership_id)
-    _require_permission(context, project_id, "field.dpr.template.manage")
+    await _require_template_manage_scope(db, context, project_id, template_id)
     try:
         row = await publish_template_version(
             db,
@@ -317,7 +353,40 @@ async def render_dpr(
 ) -> Response:
     context = await build_access_context(db, session.membership_id)
     _require_permission(context, project_id, "field.dpr.render")
+    report = await _load_report(db, context.organization_id, project_id, report_id)
+    if report.status == DailyReportStatus.VOID:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Voided DPRs cannot be rendered")
     try:
+        if payload.persist_history:
+            if report.status != DailyReportStatus.APPROVED:
+                raise DPRValidationError("Only an approved DPR can be issued and stored")
+            report_type = report_types.get(DPR_REPORT_TYPE_KEY)
+            if payload.output_format.value not in report_type.issued_output_formats:
+                raise DPRValidationError(
+                    f"Official DPR output format must be one of: {', '.join(report_type.issued_output_formats)}"
+                )
+            content, content_type, filename, record = await issue_report(
+                db,
+                organization_id=context.organization_id,
+                project_id=project_id,
+                report_type_key=DPR_REPORT_TYPE_KEY,
+                source_entity_id=report_id,
+                actor_user_id=session.user_id,
+                session_id=session.id,
+                output_format=payload.output_format,
+                generation_trigger=payload.generation_trigger,
+                template_version_id=payload.template_version_id,
+            )
+            await db.commit()
+            return Response(
+                content=content,
+                media_type=content_type,
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "X-Report-Record-ID": str(record.id),
+                },
+            )
+
         content, content_type, filename, _version, _record = await render_report_instance(
             db,
             organization_id=context.organization_id,
@@ -327,16 +396,15 @@ async def render_dpr(
             actor_user_id=session.user_id,
             output_format=payload.output_format,
             template_version_id=payload.template_version_id,
-            persist_history=payload.persist_history,
+            persist_history=False,
         )
-        if payload.persist_history:
-            await db.commit()
+        await db.rollback()
         return Response(
             content=content,
             media_type=content_type,
             headers={"Content-Disposition": f'inline; filename="{filename}"'},
         )
-    except (ReportTemplateValidationError, ValueError) as exc:
+    except (DPRValidationError, ReportIssuanceError, ReportTemplateValidationError, GeneratedFileError, ValueError) as exc:
         await db.rollback()
         _domain_error(exc)
 
@@ -362,11 +430,55 @@ async def get_render_history(
     )
 
 
+@router.get(
+    "/projects/{project_id}/daily-reports/{report_id}/render-history/{render_id}/download"
+)
+async def download_issued_dpr(
+    project_id: UUID,
+    report_id: UUID,
+    render_id: UUID,
+    db: DbSession,
+    session: CurrentSession,
+) -> Response:
+    context = await build_access_context(db, session.membership_id)
+    _require_permission(context, project_id, "field.daily_report.view")
+    record = await db.scalar(
+        select(ReportRenderRecord).where(
+            ReportRenderRecord.id == render_id,
+            ReportRenderRecord.organization_id == context.organization_id,
+            ReportRenderRecord.project_id == project_id,
+            ReportRenderRecord.report_type_key == DPR_REPORT_TYPE_KEY,
+            ReportRenderRecord.source_entity_id == report_id,
+        )
+    )
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issued DPR was not found")
+    if record.output_file_asset_id is None or record.output_file_version is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This historical render does not have a stored output file",
+        )
+    try:
+        file_version, content = await read_file_version_bytes(
+            db,
+            organization_id=context.organization_id,
+            asset_id=record.output_file_asset_id,
+            version=record.output_file_version,
+        )
+    except GeneratedFileError as exc:
+        _domain_error(exc)
+    content_type = file_version.detected_content_type or "application/octet-stream"
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{record.output_filename}"'},
+    )
+
+
 @router.get("/dpr-branding", response_model=ReportBrandingRead | None)
 async def get_dpr_branding(db: DbSession, session: CurrentSession):
     context = await build_access_context(db, session.membership_id)
-    if "field.dpr.template.view" not in set(context.permissions):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+    _require_organization_permission(context, "field.dpr.template.view")
     return await get_branding(db, organization_id=context.organization_id)
 
 
@@ -378,8 +490,7 @@ async def put_dpr_branding(
     _csrf: CsrfProtected,
 ):
     context = await build_access_context(db, session.membership_id)
-    if "field.dpr.template.manage" not in set(context.permissions):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+    _require_organization_permission(context, "field.dpr.template.manage")
     try:
         row = await update_branding(
             db,
