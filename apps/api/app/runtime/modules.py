@@ -108,7 +108,7 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
         name="Estimating / Rate Analysis / Budget",
         dependencies=("commercial",),
         integrates_with=("equipment", "workforce"),
-        api_router="app.modules.estimating.router:router",
+        api_router="app.modules.estimating.governed_router:router",
         search_provider_module="app.modules.estimating.search",
     ),
     ModuleManifest(
