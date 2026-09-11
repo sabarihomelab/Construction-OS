@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -54,13 +55,16 @@ fun WorkspaceNavigation(
         mutableStateOf(workspace.selectedProjectId(context.organizationId))
     }
     var restoreSavedSelection by rememberSaveable(context.organizationId) { mutableStateOf(true) }
+    var startupPrepared by rememberSaveable(context.organizationId) { mutableStateOf(false) }
 
-    LaunchedEffect(
-        context.organizationId,
-        context.authorizationRevision,
-        context.configurationRevision,
-    ) {
-        workspace.onAuthenticated(context)
+    LaunchedEffect(context.organizationId) {
+        workspace.onAuthenticated()
+        startupPrepared = true
+    }
+
+    if (!startupPrepared) {
+        WorkspaceStartupScreen(modifier = modifier)
+        return
     }
 
     LaunchedEffect(projects, restoreSavedSelection) {
@@ -128,6 +132,29 @@ fun WorkspaceNavigation(
 }
 
 @Composable
+private fun WorkspaceStartupScreen(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        CircularProgressIndicator()
+        Text(
+            "Syncing latest site data…",
+            modifier = Modifier.padding(top = 16.dp),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(
+            "If the site is offline, saved device data opens automatically.",
+            modifier = Modifier.padding(top = 6.dp),
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
 private fun ProjectSelectorScreen(
     projects: List<ProjectEntity>,
     selectedProjectId: String?,
@@ -153,7 +180,7 @@ private fun ProjectSelectorScreen(
 
         if (projects.isEmpty()) {
             Text(
-                text = "No cached projects yet. The app will refresh automatically when online.",
+                text = "No saved projects yet. Connect once to load your authorized projects.",
                 modifier = Modifier.padding(top = 16.dp),
             )
         } else {
@@ -239,7 +266,7 @@ private fun ProjectHomeScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Ready for field work", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Project data is cached locally and refreshes in the background when online.",
+                        "Current project data is kept on this device and syncs on explicit app events when internet is available.",
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(top = 4.dp),
                     )
@@ -286,7 +313,7 @@ private fun ProjectHomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Background sync enabled", style = MaterialTheme.typography.bodySmall)
+                Text("Event-driven sync enabled", style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = onLogout) { Text("Sign out") }
             }
         }

@@ -44,5 +44,6 @@ class AppContainer(context: Context) {
         repository = projectRepository,
         selectionStore = projectSelectionStore,
         syncScheduler = syncScheduler,
+        syncService = workspaceSyncService,
     )
 }
