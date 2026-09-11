@@ -25,6 +25,7 @@ services:
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      STORAGE_LOCAL_ROOT: ${STORAGE_LOCAL_ROOT:-/var/lib/construction-os/storage}
     working_dir: /app
     command: >-
       sh -c "alembic upgrade head &&
@@ -33,6 +34,7 @@ services:
       - "8000:8000"
     volumes:
       - ./apps/api:/app
+      - report_storage:/var/lib/construction-os/storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,4 +73,5 @@ services:
 
 volumes:
   postgres_data:
+  report_storage:
   web_node_modules:
