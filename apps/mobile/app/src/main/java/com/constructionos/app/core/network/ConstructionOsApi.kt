@@ -25,6 +25,14 @@ interface ConstructionOsApi {
 
     @POST("session/logout")
     suspend fun logout(): Response<Unit>
+
+    @GET("projects")
+    suspend fun projects(): List<ProjectResponse>
+
+    @POST("offline/devices")
+    suspend fun registerDevice(
+        @Body request: DeviceRegistrationRequest,
+    ): ClientDeviceResponse
 }
 
 data class NativeProviderListResponse(
@@ -89,4 +97,44 @@ data class VisibleFeatureResponse(
     @SerializedName("mobile_enabled") val mobileEnabled: Boolean,
     @SerializedName("offline_enabled") val offlineEnabled: Boolean,
     @SerializedName("help_topic") val helpTopic: String? = null,
+)
+
+data class ProjectResponse(
+    val id: String,
+    @SerializedName("organization_id") val organizationId: String,
+    val number: String,
+    val name: String,
+    val description: String? = null,
+    val status: String,
+    val revision: Int,
+    val timezone: String? = null,
+    @SerializedName("currency_code") val currencyCode: String? = null,
+    @SerializedName("unit_system") val unitSystem: String? = null,
+    @SerializedName("start_date") val startDate: String? = null,
+    @SerializedName("target_completion_date") val targetCompletionDate: String? = null,
+    @SerializedName("address_line_1") val addressLine1: String? = null,
+    @SerializedName("address_line_2") val addressLine2: String? = null,
+    val locality: String? = null,
+    val region: String? = null,
+    @SerializedName("postal_code") val postalCode: String? = null,
+    @SerializedName("country_code") val countryCode: String? = null,
+)
+
+data class DeviceRegistrationRequest(
+    @SerializedName("installation_id") val installationId: String,
+    val platform: String = "android",
+    @SerializedName("device_label") val deviceLabel: String? = null,
+    @SerializedName("app_version") val appVersion: String? = null,
+)
+
+data class ClientDeviceResponse(
+    val id: String,
+    @SerializedName("organization_id") val organizationId: String,
+    @SerializedName("user_id") val userId: String,
+    @SerializedName("installation_id") val installationId: String,
+    val platform: String,
+    @SerializedName("device_label") val deviceLabel: String? = null,
+    @SerializedName("app_version") val appVersion: String? = null,
+    @SerializedName("last_seen_at") val lastSeenAt: String? = null,
+    @SerializedName("revoked_at") val revokedAt: String? = null,
 )
