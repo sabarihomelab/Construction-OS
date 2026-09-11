@@ -162,6 +162,6 @@ def register_dpr_report_handlers(jobs: JobHandlerRegistry) -> None:
         issue_dpr_on_approval,
         timeout_seconds=300,
         lease_seconds=360,
-        profile="reporting",
+        profile="general",
         module_key="field",
     )
