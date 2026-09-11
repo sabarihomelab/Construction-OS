@@ -100,7 +100,7 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
         name="Commercial Controls",
         dependencies=("projects",),
         integrates_with=("field", "workforce", "equipment", "documents", "drawings"),
-        api_router="app.modules.commercial.router:router",
+        api_router="app.modules.commercial.api:router",
         search_provider_module="app.modules.commercial.search",
     ),
     ModuleManifest(
