@@ -50,7 +50,7 @@ def test_project_party_lifecycle_requires_concurrency_token() -> None:
 
 def test_live_api_mounts_module1_routes_and_not_old_public_company_crud() -> None:
     application = create_app()
-    paths = {route.path for route in application.routes if hasattr(route, "path")}
+    paths = set(application.openapi()["paths"])
 
     assert "/api/v1/organization" in paths
     assert "/api/v1/organization/settings" in paths
