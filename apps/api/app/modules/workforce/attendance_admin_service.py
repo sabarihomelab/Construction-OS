@@ -6,6 +6,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.audit.models import AuditActorType, AuditRisk
 from app.modules.audit.service import record_audit_event
+from app.modules.workflows.models import (
+    ApprovalTaskStatus,
+    TransitionRequestStatus,
+    WorkflowApprovalTask,
+    WorkflowInstance,
+    WorkflowInstanceStatus,
+    WorkflowState,
+    WorkflowStateKind,
+    WorkflowTransitionRequest,
+)
 from app.modules.workforce.attendance_models import (
     AttendanceHistoryType,
     AttendanceRegister,
@@ -17,16 +27,6 @@ from app.modules.workforce.attendance_service import (
     _publish,
 )
 from app.modules.workforce.service import WorkforceValidationError
-from app.modules.workflows.models import (
-    ApprovalTaskStatus,
-    TransitionRequestStatus,
-    WorkflowApprovalTask,
-    WorkflowInstance,
-    WorkflowInstanceStatus,
-    WorkflowState,
-    WorkflowStateKind,
-    WorkflowTransitionRequest,
-)
 
 
 async def reopen_attendance(
