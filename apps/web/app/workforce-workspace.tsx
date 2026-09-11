@@ -7,6 +7,7 @@ type Project = { id: string; number: string; name: string };
 type Worker = { id: string; worker_number: string; first_name: string; last_name: string; trade: string | null; status: string; revision: number };
 type Crew = { id: string; name: string; status: string; revision: number };
 type Assignment = { id: string; project_id: string; worker_id: string; crew_id: string | null; employer_party_id: string | null; engagement_type: string | null; trade: string | null; status: string; revision: number };
+type WBS = { id: string; code: string; name: string; status: string; kind: string };
 type AttendanceEntry = { id: string; assignment_id: string; worker_id: string; crew_id: string | null; employer_party_id: string | null; trade: string | null; mark_status: string; regular_hours: string; overtime_hours: string; wbs_code_id: string | null; location: string | null; notes: string | null; context_snapshot: Record<string, unknown> };
 type Attendance = { id: string; project_id: string; attendance_date: string; shift_code: string; status: string; revision: number; submitted_at: string | null; approved_at: string | null; entries?: AttendanceEntry[] };
 type SummaryRow = { employer_party_id: string | null; crew_id: string | null; trade: string | null; worker_count: number; present_count: number; absent_count: number; regular_hours: string; overtime_hours: string };
@@ -39,6 +40,12 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function localDateValue() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
 function Status({ value }: { value: string }) {
   return <span className={`status-pill status-${value.replaceAll("_", "-")}`}>{value.replaceAll("_", " ")}</span>;
 }
@@ -56,6 +63,7 @@ export default function WorkforceWorkspace({ initialProjectId, initialRegisterId
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [crews, setCrews] = useState<Crew[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [wbsCodes, setWbsCodes] = useState<WBS[]>([]);
   const [registers, setRegisters] = useState<Attendance[]>([]);
   const [projectId, setProjectId] = useState(initialProjectId || "");
   const [attendance, setAttendance] = useState<Attendance | null>(null);
@@ -77,12 +85,14 @@ export default function WorkforceWorkspace({ initialProjectId, initialRegisterId
   ), [can, projects]);
 
   const loadProject = useCallback(async (target: string) => {
-    const [assignmentRows, attendanceRows] = await Promise.all([
+    const [assignmentRows, attendanceRows, wbsRows] = await Promise.all([
       api<Assignment[]>(`/projects/${target}/workforce/assignments`),
       api<Attendance[]>(`/projects/${target}/workforce/attendance`),
+      api<WBS[]>(`/projects/${target}/commercial/wbs`).catch(() => [] as WBS[]),
     ]);
     setAssignments(assignmentRows);
     setRegisters(attendanceRows);
+    setWbsCodes(wbsRows.filter((row) => row.status === "active"));
   }, []);
 
   const openAttendance = useCallback(async (targetProject: string, registerId: string) => {
@@ -103,7 +113,7 @@ export default function WorkforceWorkspace({ initialProjectId, initialRegisterId
       ]);
       setContext(nextContext); setProjects(projectRows); setWorkers(workerRows); setCrews(crewRows);
       const visible = projectRows.filter((row) => nextContext.permissions.some((p) => p.startsWith("workforce.")) || (nextContext.project_permissions[row.id] || []).some((p) => p.startsWith("workforce.")));
-      const selected = initialProjectId && visible.some((row) => row.id === initialProjectId) ? initialProjectId : visible[0]?.id || "";
+      const selected = initialProjectId && visible.some((row) => row.id === initialProjectId ? true : false) ? initialProjectId : visible[0]?.id || "";
       setProjectId(selected);
       if (selected) {
         await loadProject(selected);
@@ -154,11 +164,11 @@ export default function WorkforceWorkspace({ initialProjectId, initialRegisterId
     });
   };
 
-  const updateMark = (entryId: string, field: "mark_status" | "regular_hours" | "overtime_hours", value: string) => {
-    setAttendance((current) => current ? { ...current, entries: (current.entries || []).map((row) => row.id === entryId ? { ...row, [field]: value, ...(field === "mark_status" && ["absent", "leave", "weekly_off"].includes(value) ? { regular_hours: "0", overtime_hours: "0" } : {}) } : row) } : current);
+  const updateEntry = (entryId: string, field: "mark_status" | "regular_hours" | "overtime_hours" | "wbs_code_id", value: string) => {
+    setAttendance((current) => current ? { ...current, entries: (current.entries || []).map((row) => row.id === entryId ? { ...row, [field]: field === "wbs_code_id" ? value || null : value, ...(field === "mark_status" && ["absent", "leave", "weekly_off"].includes(value) ? { regular_hours: "0", overtime_hours: "0" } : {}) } : row) } : current);
   };
 
-  const markAllPresent = () => setAttendance((current) => current ? { ...current, entries: (current.entries || []).map((row) => ({ ...row, mark_status: "present", regular_hours: row.regular_hours === "0" ? "8" : row.regular_hours })) } : current);
+  const markAllPresent = () => setAttendance((current) => current ? { ...current, entries: (current.entries || []).map((row) => ({ ...row, mark_status: "present" })) } : current);
 
   const saveAttendance = () => attendance && run(async () => {
     const saved = await api<Attendance>(`/projects/${projectId}/workforce/attendance/${attendance.id}/entries`, { method: "PUT", body: JSON.stringify({ expected_revision: attendance.revision, entries: (attendance.entries || []).map((row) => ({ assignment_id: row.assignment_id, mark_status: row.mark_status, regular_hours: row.regular_hours, overtime_hours: row.overtime_hours, wbs_code_id: row.wbs_code_id, location: row.location, notes: row.notes })) }) });
@@ -184,7 +194,7 @@ export default function WorkforceWorkspace({ initialProjectId, initialRegisterId
       <section className="workflow-card"><div><p className="eyebrow">PROJECT</p><h2>{projects.find((row) => row.id === projectId)?.name || "Choose project"}</h2></div><div className="quick-form"><select value={projectId} onChange={(event) => void run(async () => { setProjectId(event.target.value); setAttendance(null); await loadProject(event.target.value); })}>{accessibleProjects.map((row) => <option key={row.id} value={row.id}>{row.number} · {row.name}</option>)}</select><button className={tab === "attendance" ? "" : "secondary"} onClick={() => setTab("attendance")}>Attendance</button><button className={tab === "staffing" ? "" : "secondary"} onClick={() => setTab("staffing")}>Staffing</button><button className={tab === "workers" ? "" : "secondary"} onClick={() => setTab("workers")}>Workers & Crews</button></div></section>
 
       {tab === "attendance" && <div className="split-layout"><section>
-        {can("workforce.attendance.create", projectId) && <section className="workflow-card"><div><p className="eyebrow">DAILY MUSTER</p><h2>Start attendance</h2></div><form className="quick-form" onSubmit={createAttendance}><input type="date" name="attendance_date" defaultValue={new Date().toISOString().slice(0, 10)} required/><input name="shift_code" defaultValue="day" placeholder="Shift"/><button disabled={busy}>Create & load workers</button></form></section>}
+        {can("workforce.attendance.create", projectId) && <section className="workflow-card"><div><p className="eyebrow">DAILY MUSTER</p><h2>Start attendance</h2></div><form className="quick-form" onSubmit={createAttendance}><input type="date" name="attendance_date" defaultValue={localDateValue()} required/><input name="shift_code" defaultValue="day" placeholder="Shift"/><button disabled={busy}>Create & load workers</button></form></section>}
         <div className="detail-title"><div><p className="eyebrow">REGISTERS</p><h3>{registers.length} attendance days</h3></div></div>
         <div className="record-list">{registers.map((row) => <button key={row.id} className={attendance?.id === row.id ? "list-card selected" : "list-card"} onClick={() => void openAttendance(projectId, row.id)}><div><strong>{row.attendance_date} · {row.shift_code}</strong><small>Revision {row.revision}</small></div><Status value={row.status}/></button>)}</div>
       </section><section>
@@ -192,7 +202,7 @@ export default function WorkforceWorkspace({ initialProjectId, initialRegisterId
           <div className="detail-title"><div><p className="eyebrow">{attendance.attendance_date} · {attendance.shift_code}</p><h2>Site attendance</h2></div><Status value={attendance.status}/></div>
           {attendance.status === "draft" || attendance.status === "rejected" ? <div className="quick-form"><button className="secondary" onClick={markAllPresent}>Mark all present</button>{can("workforce.attendance.update", projectId) && <button disabled={busy} onClick={saveAttendance}>Save attendance</button>}{can("workforce.attendance.submit", projectId) && <button disabled={busy} onClick={submitAttendance}>Submit</button>}</div> : null}
           {attendance.status === "in_review" && can("workforce.attendance.approve", projectId) && <div className="quick-form"><button className="secondary" disabled={busy} onClick={() => reviewAttendance(false)}>Reject</button><button disabled={busy} onClick={() => reviewAttendance(true)}>Approve</button></div>}
-          <div className="record-list">{(attendance.entries || []).map((entry) => <div key={entry.id} className="list-card"><div><strong>{workerLabel(workerById.get(entry.worker_id), entry)}</strong><small>{entry.trade || "No trade"}{entry.context_snapshot.engagement_type ? ` · ${String(entry.context_snapshot.engagement_type).replaceAll("_", " ")}` : ""}</small></div>{attendance.status === "draft" || attendance.status === "rejected" ? <div className="quick-form"><select value={entry.mark_status} onChange={(event) => updateMark(entry.id, "mark_status", event.target.value)}>{MARKS.map((mark) => <option key={mark} value={mark}>{mark.replaceAll("_", " ")}</option>)}</select><input type="number" min="0" max="24" step="0.5" value={entry.regular_hours} onChange={(event) => updateMark(entry.id, "regular_hours", event.target.value)} aria-label="Regular hours"/><input type="number" min="0" max="24" step="0.5" value={entry.overtime_hours} onChange={(event) => updateMark(entry.id, "overtime_hours", event.target.value)} aria-label="Overtime hours"/></div> : <Status value={entry.mark_status}/>}</div>)}</div>
+          <div className="record-list">{(attendance.entries || []).map((entry) => <div key={entry.id} className="list-card"><div><strong>{workerLabel(workerById.get(entry.worker_id), entry)}</strong><small>{entry.trade || "No trade"}{entry.context_snapshot.engagement_type ? ` · ${String(entry.context_snapshot.engagement_type).replaceAll("_", " ")}` : ""}</small></div>{attendance.status === "draft" || attendance.status === "rejected" ? <div className="quick-form"><select value={entry.mark_status} onChange={(event) => updateEntry(entry.id, "mark_status", event.target.value)}>{MARKS.map((mark) => <option key={mark} value={mark}>{mark.replaceAll("_", " ")}</option>)}</select><input type="number" min="0" max="24" step="0.5" value={entry.regular_hours} onChange={(event) => updateEntry(entry.id, "regular_hours", event.target.value)} aria-label="Regular hours"/><input type="number" min="0" max="24" step="0.5" value={entry.overtime_hours} onChange={(event) => updateEntry(entry.id, "overtime_hours", event.target.value)} aria-label="Overtime hours"/>{wbsCodes.length > 0 && <select value={entry.wbs_code_id || ""} onChange={(event) => updateEntry(entry.id, "wbs_code_id", event.target.value)} aria-label="WBS / Cost Code"><option value="">No WBS / Cost Code</option>{wbsCodes.map((wbs) => <option key={wbs.id} value={wbs.id}>{wbs.code} · {wbs.name}</option>)}</select>}</div> : <Status value={entry.mark_status}/>}</div>)}</div>
           {summary && <section className="workflow-card"><div><p className="eyebrow">DPR READY</p><h3>Approved crew summary</h3></div><div className="record-list">{summary.rows.map((row, index) => <div key={`${row.crew_id}-${row.trade}-${index}`} className="list-card"><div><strong>{row.trade || "General labour"}</strong><small>{row.present_count} present · {row.absent_count} absent · {row.regular_hours} regular hrs · {row.overtime_hours} OT hrs</small></div><span>{row.worker_count} workers</span></div>)}</div></section>}
         </>}
       </section></div>}
