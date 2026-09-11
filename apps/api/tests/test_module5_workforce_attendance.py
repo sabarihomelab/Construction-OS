@@ -16,6 +16,7 @@ from app.modules.workforce.attendance_schemas import (
     AttendanceEntryRead,
     AttendanceEntryWrite,
     AttendanceOfflineMutationRequest,
+    AttendanceRosterItem,
 )
 from app.runtime.modules import MODULES_BY_KEY
 
@@ -44,6 +45,7 @@ def test_attendance_api_exposes_bulk_muster_and_dpr_contract() -> None:
     detail = f"{root}/{{register_id}}"
 
     assert set(paths[root]) >= {"get", "post"}
+    assert f"{root}/roster" in paths
     assert detail in paths
     assert f"{detail}/entries" in paths
     assert f"{detail}/submit" in paths
@@ -81,6 +83,30 @@ def test_attendance_schema_does_not_expose_sensitive_worker_rates() -> None:
     assert "overtime_rate" not in fields
     assert "billing_rate" not in fields
     assert "wage_basis" not in fields
+
+
+def test_attendance_roster_is_minimal_and_excludes_hr_and_rate_fields() -> None:
+    fields = set(AttendanceRosterItem.model_fields)
+    assert {
+        "assignment_id",
+        "project_id",
+        "worker_id",
+        "worker_number",
+        "worker_name",
+        "trade",
+        "revision",
+    } <= fields
+    for sensitive in (
+        "email",
+        "phone",
+        "hire_date",
+        "termination_date",
+        "regular_rate",
+        "overtime_rate",
+        "billing_rate",
+        "wage_basis",
+    ):
+        assert sensitive not in fields
 
 
 def test_attendance_rules_use_shared_configuration_registry() -> None:

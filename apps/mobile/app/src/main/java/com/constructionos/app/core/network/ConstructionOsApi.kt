@@ -5,6 +5,8 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface ConstructionOsApi {
     @GET("auth/native/providers")
@@ -33,6 +35,29 @@ interface ConstructionOsApi {
     suspend fun registerDevice(
         @Body request: DeviceRegistrationRequest,
     ): ClientDeviceResponse
+
+    @GET("projects/{projectId}/workforce/attendance/roster")
+    suspend fun attendanceRoster(
+        @Path("projectId") projectId: String,
+        @Query("attendance_date") attendanceDate: String,
+    ): List<AttendanceRosterResponse>
+
+    @GET("projects/{projectId}/workforce/attendance")
+    suspend fun attendanceRegisters(
+        @Path("projectId") projectId: String,
+    ): List<AttendanceRegisterResponse>
+
+    @GET("projects/{projectId}/workforce/attendance/{registerId}")
+    suspend fun attendanceRegister(
+        @Path("projectId") projectId: String,
+        @Path("registerId") registerId: String,
+    ): AttendanceRegisterDetailResponse
+
+    @POST("projects/{projectId}/workforce/attendance/offline/mutations")
+    suspend fun submitAttendanceMutation(
+        @Path("projectId") projectId: String,
+        @Body request: AttendanceOfflineMutationRequest,
+    ): AttendanceOfflineMutationResponse
 }
 
 data class NativeProviderListResponse(

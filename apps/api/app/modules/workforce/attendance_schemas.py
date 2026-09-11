@@ -11,7 +11,10 @@ from app.modules.workforce.attendance_models import (
     AttendanceMarkStatus,
     AttendanceRegisterStatus,
 )
-from app.modules.workforce.models import WorkerEngagementType
+from app.modules.workforce.models import (
+    ProjectWorkerAssignmentStatus,
+    WorkerEngagementType,
+)
 
 
 class AttendanceRegisterCreate(BaseModel):
@@ -19,6 +22,25 @@ class AttendanceRegisterCreate(BaseModel):
     shift_code: str = Field(default="day", min_length=1, max_length=40)
     notes: str | None = Field(default=None, max_length=4000)
     populate_active_workers: bool = True
+
+
+class AttendanceRosterItem(BaseModel):
+    assignment_id: UUID
+    organization_id: UUID
+    project_id: UUID
+    worker_id: UUID
+    worker_number: str
+    worker_name: str
+    crew_id: UUID | None = None
+    employer_party_id: UUID | None = None
+    engagement_type: WorkerEngagementType | None = None
+    status: ProjectWorkerAssignmentStatus
+    project_role: str | None = None
+    trade: str | None = None
+    default_cost_code: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    revision: int = Field(ge=1)
 
 
 class AttendanceEntryWrite(BaseModel):

@@ -1,7 +1,8 @@
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 
 from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
@@ -22,6 +23,7 @@ from app.modules.workforce.attendance_schemas import (
     AttendanceRegisterDetailRead,
     AttendanceRegisterRead,
     AttendanceReject,
+    AttendanceRosterItem,
     AttendanceVersionAction,
 )
 from app.modules.workforce.attendance_service import (
@@ -30,6 +32,12 @@ from app.modules.workforce.attendance_service import (
     replace_attendance_entries,
     review_attendance,
     submit_attendance,
+)
+from app.modules.workforce.models import (
+    EmploymentStatus,
+    ProjectWorkerAssignment,
+    ProjectWorkerAssignmentStatus,
+    Worker,
 )
 from app.modules.workforce.service import WorkforceConflictError, WorkforceValidationError
 
@@ -48,6 +56,25 @@ def _require_project_permission(context, project_id: UUID, permission_key: str) 
     permissions = set(context.permissions)
     permissions.update(scoped.get(str(project_id), set()))
     return permissions
+
+
+def _require_any_project_permission(
+    context,
+    project_id: UUID,
+    permission_keys: tuple[str, ...],
+) -> None:
+    scoped = {key: set(values) for key, values in context.project_permissions.items()}
+    if any(
+        project_permission_is_allowed(
+            permission_key,
+            project_id=project_id,
+            organization_permissions=set(context.permissions),
+            project_permissions=scoped,
+        )
+        for permission_key in permission_keys
+    ):
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
 
 
 def _domain_error(exc: Exception) -> None:
@@ -130,6 +157,76 @@ async def create_attendance_register_route(
     except (WorkforceConflictError, WorkforceValidationError) as exc:
         await db.rollback()
         _domain_error(exc)
+
+
+@router.get(
+    "/projects/{project_id}/workforce/attendance/roster",
+    response_model=list[AttendanceRosterItem],
+)
+async def attendance_roster(
+    project_id: UUID,
+    attendance_date: date,
+    db: DbSession,
+    session: CurrentSession,
+) -> list[AttendanceRosterItem]:
+    context = await build_access_context(db, session.membership_id)
+    _require_any_project_permission(
+        context,
+        project_id,
+        (
+            "workforce.attendance.view",
+            "workforce.attendance.create",
+            "workforce.attendance.update",
+        ),
+    )
+    rows = (
+        await db.execute(
+            select(ProjectWorkerAssignment, Worker)
+            .join(
+                Worker,
+                and_(
+                    Worker.id == ProjectWorkerAssignment.worker_id,
+                    Worker.organization_id == ProjectWorkerAssignment.organization_id,
+                ),
+            )
+            .where(
+                ProjectWorkerAssignment.organization_id == context.organization_id,
+                ProjectWorkerAssignment.project_id == project_id,
+                ProjectWorkerAssignment.status == ProjectWorkerAssignmentStatus.ACTIVE,
+                Worker.status == EmploymentStatus.ACTIVE,
+                or_(
+                    ProjectWorkerAssignment.start_date.is_(None),
+                    ProjectWorkerAssignment.start_date <= attendance_date,
+                ),
+                or_(
+                    ProjectWorkerAssignment.end_date.is_(None),
+                    ProjectWorkerAssignment.end_date >= attendance_date,
+                ),
+            )
+            .order_by(Worker.last_name, Worker.first_name, Worker.worker_number)
+        )
+    ).all()
+    return [
+        AttendanceRosterItem(
+            assignment_id=assignment.id,
+            organization_id=assignment.organization_id,
+            project_id=assignment.project_id,
+            worker_id=worker.id,
+            worker_number=worker.worker_number,
+            worker_name=(worker.preferred_name or f"{worker.first_name} {worker.last_name}").strip(),
+            crew_id=assignment.crew_id,
+            employer_party_id=assignment.employer_party_id,
+            engagement_type=assignment.engagement_type,
+            status=assignment.status,
+            project_role=assignment.project_role,
+            trade=assignment.trade or worker.trade,
+            default_cost_code=assignment.default_cost_code,
+            start_date=assignment.start_date,
+            end_date=assignment.end_date,
+            revision=assignment.revision,
+        )
+        for assignment, worker in rows
+    ]
 
 
 @router.get(
