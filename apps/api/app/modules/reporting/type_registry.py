@@ -49,6 +49,7 @@ class ReportTypeContract:
     supports_section_selection: bool = True
     stores_issued_output: bool = True
     issued_output_formats: tuple[str, ...] = ("pdf",)
+    default_output_format: str = "pdf"
     filename_pattern: str = "{{report.number}}"
     required_permission_key: str | None = None
 
@@ -73,6 +74,8 @@ class ReportTypeRegistry:
             raise ValueError("Stored report types must allow at least one issued output format")
         if any(not item.strip() for item in contract.issued_output_formats):
             raise ValueError("Issued report output formats cannot be empty")
+        if contract.stores_issued_output and contract.default_output_format not in contract.issued_output_formats:
+            raise ValueError("Default output format must be one of the issued output formats")
         if not contract.filename_pattern.strip():
             raise ValueError("Report filename pattern is required")
         self._contracts[key] = contract
