@@ -6,7 +6,11 @@ from sqlalchemy import select
 
 from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
-from app.modules.offline.models import SyncMutationOperation, SyncMutationReceipt, SyncMutationStatus
+from app.modules.offline.models import (
+    SyncMutationOperation,
+    SyncMutationReceipt,
+    SyncMutationStatus,
+)
 from app.modules.offline.service import (
     IdempotencyConflictError,
     OfflineSyncError,
