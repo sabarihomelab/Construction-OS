@@ -1,4 +1,5 @@
 import io
+from uuid import UUID
 
 import pytest
 from docx import Document
