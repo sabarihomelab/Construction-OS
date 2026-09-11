@@ -51,6 +51,8 @@ MODULE_PERMISSION_DEFINITIONS: tuple[ModulePermissionDefinition, ...] = (
     ModulePermissionDefinition("materials.consumption.view", "materials", "consumption", "view", "View project material consumption records.", PermissionRisk.MEDIUM),
     ModulePermissionDefinition("materials.consumption.create", "materials", "consumption", "create", "Create draft project material consumption records.", PermissionRisk.MEDIUM),
     ModulePermissionDefinition("materials.consumption.post", "materials", "consumption", "post", "Post authoritative project material consumption and cost snapshots.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("materials.inventory.view", "materials", "inventory", "view", "View project stock locations, transaction history and derived balances.", PermissionRisk.MEDIUM),
+    ModulePermissionDefinition("materials.inventory.manage", "materials", "inventory", "manage", "Create and manage project material stock locations.", PermissionRisk.HIGH),
     ModulePermissionDefinition("meetings.meeting.view", "meetings", "meeting", "view", "View meetings, minutes, attendees, agenda and references in authorized projects.", PermissionRisk.MEDIUM),
     ModulePermissionDefinition("meetings.meeting.create", "meetings", "meeting", "create", "Create project meetings.", PermissionRisk.MEDIUM),
     ModulePermissionDefinition("meetings.meeting.update", "meetings", "meeting", "update", "Update non-finalized project meetings.", PermissionRisk.MEDIUM),
