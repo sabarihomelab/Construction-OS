@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.modules.field.dpr_reporting_models import (
     DPROutputFormat,
@@ -28,20 +28,34 @@ class DPRCompanyNameMode(StrEnum):
     CUSTOM = "custom"
 
 
+class DPRConditionOperator(StrEnum):
+    EXISTS = "exists"
+    NOT_EMPTY = "not_empty"
+    EQ = "eq"
+    NE = "ne"
+    GT = "gt"
+    GTE = "gte"
+    LT = "lt"
+    LTE = "lte"
+    IN = "in"
+    CONTAINS = "contains"
+
+
 class DPRLayoutElementKind(StrEnum):
+    SUMMARY = "summary"
     PROJECT_SUMMARY = "project_summary"
     WEATHER = "weather"
-    CREW = "crew"
-    WORK = "work"
-    MATERIALS = "materials"
+    WORKFORCE = "workforce"
+    WORK_PROGRESS = "work_progress"
+    MATERIALS_RECEIVED = "materials_received"
+    MATERIALS_CONSUMED = "materials_consumed"
     EQUIPMENT = "equipment"
-    DELIVERIES = "deliveries"
-    PRODUCTION = "production"
     DELAYS = "delays"
-    SAFETY = "safety"
+    SAFETY_QUALITY = "safety_quality"
     PHOTOS = "photos"
     NOTES = "notes"
-    SIGNATURES = "signatures"
+    APPROVALS = "approvals"
+    CUSTOM_FIELDS = "custom_fields"
     CUSTOM_TEXT = "custom_text"
     PAGE_BREAK = "page_break"
 
@@ -59,8 +73,10 @@ class DPRPageSpec(BaseModel):
 class DPRBrandingSpec(BaseModel):
     company_name_mode: DPRCompanyNameMode = DPRCompanyNameMode.ORGANIZATION
     custom_company_name: str | None = Field(default=None, max_length=255)
-    logo_asset_id: UUID | None = None
-    logo_version: int | None = Field(default=None, ge=1)
+    company_logo_asset_id: UUID | None = None
+    company_logo_version: int | None = Field(default=None, ge=1)
+    client_logo_asset_id: UUID | None = None
+    client_logo_version: int | None = Field(default=None, ge=1)
     report_title: str = Field(default="Daily Progress Report", min_length=1, max_length=180)
     show_project_number: bool = True
     show_project_name: bool = True
@@ -73,8 +89,10 @@ class DPRBrandingSpec(BaseModel):
             self.custom_company_name and self.custom_company_name.strip()
         ):
             raise ValueError("custom_company_name is required when company_name_mode is custom")
-        if (self.logo_asset_id is None) != (self.logo_version is None):
-            raise ValueError("logo_asset_id and logo_version must be supplied together")
+        if (self.company_logo_asset_id is None) != (self.company_logo_version is None):
+            raise ValueError("company logo asset and version must be supplied together")
+        if (self.client_logo_asset_id is None) != (self.client_logo_version is None):
+            raise ValueError("client logo asset and version must be supplied together")
         return self
 
 
@@ -90,18 +108,72 @@ class DPRHeaderFooterSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class DPRConditionSpec(BaseModel):
+    path: str = Field(min_length=1, max_length=180)
+    operator: DPRConditionOperator = DPRConditionOperator.NOT_EMPTY
+    value: object | None = None
+    model_config = ConfigDict(extra="forbid")
+
+
+class DPRTableColumnSpec(BaseModel):
+    key: str = Field(min_length=1, max_length=120)
+    label: str | None = Field(default=None, max_length=180)
+    visible: bool = True
+    order: int = Field(default=0, ge=0, le=1000)
+    width_percent: int | None = Field(default=None, ge=5, le=100)
+    align: str = Field(default="left", pattern="^(left|center|right)$")
+    model_config = ConfigDict(extra="forbid")
+
+
+class DPRTableSpec(BaseModel):
+    columns: list[DPRTableColumnSpec] = Field(default_factory=list, max_length=60)
+    sort_by: list[str] = Field(default_factory=list, max_length=10)
+    group_by: list[str] = Field(default_factory=list, max_length=5)
+    repeat_header: bool = True
+    avoid_row_split: bool = True
+    hide_empty_rows: bool = True
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def validate_columns(self) -> "DPRTableSpec":
+        keys = [column.key for column in self.columns]
+        if len(keys) != len(set(keys)):
+            raise ValueError("DPR table column keys must be unique")
+        known = set(keys)
+        unknown_sort = set(self.sort_by) - known
+        unknown_group = set(self.group_by) - known
+        if self.columns and (unknown_sort or unknown_group):
+            raise ValueError("DPR table sort/group fields must reference configured columns")
+        return self
+
+
+_ALLOWED_GRID_WIDTHS = {25, 30, 33, 50, 67, 70, 75, 100}
+
+
 class DPRLayoutElement(BaseModel):
     id: str = Field(min_length=1, max_length=80)
     kind: DPRLayoutElementKind
     order: int = Field(ge=0, le=10000)
-    column_span: int = Field(default=12, ge=1, le=12)
+    width_percent: int = 100
     visible: bool = True
-    start_new_page: bool = False
+    page_break_before: bool = False
+    keep_title_with_content: bool = True
+    hide_when_empty: bool = True
     title: str | None = Field(default=None, max_length=180)
-    fields: list[str] = Field(default_factory=list, max_length=50)
+    condition: DPRConditionSpec | None = None
+    table: DPRTableSpec | None = None
     custom_text: str | None = None
     style: dict[str, object] = Field(default_factory=dict)
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("width_percent")
+    @classmethod
+    def validate_grid_width(cls, value: int) -> int:
+        if value not in _ALLOWED_GRID_WIDTHS:
+            raise ValueError(
+                "width_percent must be one of 25, 30, 33, 50, 67, 70, 75 or 100"
+            )
+        return value
 
     @model_validator(mode="after")
     def validate_element(self) -> "DPRLayoutElement":
@@ -110,8 +182,17 @@ class DPRLayoutElement(BaseModel):
         ):
             raise ValueError("custom_text is required for custom_text elements")
         if self.kind == DPRLayoutElementKind.PAGE_BREAK:
-            self.column_span = 12
+            self.width_percent = 100
+            self.table = None
         return self
+
+
+class DPRPhotoLayoutSpec(BaseModel):
+    columns: int = Field(default=2, ge=1, le=4)
+    show_caption: bool = True
+    show_timestamp: bool = True
+    show_location: bool = False
+    model_config = ConfigDict(extra="forbid")
 
 
 class DPRLayoutSpec(BaseModel):
@@ -119,6 +200,7 @@ class DPRLayoutSpec(BaseModel):
     page: DPRPageSpec = Field(default_factory=DPRPageSpec)
     branding: DPRBrandingSpec = Field(default_factory=DPRBrandingSpec)
     header_footer: DPRHeaderFooterSpec = Field(default_factory=DPRHeaderFooterSpec)
+    photo_layout: DPRPhotoLayoutSpec = Field(default_factory=DPRPhotoLayoutSpec)
     elements: list[DPRLayoutElement]
     model_config = ConfigDict(extra="forbid")
 
@@ -127,7 +209,10 @@ class DPRLayoutSpec(BaseModel):
         ids = [item.id for item in self.elements]
         if len(ids) != len(set(ids)):
             raise ValueError("DPR layout element ids must be unique")
-        if not any(item.visible and item.kind != DPRLayoutElementKind.PAGE_BREAK for item in self.elements):
+        if not any(
+            item.visible and item.kind != DPRLayoutElementKind.PAGE_BREAK
+            for item in self.elements
+        ):
             raise ValueError("DPR layout must contain at least one visible content element")
         return self
 
