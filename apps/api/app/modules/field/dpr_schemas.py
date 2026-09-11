@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.modules.field.dpr_models import DPRWorkProgressSourceType
 from app.modules.reporting.template_models import TemplateOutputFormat
+from app.modules.reporting.type_registry import ReportGenerationTrigger
 
 
 class DPRWorkProgressWrite(BaseModel):
@@ -60,5 +61,6 @@ class DPRReportPayloadRead(BaseModel):
 class DPRRenderRequest(BaseModel):
     output_format: TemplateOutputFormat
     template_version_id: UUID | None = None
-    persist_history: bool = True
+    persist_history: bool = False
+    generation_trigger: ReportGenerationTrigger = ReportGenerationTrigger.MANUAL
     model_config = ConfigDict(extra="forbid")
