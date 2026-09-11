@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.modules.field.api import router as field_api_router
+from app.modules.field.dpr_offline_router import router as dpr_offline_router
 from app.modules.field.dpr_offline_schemas import (
     DailyReportOfflineMutationRequest,
     DailyReportOfflineOperation,
@@ -21,8 +21,8 @@ def _ids() -> tuple:
 
 
 def test_daily_report_offline_router_is_registered() -> None:
-    paths = {f"/api/v1{route.path}" for route in field_api_router.routes}
-    assert "/api/v1/projects/{project_id}/daily-reports/offline/mutations" in paths
+    paths = {route.path for route in dpr_offline_router.routes}
+    assert "/projects/{project_id}/daily-reports/offline/mutations" in paths
 
 
 def test_daily_report_offline_create_uses_no_base_revision() -> None:
