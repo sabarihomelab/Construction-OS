@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     deployment_profile: Literal["development", "single_server", "split"] = "development"
     database_mode: Literal["local", "external"] = "local"
     storage_provider: str = "local"
+    storage_local_root: str = "./data/storage"
     runtime_modules: str = "default"
     worker_profiles: str = "auto"
 
@@ -71,6 +72,8 @@ class Settings(BaseSettings):
             raise ValueError("ENVIRONMENT_NAME cannot be empty")
         if not self.storage_provider.strip():
             raise ValueError("STORAGE_PROVIDER cannot be empty")
+        if self.storage_provider.strip().lower() == "local" and not self.storage_local_root.strip():
+            raise ValueError("STORAGE_LOCAL_ROOT cannot be empty when STORAGE_PROVIDER=local")
         if self.default_currency.upper() != self.default_currency or len(self.default_currency) != 3:
             raise ValueError("DEFAULT_CURRENCY must be a three-letter uppercase currency code")
         if not self.default_locale.strip() or not self.default_timezone.strip():
