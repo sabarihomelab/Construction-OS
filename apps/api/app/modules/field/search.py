@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.field.dpr_models import DPRWorkProgressEntry
 from app.modules.field.models import DailyReport, DailyReportDelayEntry, DailyReportWorkEntry
 from app.modules.search.providers import search_projection_providers
 from app.modules.search.schemas import SearchProjection
@@ -27,7 +28,16 @@ async def daily_report_search_projection(
     if report is None:
         return None
 
-    work_rows = await db.scalars(
+    structured_work = await db.scalars(
+        select(DPRWorkProgressEntry.description)
+        .where(
+            DPRWorkProgressEntry.organization_id == organization_id,
+            DPRWorkProgressEntry.daily_report_id == report.id,
+        )
+        .order_by(DPRWorkProgressEntry.created_at)
+        .limit(20)
+    )
+    legacy_work = await db.scalars(
         select(DailyReportWorkEntry.description)
         .where(
             DailyReportWorkEntry.organization_id == organization_id,
@@ -51,10 +61,11 @@ async def daily_report_search_projection(
         body_parts.append(report.weather_condition)
     if report.notes:
         body_parts.append(report.notes)
-    body_parts.extend(work_rows.all())
+    structured = list(structured_work.all())
+    body_parts.extend(structured or list(legacy_work.all()))
     body_parts.extend(delay_rows.all())
 
-    title = f"Daily Report {report.report_date.isoformat()}"
+    title = f"Daily Progress Report {report.report_date.isoformat()}"
     return SearchProjection(
         entity_type="daily_report",
         entity_id=str(report.id),
