@@ -109,4 +109,4 @@ class VendorBillRead(BaseModel):
 
 
 class VendorBillDetailRead(VendorBillRead):
-    lines: list[VendorBillLineRead]
+    lines: list[VendorBillLineRead] = Field(default_factory=list)
