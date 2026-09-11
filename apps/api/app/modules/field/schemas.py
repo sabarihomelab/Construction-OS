@@ -92,6 +92,17 @@ class WorkEntryWrite(BaseModel):
     notes: str | None = None
 
 
+class MaterialEntryWrite(BaseModel):
+    material_id: UUID | None = None
+    material_name: str = Field(min_length=1, max_length=255)
+    quantity: Decimal = Field(gt=0)
+    unit_code: str = Field(min_length=1, max_length=40)
+    wbs_code_id: UUID | None = None
+    boq_item_id: UUID | None = None
+    location: str | None = Field(default=None, max_length=255)
+    notes: str | None = None
+
+
 class EquipmentEntryWrite(BaseModel):
     equipment_name: str = Field(min_length=1, max_length=255)
     equipment_reference: str | None = Field(default=None, max_length=160)
@@ -151,12 +162,28 @@ class DailyReportSectionsWrite(BaseModel):
     expected_revision: int = Field(ge=1)
     crew: list[CrewEntryWrite] | None = None
     work: list[WorkEntryWrite] | None = None
+    materials: list[MaterialEntryWrite] | None = None
     equipment: list[EquipmentEntryWrite] | None = None
     deliveries: list[DeliveryEntryWrite] | None = None
     production: list[ProductionEntryWrite] | None = None
     delays: list[DelayEntryWrite] | None = None
     safety: list[SafetyEntryWrite] | None = None
     reason: str | None = Field(default=None, max_length=1000)
+
+
+class DPRSourceSyncRequest(BaseModel):
+    expected_revision: int = Field(ge=1)
+    sources: list[str] = Field(
+        default_factory=lambda: ["attendance", "materials", "equipment", "deliveries"],
+        min_length=1,
+        max_length=4,
+    )
+    model_config = ConfigDict(extra="forbid")
+
+
+class DPRSourceSyncRead(BaseModel):
+    report: DailyReportRead
+    imported_rows: dict[str, int]
 
 
 class DailyReportSectionEntryRead(BaseModel):
@@ -172,6 +199,10 @@ class CrewEntryRead(CrewEntryWrite, DailyReportSectionEntryRead):
 
 
 class WorkEntryRead(WorkEntryWrite, DailyReportSectionEntryRead):
+    pass
+
+
+class MaterialEntryRead(MaterialEntryWrite, DailyReportSectionEntryRead):
     pass
 
 
@@ -198,6 +229,7 @@ class SafetyEntryRead(SafetyEntryWrite, DailyReportSectionEntryRead):
 class DailyReportDetailRead(DailyReportRead):
     crew: list[CrewEntryRead] = Field(default_factory=list)
     work: list[WorkEntryRead] = Field(default_factory=list)
+    materials: list[MaterialEntryRead] = Field(default_factory=list)
     equipment: list[EquipmentEntryRead] = Field(default_factory=list)
     deliveries: list[DeliveryEntryRead] = Field(default_factory=list)
     production: list[ProductionEntryRead] = Field(default_factory=list)
