@@ -223,7 +223,9 @@ export default function WBSWorkspace({
     if (!projectId) return;
     const form = new FormData(event.currentTarget);
     const formElement = event.currentTarget;
-    await mutate(async () => {
+    setBusy(true);
+    setError("");
+    try {
       const created = await api<WBS>(`/projects/${projectId}/commercial/wbs`, {
         method: "POST",
         body: JSON.stringify({
@@ -235,30 +237,35 @@ export default function WBSWorkspace({
         }),
       });
       formElement.reset();
-      setDetail(
-        await api<WBSDetail>(`/projects/${projectId}/commercial/wbs/${created.id}`),
-      );
-    });
+      await loadTree(projectId, created.id);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const updateCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!projectId || !detail) return;
     const form = new FormData(event.currentTarget);
-    await mutate(async () => {
-      await api<WBS>(`/projects/${projectId}/commercial/wbs/${detail.id}`, {
+    const payload: Record<string, unknown> = {
+      expected_revision: detail.revision,
+      name: form.get("name"),
+      description: form.get("description") || null,
+      status: form.get("status"),
+      reason: "Updated from WBS workspace",
+    };
+    if (!detail.structure_locked) {
+      payload.kind = form.get("kind");
+      payload.parent_id = form.get("parent_id") || null;
+    }
+    await mutate(() =>
+      api<WBS>(`/projects/${projectId}/commercial/wbs/${detail.id}`, {
         method: "PATCH",
-        body: JSON.stringify({
-          expected_revision: detail.revision,
-          name: form.get("name"),
-          description: form.get("description") || null,
-          kind: form.get("kind"),
-          parent_id: form.get("parent_id") || null,
-          status: form.get("status"),
-          reason: "Updated from WBS workspace",
-        }),
-      });
-    });
+        body: JSON.stringify(payload),
+      }),
+    );
   };
 
   const selectProject = async (nextProjectId: string) => {
@@ -273,7 +280,12 @@ export default function WBSWorkspace({
   };
 
   if (loading) {
-    return <main className="boot-screen"><div className="boot-mark">COS</div><p>Loading WBS…</p></main>;
+    return (
+      <main className="boot-screen">
+        <div className="boot-mark">COS</div>
+        <p>Loading WBS…</p>
+      </main>
+    );
   }
 
   return (
@@ -283,7 +295,10 @@ export default function WBSWorkspace({
           <div>
             <p className="eyebrow">MODULE 2</p>
             <h1>WBS / Cost Codes</h1>
-            <p>Internal project control structure for planning, cost allocation and downstream reporting.</p>
+            <p>
+              Internal project control structure for planning, cost allocation and downstream
+              reporting.
+            </p>
           </div>
         </div>
 
@@ -308,7 +323,10 @@ export default function WBSWorkspace({
                 <h2>Choose project</h2>
               </div>
               <div className="quick-form">
-                <select value={projectId} onChange={(event) => void selectProject(event.target.value)}>
+                <select
+                  value={projectId}
+                  onChange={(event) => void selectProject(event.target.value)}
+                >
                   {visibleProjects.map((project) => (
                     <option key={project.id} value={project.id}>
                       {project.number} · {project.name}
@@ -320,7 +338,10 @@ export default function WBSWorkspace({
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search code or name"
                 />
-                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                >
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                   <option value="all">All</option>
@@ -336,23 +357,30 @@ export default function WBSWorkspace({
                 <div>
                   <p className="eyebrow">ADD STRUCTURE</p>
                   <h2>New WBS code</h2>
-                  <small>Codes are stable identifiers. Use inactive status instead of deleting history.</small>
+                  <small>
+                    Codes are stable identifiers. Use inactive status instead of deleting history.
+                  </small>
                 </div>
                 <form className="quick-form" onSubmit={createCode}>
                   <input name="code" placeholder="Code e.g. CIV.CONC" maxLength={80} required />
                   <input name="name" placeholder="Name" maxLength={255} required />
                   <select name="kind" defaultValue="cost_code">
                     {WBS_KINDS.map((value) => (
-                      <option key={value} value={value}>{value.replaceAll("_", " ")}</option>
+                      <option key={value} value={value}>
+                        {value.replaceAll("_", " ")}
+                      </option>
                     ))}
                   </select>
                   <select name="parent_id" defaultValue="">
                     <option value="">No parent</option>
-                    {tree.filter((item) => item.status === "active").map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {"— ".repeat(item.depth)}{item.code} · {item.name}
-                      </option>
-                    ))}
+                    {tree
+                      .filter((item) => item.status === "active")
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {"— ".repeat(item.depth)}
+                          {item.code} · {item.name}
+                        </option>
+                      ))}
                   </select>
                   <input name="description" placeholder="Description (optional)" />
                   <button disabled={busy}>Add WBS code</button>
@@ -383,10 +411,14 @@ export default function WBSWorkspace({
                         style={{ paddingLeft: `${16 + item.depth * 22}px` }}
                       >
                         <div>
-                          <strong>{item.code} · {item.name}</strong>
+                          <strong>
+                            {item.code} · {item.name}
+                          </strong>
                           <small>
                             {item.kind.replaceAll("_", " ")}
-                            {item.child_count ? ` · ${item.child_count} child${item.child_count === 1 ? "" : "ren"}` : ""}
+                            {item.child_count
+                              ? ` · ${item.child_count} child${item.child_count === 1 ? "" : "ren"}`
+                              : ""}
                           </small>
                         </div>
                         <Status value={item.status} />
@@ -398,13 +430,18 @@ export default function WBSWorkspace({
 
               <section className="detail-panel">
                 {!detail ? (
-                  <Empty title="Select a WBS code" detail="Open a code to view hierarchy, usage and lifecycle controls." />
+                  <Empty
+                    title="Select a WBS code"
+                    detail="Open a code to view hierarchy, usage and lifecycle controls."
+                  />
                 ) : (
                   <>
                     <div className="detail-title">
                       <div>
                         <p className="eyebrow">WBS DETAIL</p>
-                        <h3>{detail.code} · {detail.name}</h3>
+                        <h3>
+                          {detail.code} · {detail.name}
+                        </h3>
                         <small>{detail.path.map((item) => item.code).join(" / ")}</small>
                       </div>
                       <Status value={detail.status} />
@@ -429,7 +466,11 @@ export default function WBSWorkspace({
                       <article>
                         <span>Structure</span>
                         <strong>{detail.structure_locked ? "Locked" : "Editable"}</strong>
-                        <small>{detail.structure_locked ? "Historical usage exists" : "No downstream usage yet"}</small>
+                        <small>
+                          {detail.structure_locked
+                            ? "Historical usage exists"
+                            : "No downstream usage yet"}
+                        </small>
                       </article>
                     </div>
 
@@ -438,7 +479,9 @@ export default function WBSWorkspace({
                         <div>
                           <p className="eyebrow">USED BY</p>
                           <h2>{detail.usage_areas.join(", ")}</h2>
-                          <small>Existing references remain valid if this code is later made inactive.</small>
+                          <small>
+                            Existing references remain valid if this code is later made inactive.
+                          </small>
                         </div>
                       </div>
                     )}
@@ -460,23 +503,34 @@ export default function WBSWorkspace({
                       <select
                         name="kind"
                         defaultValue={detail.kind}
-                        disabled={!can("commercial.wbs.manage", projectId) || busy || detail.structure_locked}
+                        disabled={
+                          !can("commercial.wbs.manage", projectId) ||
+                          busy ||
+                          detail.structure_locked
+                        }
                       >
                         {WBS_KINDS.map((value) => (
-                          <option key={value} value={value}>{value.replaceAll("_", " ")}</option>
+                          <option key={value} value={value}>
+                            {value.replaceAll("_", " ")}
+                          </option>
                         ))}
                       </select>
                       <select
                         name="parent_id"
                         defaultValue={detail.parent_id || ""}
-                        disabled={!can("commercial.wbs.manage", projectId) || busy || detail.structure_locked}
+                        disabled={
+                          !can("commercial.wbs.manage", projectId) ||
+                          busy ||
+                          detail.structure_locked
+                        }
                       >
                         <option value="">No parent</option>
                         {tree
                           .filter((item) => item.id !== detail.id && item.status === "active")
                           .map((item) => (
                             <option key={item.id} value={item.id}>
-                              {"— ".repeat(item.depth)}{item.code} · {item.name}
+                              {"— ".repeat(item.depth)}
+                              {item.code} · {item.name}
                             </option>
                           ))}
                       </select>
@@ -488,13 +542,16 @@ export default function WBSWorkspace({
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                       </select>
-                      <button disabled={!can("commercial.wbs.manage", projectId) || busy}>Save WBS code</button>
+                      <button disabled={!can("commercial.wbs.manage", projectId) || busy}>
+                        Save WBS code
+                      </button>
                     </form>
 
                     {detail.structure_locked && (
                       <p>
-                        Parent and type are locked because this WBS subtree is already referenced by project records.
-                        Name, description and active/inactive lifecycle remain controlled separately.
+                        Parent and type are locked because this WBS subtree is already referenced by
+                        project records. Name, description and active/inactive lifecycle remain
+                        controlled separately.
                       </p>
                     )}
                   </>
