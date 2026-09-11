@@ -2,8 +2,8 @@ from decimal import Decimal
 
 from fastapi import FastAPI
 
-from app.db.base import Base
 from app.db import model_registry as _model_registry  # noqa: F401
+from app.db.base import Base
 from app.modules.configuration.registry import CONFIGURATION_DEFINITIONS_BY_KEY
 from app.modules.estimating.governed_router import router
 from app.modules.estimating.governed_service import rate_breakdown
@@ -52,9 +52,9 @@ def test_estimating_history_models_are_registered() -> None:
 def test_rate_breakdown_separates_project_cost_from_profit() -> None:
     result = rate_breakdown(
         Decimal("150.00"),
-        Decimal("10"),
-        Decimal("20"),
-        Decimal("10"),
+        Decimal(10),
+        Decimal(20),
+        Decimal(10),
     )
 
     assert result["base_rate"] == Decimal("150.00")
