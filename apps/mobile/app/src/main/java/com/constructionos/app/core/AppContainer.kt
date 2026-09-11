@@ -1,6 +1,7 @@
 package com.constructionos.app.core
 
 import android.content.Context
+import com.constructionos.app.core.attendance.AttendanceMutationSyncService
 import com.constructionos.app.core.attendance.AttendanceRepository
 import com.constructionos.app.core.auth.AuthController
 import com.constructionos.app.core.database.ConstructionOsDatabase
@@ -26,6 +27,14 @@ class AppContainer(context: Context) {
     val attendanceRepository = AttendanceRepository(
         api = api,
         dao = database.attendanceDao(),
+        deviceRegistrar = deviceRegistrar,
+        syncScheduler = syncScheduler,
+    )
+
+    private val attendanceMutationSyncService = AttendanceMutationSyncService(
+        api = api,
+        dao = database.attendanceDao(),
+        deviceRegistrar = deviceRegistrar,
     )
 
     val authController = AuthController(
@@ -38,6 +47,7 @@ class AppContainer(context: Context) {
         deviceRegistrar = deviceRegistrar,
         projectRepository = projectRepository,
         attendanceRepository = attendanceRepository,
+        attendanceMutationSyncService = attendanceMutationSyncService,
     )
 
     val workspaceCoordinator = WorkspaceCoordinator(

@@ -1,5 +1,6 @@
 package com.constructionos.app.core.offline
 
+import com.constructionos.app.core.attendance.AttendanceMutationSyncService
 import com.constructionos.app.core.attendance.AttendanceRepository
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.network.ConstructionOsApi
@@ -13,30 +14,57 @@ class WorkspaceSyncService(
     private val deviceRegistrar: DeviceRegistrar,
     private val projectRepository: ProjectRepository,
     private val attendanceRepository: AttendanceRepository,
+    private val attendanceMutationSyncService: AttendanceMutationSyncService,
 ) {
     suspend fun syncNow() {
         val context = api.sessionContext()
         deviceRegistrar.register()
+
+        attendanceMutationSyncService.drain()
+
         val projects = projectRepository.refresh(context.organizationId)
-        projects
-            .asSequence()
-            .filter { context.canViewAttendance(it.id) }
-            .forEach { project ->
+        projects.forEach { project ->
+            val attendanceDate = attendanceDateFor(project)
+            if (context.canUseAttendance(project.id)) {
                 attendanceRepository.refreshRoster(
                     projectId = project.id,
-                    attendanceDate = attendanceDateFor(project),
+                    attendanceDate = attendanceDate,
                 )
             }
+            if (context.canViewAttendance(project.id)) {
+                attendanceRepository.refreshDay(
+                    projectId = project.id,
+                    attendanceDate = attendanceDate,
+                )
+            }
+        }
+
+        attendanceMutationSyncService.drain()
     }
 }
 
-internal fun SessionContextResponse.canViewAttendance(projectId: String): Boolean {
+internal fun SessionContextResponse.canUseAttendance(projectId: String): Boolean {
     val mobileWorkforceEnabled = features.any { it.key == "workforce" && it.mobileEnabled }
-    if (!mobileWorkforceEnabled) {
-        return false
-    }
-    val permission = "workforce.attendance.view"
-    return permission in permissions || permission in projectPermissions[projectId].orEmpty()
+    if (!mobileWorkforceEnabled) return false
+    return allowsProjectPermission(
+        projectId,
+        "workforce.attendance.view",
+        "workforce.attendance.create",
+        "workforce.attendance.update",
+    )
+}
+
+internal fun SessionContextResponse.canViewAttendance(projectId: String): Boolean =
+    features.any { it.key == "workforce" && it.mobileEnabled } &&
+        allowsProjectPermission(projectId, "workforce.attendance.view")
+
+private fun SessionContextResponse.allowsProjectPermission(
+    projectId: String,
+    vararg keys: String,
+): Boolean {
+    val organizationGrants = permissions.toSet()
+    val projectGrants = projectPermissions[projectId].orEmpty().toSet()
+    return keys.any { it in organizationGrants || it in projectGrants }
 }
 
 internal fun attendanceDateFor(project: ProjectEntity): String {

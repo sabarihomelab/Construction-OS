@@ -57,7 +57,7 @@ interface ConstructionOsApi {
     suspend fun submitAttendanceMutation(
         @Path("projectId") projectId: String,
         @Body request: AttendanceOfflineMutationRequest,
-    ): AttendanceOfflineMutationResponse
+    ): Response<AttendanceOfflineMutationResponse>
 }
 
 data class NativeProviderListResponse(
