@@ -31,7 +31,7 @@ class ReportDataContract:
     version: int
     scalar_paths: tuple[str, ...]
     collections: tuple[CollectionContract, ...]
-    source_revision_path: str
+    source_revision_path: str = "report.revision"
     dynamic_prefixes: tuple[str, ...] = ()
     required_permission_key: str | None = None
 
@@ -58,7 +58,7 @@ class ReportDataProvider:
     contract: ReportDataContract
     source_entity_type: str
     build_payload: PayloadBuilder
-    default_layout: DefaultLayoutFactory
+    default_layout: DefaultLayoutFactory | None = None
 
 
 class ReportDataProviderRegistry:
