@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -26,7 +27,25 @@ class OrganizationCreate(BaseModel):
 class OrganizationRead(OrganizationCreate):
     id: UUID
     is_active: bool
+    created_at: datetime
+    updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class OrganizationProfileUpdate(BaseModel):
+    expected_updated_at: datetime
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    legal_name: str | None = Field(default=None, max_length=255)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Company name cannot be blank")
+        return normalized
 
 
 class OrganizationSettingsCreate(BaseModel):
@@ -44,7 +63,28 @@ class OrganizationSettingsCreate(BaseModel):
         return value.upper()
 
 
+class OrganizationSettingsUpdate(BaseModel):
+    expected_settings_version: int = Field(ge=1)
+    locale: str | None = Field(default=None, min_length=2, max_length=35)
+    timezone: str | None = Field(default=None, min_length=1, max_length=64)
+    base_currency: str | None = Field(default=None, min_length=3, max_length=3)
+    unit_system: UnitSystem | None = None
+    time_format: TimeFormat | None = None
+    first_day_of_week: int | None = Field(default=None, ge=1, le=7)
+    storage_quota_bytes: int | None = Field(default=None, gt=0)
+
+    @field_validator("base_currency")
+    @classmethod
+    def normalize_currency(cls, value: str | None) -> str | None:
+        return value.upper() if value else value
+
+
 class OrganizationSettingsRead(OrganizationSettingsCreate):
     organization_id: UUID
     settings_version: int
     model_config = ConfigDict(from_attributes=True)
+
+
+class CompanyProfileRead(BaseModel):
+    organization: OrganizationRead
+    settings: OrganizationSettingsRead
