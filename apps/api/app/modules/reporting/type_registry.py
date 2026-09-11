@@ -48,6 +48,7 @@ class ReportTypeContract:
     supports_signatures: bool = False
     supports_section_selection: bool = True
     stores_issued_output: bool = True
+    issued_output_formats: tuple[str, ...] = ("pdf",)
     filename_pattern: str = "{{report.number}}"
     required_permission_key: str | None = None
 
@@ -68,6 +69,10 @@ class ReportTypeRegistry:
             raise ValueError("Report type must allow at least one generation trigger")
         if contract.default_trigger not in contract.allowed_triggers:
             raise ValueError("Default generation trigger must be allowed by the report type")
+        if contract.stores_issued_output and not contract.issued_output_formats:
+            raise ValueError("Stored report types must allow at least one issued output format")
+        if any(not item.strip() for item in contract.issued_output_formats):
+            raise ValueError("Issued report output formats cannot be empty")
         if not contract.filename_pattern.strip():
             raise ValueError("Report filename pattern is required")
         self._contracts[key] = contract
