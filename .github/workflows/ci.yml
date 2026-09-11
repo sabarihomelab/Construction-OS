@@ -60,7 +60,7 @@ jobs:
         run: |
           if ! docker compose up -d --build; then
             docker compose ps -a
-            docker compose logs --tail=200 postgres api web
+            docker compose logs --tail=200 postgres api worker web
             exit 1
           fi
       - name: Wait for API
@@ -72,7 +72,7 @@ jobs:
             sleep 2
           done
           docker compose ps -a
-          docker compose logs --tail=200 api
+          docker compose logs --tail=200 api worker
           exit 1
       - name: Validate live API readiness and composition
         run: |
@@ -99,10 +99,50 @@ jobs:
               "/api/v1/safety/inspection-templates",
               "/api/v1/equipment/assets",
               "/api/v1/projects/{project_id}/meetings",
+              "/api/v1/projects/{project_id}/daily-reports/{report_id}/report-generation",
           }
           missing = sorted(required_paths - paths)
           assert not missing, f"Missing live API paths: {missing}"
           PY
+      - name: Validate background worker readiness
+        run: |
+          for attempt in $(seq 1 30); do
+            if docker compose ps --services --status running | grep -qx worker && \
+               docker compose logs worker 2>&1 | grep -q "Starting worker"; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker compose ps -a
+              docker compose logs --tail=200 worker
+              exit 1
+            fi
+            sleep 2
+          done
+          docker compose exec -T worker python - <<'PY'
+          from app.core.config import get_settings
+          from app.modules.field.dpr_jobs import DPR_APPROVAL_JOB_TYPE
+          from app.modules.jobs.handlers import JobHandlerRegistry
+          from app.runtime.deployment import build_runtime_plan
+          from app.runtime.worker import register_runtime_handlers
+
+          plan = build_runtime_plan(get_settings())
+          registry = JobHandlerRegistry()
+          register_runtime_handlers(plan, registry)
+          enabled = set(
+              registry.enabled_job_types(
+                  worker_profiles=set(plan.worker_profiles),
+                  module_keys=set(plan.module_keys),
+              )
+          )
+          required = {
+              "search.index_entity",
+              "search.delete_entity",
+              DPR_APPROVAL_JOB_TYPE,
+          }
+          missing = sorted(required - enabled)
+          assert not missing, f"Worker is missing enabled handlers: {missing}"
+          PY
+          docker compose exec -T worker sh -c 'command -v soffice >/dev/null && soffice --version'
       - name: Wait for web
         run: |
           for attempt in $(seq 1 60); do
