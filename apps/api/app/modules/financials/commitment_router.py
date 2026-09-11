@@ -50,22 +50,20 @@ async def _detail(
         ).all()
     )
     return ProjectCommitmentDetailRead(
-        **{
-            "id": commitment.id,
-            "organization_id": commitment.organization_id,
-            "project_id": commitment.project_id,
-            "source_type": commitment.source_type,
-            "source_id": commitment.source_id,
-            "source_number": commitment.source_number,
-            "party_id": commitment.party_id,
-            "wbs_code_id": commitment.wbs_code_id,
-            "committed_amount": commitment.committed_amount,
-            "currency_code": commitment.currency_code,
-            "status": commitment.status,
-            "committed_at": commitment.committed_at,
-            "closed_at": commitment.closed_at,
-            "revision": commitment.revision,
-        },
+        id=commitment.id,
+        organization_id=commitment.organization_id,
+        project_id=commitment.project_id,
+        source_type=commitment.source_type,
+        source_id=commitment.source_id,
+        source_number=commitment.source_number,
+        party_id=commitment.party_id,
+        wbs_code_id=commitment.wbs_code_id,
+        committed_amount=commitment.committed_amount,
+        currency_code=commitment.currency_code,
+        status=commitment.status,
+        committed_at=commitment.committed_at,
+        closed_at=commitment.closed_at,
+        revision=commitment.revision,
         allocations=[
             ProjectCommitmentAllocationRead.model_validate(item) for item in allocations
         ],
