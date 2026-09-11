@@ -51,6 +51,25 @@ services:
       retries: 30
       start_period: 10s
 
+  worker:
+    build:
+      context: ./apps/api
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-construction}:${POSTGRES_PASSWORD:-construction}@postgres:5432/${POSTGRES_DB:-construction_os}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      STORAGE_LOCAL_ROOT: ${STORAGE_LOCAL_ROOT:-/var/lib/construction-os/storage}
+    working_dir: /app
+    command: python -m app.runtime.worker
+    volumes:
+      - ./apps/api:/app
+      - report_storage:/var/lib/construction-os/storage
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
   web:
     build:
       context: ./apps/web
