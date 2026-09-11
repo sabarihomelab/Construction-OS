@@ -204,14 +204,19 @@ class ReportRenderRecord(UUIDTimestampMixin, Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
-            ["output_file_asset_id", "organization_id"],
-            ["file_assets.id", "file_assets.organization_id"],
-            name="fk_report_render_records_output_asset_org",
+            ["output_file_asset_id", "output_file_version", "organization_id"],
+            ["file_versions.asset_id", "file_versions.version", "file_versions.organization_id"],
+            name="fk_report_render_records_output_file_version_org",
             ondelete="RESTRICT",
         ),
         UniqueConstraint("id", "organization_id", name="uq_report_render_records_id_org"),
         CheckConstraint("source_revision >= 1", name="ck_report_render_records_source_revision"),
         CheckConstraint("length(content_sha256) = 64", name="ck_report_render_records_sha256"),
+        CheckConstraint(
+            "(output_file_asset_id IS NULL AND output_file_version IS NULL) OR "
+            "(output_file_asset_id IS NOT NULL AND output_file_version IS NOT NULL)",
+            name="ck_report_render_records_output_file_pair",
+        ),
         Index(
             "ix_report_render_records_source",
             "organization_id",
@@ -234,10 +239,14 @@ class ReportRenderRecord(UUIDTimestampMixin, Base):
     output_format: Mapped[TemplateOutputFormat] = mapped_column(
         Enum(TemplateOutputFormat, native_enum=False, values_callable=enum_values)
     )
+    generation_trigger: Mapped[str] = mapped_column(String(40), default="manual")
     payload_snapshot: Mapped[dict[str, object]] = mapped_column(JSONB)
     presentation_snapshot: Mapped[dict[str, object]] = mapped_column(JSONB)
     content_sha256: Mapped[str] = mapped_column(String(64))
+    output_filename: Mapped[str] = mapped_column(String(255))
     output_file_asset_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    output_file_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     generated_by_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
