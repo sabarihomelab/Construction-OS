@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from fastapi import FastAPI
 from pydantic import ValidationError
 
 from app.db.base import Base
@@ -22,7 +23,9 @@ from app.runtime.modules import MODULES_BY_KEY, resolve_runtime_modules
 
 
 def _paths() -> set[str]:
-    return {route.path for route in commercial_router.routes if hasattr(route, "path")}
+    application = FastAPI()
+    application.include_router(commercial_router)
+    return set(application.openapi()["paths"])
 
 
 def _fk_targets(table_name: str) -> set[tuple[str, ...]]:
@@ -51,7 +54,13 @@ def test_india_commercial_tables_are_registered() -> None:
 
 def test_project_commercial_records_use_tenant_safe_project_references() -> None:
     project_target = ("projects.id", "projects.organization_id")
-    for table_name in ("project_party_assignments", "project_wbs_codes", "project_boqs", "measurement_entries", "ra_bills"):
+    for table_name in (
+        "project_party_assignments",
+        "project_wbs_codes",
+        "project_boqs",
+        "measurement_entries",
+        "ra_bills",
+    ):
         assert project_target in _fk_targets(table_name)
 
 
@@ -87,7 +96,10 @@ def test_commercial_runtime_is_project_scoped_and_installer_visible() -> None:
     manifest = MODULES_BY_KEY["commercial"]
     assert manifest.dependencies == ("projects",)
     assert manifest.api_router == "app.modules.commercial.api:router"
-    assert {item.key for item in resolve_runtime_modules("commercial")} == {"projects", "commercial"}
+    assert {item.key for item in resolve_runtime_modules("commercial")} == {
+        "projects",
+        "commercial",
+    }
     feature = FEATURES_BY_KEY["commercial"]
     assert feature.required_permissions == ("commercial.module.view",)
     assert feature.release_state == FeatureReleaseState.PLANNED
