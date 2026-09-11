@@ -153,10 +153,10 @@ def test_workforce_permissions_are_atomic() -> None:
     assert expected.issubset(PERMISSIONS_BY_KEY)
 
 
-def test_workforce_feature_is_installer_selectable_but_hidden_until_ui_release() -> None:
+def test_workforce_feature_is_available_with_module5_workspace() -> None:
     feature = FEATURES_BY_KEY["workforce"]
     assert feature.required_permissions == ("workforce.worker.view",)
-    assert feature.release_state == FeatureReleaseState.PLANNED
+    assert feature.release_state == FeatureReleaseState.AVAILABLE
     assert feature.offline_enabled
 
     manifest = MODULES_BY_KEY["workforce"]
