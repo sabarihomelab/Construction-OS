@@ -74,6 +74,7 @@ fun ConstructionOsApp() {
                 context = current.context,
                 workspace = container.workspaceCoordinator,
                 attendanceRepository = container.attendanceRepository,
+                dprRepository = container.dprRepository,
                 modifier = Modifier.padding(padding),
                 onLogout = {
                     scope.launch {

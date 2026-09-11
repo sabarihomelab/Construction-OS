@@ -6,11 +6,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -39,12 +40,14 @@ import com.constructionos.app.core.authorization.ProjectHomeAction
 import com.constructionos.app.core.authorization.ProjectHomeActionKey
 import com.constructionos.app.core.authorization.projectHomeActions
 import com.constructionos.app.core.database.ProjectEntity
+import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.network.SessionContextResponse
 import com.constructionos.app.core.workspace.WorkspaceCoordinator
 
 private const val PROJECT_SELECTOR_ROUTE = "project-selector"
 private const val PROJECT_HOME_ROUTE = "project-home/{projectId}"
 private const val ATTENDANCE_ROUTE = "attendance/{projectId}"
+private const val DAILY_REPORT_ROUTE = "daily-report/{projectId}"
 
 private enum class ProjectTab(val label: String) {
     HOME("Home"),
@@ -57,6 +60,7 @@ fun WorkspaceNavigation(
     context: SessionContextResponse,
     workspace: WorkspaceCoordinator,
     attendanceRepository: AttendanceRepository,
+    dprRepository: DprRepository,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -142,6 +146,9 @@ fun WorkspaceNavigation(
                     onOpenAttendance = {
                         navController.navigate(attendanceRoute(project.id))
                     },
+                    onOpenDailyReport = {
+                        navController.navigate(dailyReportRoute(project.id))
+                    },
                     onLogout = onLogout,
                 )
             }
@@ -160,6 +167,24 @@ fun WorkspaceNavigation(
                     project = project,
                     context = context,
                     repository = attendanceRepository,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+        }
+
+        composable(
+            route = DAILY_REPORT_ROUTE,
+            arguments = listOf(navArgument("projectId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId").orEmpty()
+            val project = projects.firstOrNull { it.id == projectId }
+            if (project == null) {
+                MissingProjectScreen(onChooseProject = { navController.popBackStack() })
+            } else {
+                DailyReportScreen(
+                    project = project,
+                    context = context,
+                    repository = dprRepository,
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -200,18 +225,18 @@ private fun ProjectSelectorScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(20.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Text("Construction OS", style = MaterialTheme.typography.headlineMedium)
         Text(
             text = "Choose project",
             style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = 6.dp),
         )
         Text(
-            text = "Only projects authorized by the server are shown here.",
+            text = "Only projects authorized by the server are shown.",
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
+            modifier = Modifier.padding(top = 3.dp, bottom = 12.dp),
         )
 
         if (projects.isEmpty()) {
@@ -220,30 +245,33 @@ private fun ProjectSelectorScreen(
                 modifier = Modifier.padding(top = 16.dp),
             )
         } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
+            LazyColumn(modifier = Modifier.weight(1f)) {
                 items(projects, key = { it.id }) { project ->
-                    OutlinedButton(
+                    TextButton(
                         onClick = { onSelectProject(project) },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
                             horizontalAlignment = Alignment.Start,
                         ) {
                             Text(project.name, style = MaterialTheme.typography.titleMedium)
-                            Text("${project.number} • ${project.status}")
+                            Text(
+                                "${project.number} • ${project.status}",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                             if (project.id == selectedProjectId) {
                                 Text(
                                     "Last selected",
                                     style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.padding(top = 4.dp),
+                                    modifier = Modifier.padding(top = 3.dp),
                                 )
                             }
                         }
                     }
+                    HorizontalDivider()
                 }
             }
         }
@@ -251,7 +279,7 @@ private fun ProjectSelectorScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp),
+                .padding(top = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -268,6 +296,7 @@ private fun ProjectWorkspaceScreen(
     attendanceRepository: AttendanceRepository,
     onChooseProject: () -> Unit,
     onOpenAttendance: () -> Unit,
+    onOpenDailyReport: () -> Unit,
     onLogout: () -> Unit,
 ) {
     var selectedTab by rememberSaveable(project.id) { mutableStateOf(ProjectTab.HOME.name) }
@@ -281,15 +310,15 @@ private fun ProjectWorkspaceScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 9.dp),
         ) {
-            Text("Construction OS", style = MaterialTheme.typography.labelLarge)
-            Text(project.name, style = MaterialTheme.typography.headlineSmall)
+            Text(project.name, style = MaterialTheme.typography.titleLarge)
             Text(
                 "${project.number} • ${project.status}",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+        HorizontalDivider()
 
         when (ProjectTab.valueOf(selectedTab)) {
             ProjectTab.HOME -> ProjectHomeContent(
@@ -297,12 +326,14 @@ private fun ProjectWorkspaceScreen(
                 pending = pending,
                 attention = attention,
                 onOpenAttendance = onOpenAttendance,
+                onOpenDailyReport = onOpenDailyReport,
                 modifier = Modifier.weight(1f),
             )
 
             ProjectTab.FIELD -> ProjectFieldContent(
                 actions = actions,
                 onOpenAttendance = onOpenAttendance,
+                onOpenDailyReport = onOpenDailyReport,
                 modifier = Modifier.weight(1f),
             )
 
@@ -315,19 +346,29 @@ private fun ProjectWorkspaceScreen(
         }
 
         NavigationBar {
-            ProjectTab.entries.forEach { tab ->
-                NavigationBarItem(
-                    selected = selectedTab == tab.name,
-                    onClick = { selectedTab = tab.name },
-                    icon = {},
-                    label = { Text(tab.label) },
-                )
-            }
+            NavigationBarItem(
+                selected = selectedTab == ProjectTab.HOME.name,
+                onClick = { selectedTab = ProjectTab.HOME.name },
+                icon = {},
+                label = { Text("Home") },
+            )
+            NavigationBarItem(
+                selected = selectedTab == ProjectTab.FIELD.name,
+                onClick = { selectedTab = ProjectTab.FIELD.name },
+                icon = {},
+                label = { Text("Field") },
+            )
             NavigationBarItem(
                 selected = false,
                 onClick = onChooseProject,
                 icon = {},
                 label = { Text("Projects") },
+            )
+            NavigationBarItem(
+                selected = selectedTab == ProjectTab.MORE.name,
+                onClick = { selectedTab = ProjectTab.MORE.name },
+                icon = {},
+                label = { Text("More") },
             )
         }
     }
@@ -339,45 +380,44 @@ private fun ProjectHomeContent(
     pending: Int,
     attention: Int,
     onOpenAttendance: () -> Unit,
+    onOpenDailyReport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
-        modifier = modifier.padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    LazyColumn(modifier = modifier) {
         item {
-            Text("Today", style = MaterialTheme.typography.titleLarge)
-            Text(
-                "Your daily work and anything needing attention.",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 3.dp),
-            )
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Text("Today", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Daily work and anything needing attention.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            HorizontalDivider()
         }
 
         if (attention > 0) {
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Needs attention", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "$attention attendance sync issue${if (attention == 1) "" else "s"} need review.",
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Text("Needs attention", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "$attention attendance sync issue${if (attention == 1) "" else "s"} need review.",
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
                 }
+                HorizontalDivider()
             }
         } else if (pending > 0) {
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Saved on device", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "$pending attendance change${if (pending == 1) "" else "s"} will sync when network is available.",
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Text("Saved on device", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "$pending attendance change${if (pending == 1) "" else "s"} will sync when network is available.",
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
                 }
+                HorizontalDivider()
             }
         }
 
@@ -386,16 +426,18 @@ private fun ProjectHomeContent(
                 Text(
                     "No mobile workflows are available for your current project permissions.",
                     style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(16.dp),
                 )
             }
         } else {
             items(actions, key = { it.key.name }) { action ->
-                ProjectActionCard(
+                ProjectActionRow(
                     action = action,
-                    onClick = when (action.key) {
-                        ProjectHomeActionKey.ATTENDANCE -> onOpenAttendance
-                        ProjectHomeActionKey.DAILY_REPORT -> null
-                    },
+                    onClick = actionClick(
+                        action = action,
+                        onOpenAttendance = onOpenAttendance,
+                        onOpenDailyReport = onOpenDailyReport,
+                    ),
                 )
             }
         }
@@ -406,75 +448,83 @@ private fun ProjectHomeContent(
 private fun ProjectFieldContent(
     actions: List<ProjectHomeAction>,
     onOpenAttendance: () -> Unit,
+    onOpenDailyReport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
-        modifier = modifier.padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    LazyColumn(modifier = modifier) {
         item {
-            Text("Field", style = MaterialTheme.typography.titleLarge)
-            Text(
-                "Only field workflows allowed for this project are shown.",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 3.dp),
-            )
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Text("Field", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Fast site workflows for this project.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            HorizontalDivider()
         }
         items(actions, key = { it.key.name }) { action ->
-            ProjectActionCard(
+            ProjectActionRow(
                 action = action,
-                onClick = when (action.key) {
-                    ProjectHomeActionKey.ATTENDANCE -> onOpenAttendance
-                    ProjectHomeActionKey.DAILY_REPORT -> null
-                },
+                onClick = actionClick(
+                    action = action,
+                    onOpenAttendance = onOpenAttendance,
+                    onOpenDailyReport = onOpenDailyReport,
+                ),
             )
         }
     }
 }
 
+private fun actionClick(
+    action: ProjectHomeAction,
+    onOpenAttendance: () -> Unit,
+    onOpenDailyReport: () -> Unit,
+): (() -> Unit)? = when (action.key) {
+    ProjectHomeActionKey.ATTENDANCE -> onOpenAttendance
+    ProjectHomeActionKey.DAILY_REPORT -> onOpenDailyReport
+}
+
 @Composable
-private fun ProjectActionCard(
+private fun ProjectActionRow(
     action: ProjectHomeAction,
     onClick: (() -> Unit)?,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(action.title, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    when (action.mode) {
-                        ProjectActionMode.WORK -> "Work"
-                        ProjectActionMode.REVIEW -> "Review"
-                        ProjectActionMode.VIEW -> "View"
-                    },
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(action.title, style = MaterialTheme.typography.titleMedium)
             Text(
-                action.subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 4.dp),
+                when (action.mode) {
+                    ProjectActionMode.WORK -> "Work"
+                    ProjectActionMode.REVIEW -> "Review"
+                    ProjectActionMode.VIEW -> "View"
+                },
+                style = MaterialTheme.typography.labelMedium,
             )
-            if (onClick != null) {
-                TextButton(
-                    onClick = onClick,
-                    modifier = Modifier.padding(top = 4.dp),
-                ) {
-                    Text("Open")
-                }
-            } else {
-                Text(
-                    "Mobile screen is the next implementation section.",
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(top = 10.dp),
-                )
+        }
+        Text(
+            action.subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 3.dp),
+        )
+        if (onClick != null) {
+            TextButton(
+                onClick = onClick,
+                modifier = Modifier.padding(top = 2.dp),
+            ) {
+                Text("Open")
             }
         }
     }
+    HorizontalDivider()
 }
 
 @Composable
@@ -484,38 +534,41 @@ private fun ProjectMoreContent(
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
-        modifier = modifier.padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    LazyColumn(modifier = modifier) {
         item {
-            Text("More", style = MaterialTheme.typography.titleLarge)
-            Text(
-                "Project information and account actions. Additional tools appear only when their mobile workflow is ready and authorized.",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 3.dp),
-            )
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Text("More", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Project information and account actions.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            HorizontalDivider()
         }
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Project", style = MaterialTheme.typography.titleMedium)
-                    Text(project.name, modifier = Modifier.padding(top = 4.dp))
-                    Text(project.number, style = MaterialTheme.typography.bodySmall)
-                    project.locality?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                }
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text("Project", style = MaterialTheme.typography.titleMedium)
+                Text(project.name, modifier = Modifier.padding(top = 3.dp))
+                Text(project.number, style = MaterialTheme.typography.bodySmall)
+                project.locality?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             }
+            HorizontalDivider()
         }
         item {
             OutlinedButton(
                 onClick = onChooseProject,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
             ) { Text("Change project") }
         }
         item {
             TextButton(
                 onClick = onLogout,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
             ) { Text("Sign out") }
         }
     }
@@ -541,3 +594,4 @@ private fun MissingProjectScreen(onChooseProject: () -> Unit) {
 
 private fun projectHomeRoute(projectId: String): String = "project-home/$projectId"
 private fun attendanceRoute(projectId: String): String = "attendance/$projectId"
+private fun dailyReportRoute(projectId: String): String = "daily-report/$projectId"

@@ -49,6 +49,24 @@ class WorkspaceSyncServiceTest {
         assertFalse(context.canViewAttendance("project-1"))
     }
 
+    @Test
+    fun `dpr cache requires mobile field feature and view permission`() {
+        val allowed = context(
+            projectPermissions = mapOf(
+                "project-1" to listOf("field.daily_report.view"),
+            ),
+            features = listOf(feature("field", mobileEnabled = true)),
+        )
+        val hidden = context(
+            permissions = listOf("field.daily_report.view"),
+            features = listOf(feature("field", mobileEnabled = false)),
+        )
+
+        assertTrue(allowed.canViewDpr("project-1"))
+        assertFalse(allowed.canViewDpr("project-2"))
+        assertFalse(hidden.canViewDpr("project-1"))
+    }
+
     private fun context(
         permissions: List<String> = emptyList(),
         projectPermissions: Map<String, List<String>> = emptyMap(),

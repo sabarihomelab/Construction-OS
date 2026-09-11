@@ -3,6 +3,8 @@ package com.constructionos.app.core.offline
 import com.constructionos.app.core.attendance.AttendanceMutationSyncService
 import com.constructionos.app.core.attendance.AttendanceRepository
 import com.constructionos.app.core.database.ProjectEntity
+import com.constructionos.app.core.dpr.DprMutationSyncService
+import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.network.ConstructionOsApi
 import com.constructionos.app.core.network.SessionContextResponse
 import com.constructionos.app.core.projects.ProjectRepository
@@ -15,31 +17,38 @@ class WorkspaceSyncService(
     private val projectRepository: ProjectRepository,
     private val attendanceRepository: AttendanceRepository,
     private val attendanceMutationSyncService: AttendanceMutationSyncService,
+    private val dprRepository: DprRepository,
+    private val dprMutationSyncService: DprMutationSyncService,
 ) {
     suspend fun syncNow() {
         val context = api.sessionContext()
         deviceRegistrar.register()
 
         attendanceMutationSyncService.drain()
+        dprMutationSyncService.drain()
 
         val projects = projectRepository.refresh(context.organizationId)
         projects.forEach { project ->
-            val attendanceDate = attendanceDateFor(project)
+            val today = attendanceDateFor(project)
             if (context.canUseAttendance(project.id)) {
                 attendanceRepository.refreshRoster(
                     projectId = project.id,
-                    attendanceDate = attendanceDate,
+                    attendanceDate = today,
                 )
             }
             if (context.canViewAttendance(project.id)) {
                 attendanceRepository.refreshDay(
                     projectId = project.id,
-                    attendanceDate = attendanceDate,
+                    attendanceDate = today,
                 )
+            }
+            if (context.canViewDpr(project.id)) {
+                dprRepository.refreshProject(project.id)
             }
         }
 
         attendanceMutationSyncService.drain()
+        dprMutationSyncService.drain()
     }
 }
 
@@ -57,6 +66,10 @@ internal fun SessionContextResponse.canUseAttendance(projectId: String): Boolean
 internal fun SessionContextResponse.canViewAttendance(projectId: String): Boolean =
     features.any { it.key == "workforce" && it.mobileEnabled } &&
         allowsProjectPermission(projectId, "workforce.attendance.view")
+
+internal fun SessionContextResponse.canViewDpr(projectId: String): Boolean =
+    features.any { it.key == "field" && it.mobileEnabled } &&
+        allowsProjectPermission(projectId, "field.daily_report.view")
 
 private fun SessionContextResponse.allowsProjectPermission(
     projectId: String,

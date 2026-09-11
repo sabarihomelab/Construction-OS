@@ -14,13 +14,16 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AttendanceRegisterEntity::class,
         AttendanceEntryEntity::class,
         AttendanceMutationEntity::class,
+        DprReportEntity::class,
+        DprMutationEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class ConstructionOsDatabase : RoomDatabase() {
     abstract fun projectDao(): ProjectDao
     abstract fun attendanceDao(): AttendanceDao
+    abstract fun dprDao(): DprDao
 
     companion object {
         @Volatile
@@ -130,6 +133,65 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
             }
         }
 
+        private val migration2To3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS dpr_reports (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        server_id TEXT,
+                        organization_id TEXT NOT NULL,
+                        project_id TEXT NOT NULL,
+                        report_date TEXT NOT NULL,
+                        shift_code TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        revision INTEGER NOT NULL,
+                        weather_condition TEXT,
+                        temperature_low TEXT,
+                        temperature_high TEXT,
+                        temperature_unit TEXT,
+                        notes TEXT,
+                        sync_state TEXT NOT NULL,
+                        server_updated_at TEXT,
+                        local_updated_at INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_dpr_reports_project_id_report_date_shift_code ON dpr_reports(project_id, report_date, shift_code)",
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_dpr_reports_server_id ON dpr_reports(server_id)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_dpr_reports_project_id_status_report_date ON dpr_reports(project_id, status, report_date)",
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS dpr_mutations (
+                        client_mutation_id TEXT NOT NULL PRIMARY KEY,
+                        project_id TEXT NOT NULL,
+                        report_id TEXT NOT NULL,
+                        operation TEXT NOT NULL,
+                        payload_json TEXT NOT NULL,
+                        state TEXT NOT NULL,
+                        error_code TEXT,
+                        attempt_count INTEGER NOT NULL,
+                        created_at INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_dpr_mutations_project_id_state ON dpr_mutations(project_id, state)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_dpr_mutations_report_id_operation_state ON dpr_mutations(report_id, operation, state)",
+                )
+            }
+        }
+
         fun getInstance(context: Context): ConstructionOsDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -137,7 +199,7 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
                     ConstructionOsDatabase::class.java,
                     "construction-os.db",
                 )
-                    .addMigrations(migration1To2)
+                    .addMigrations(migration1To2, migration2To3)
                     .build()
                     .also { instance = it }
             }

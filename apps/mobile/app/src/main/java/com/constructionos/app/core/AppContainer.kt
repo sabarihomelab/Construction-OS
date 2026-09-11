@@ -5,6 +5,8 @@ import com.constructionos.app.core.attendance.AttendanceMutationSyncService
 import com.constructionos.app.core.attendance.AttendanceRepository
 import com.constructionos.app.core.auth.AuthController
 import com.constructionos.app.core.database.ConstructionOsDatabase
+import com.constructionos.app.core.dpr.DprMutationSyncService
+import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.network.NetworkFactory
 import com.constructionos.app.core.offline.DeviceRegistrar
 import com.constructionos.app.core.offline.WorkspaceSyncScheduler
@@ -37,6 +39,17 @@ class AppContainer(context: Context) {
         deviceRegistrar = deviceRegistrar,
     )
 
+    val dprRepository = DprRepository(
+        api = api,
+        dao = database.dprDao(),
+        syncScheduler = syncScheduler,
+    )
+
+    private val dprMutationSyncService = DprMutationSyncService(
+        api = api,
+        dao = database.dprDao(),
+    )
+
     val authController = AuthController(
         api = api,
         sessionStore = sessionStore,
@@ -48,6 +61,8 @@ class AppContainer(context: Context) {
         projectRepository = projectRepository,
         attendanceRepository = attendanceRepository,
         attendanceMutationSyncService = attendanceMutationSyncService,
+        dprRepository = dprRepository,
+        dprMutationSyncService = dprMutationSyncService,
     )
 
     val workspaceCoordinator = WorkspaceCoordinator(
