@@ -187,6 +187,7 @@ fun AttendanceScreen(
             onMoreStatusChange = { selectedMoreStatus = it.name },
             onSearchChange = { search = it },
             onError = { message = it },
+            modifier = Modifier.weight(1f),
         )
     }
 }
@@ -243,6 +244,7 @@ private fun AttendanceRegisterBoard(
     onMoreStatusChange: (AttendanceMoreStatus) -> Unit,
     onSearchChange: (String) -> Unit,
     onError: (String?) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val entriesFlow = remember(register.id) { repository.observeEntries(register.id) }
     val entries by entriesFlow.collectAsState(initial = emptyList())
@@ -258,157 +260,189 @@ private fun AttendanceRegisterBoard(
     val halfDay = entries.count { it.markStatus == AttendanceRepository.MARK_HALF_DAY }
     val remaining = entries.size - marked
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        AttendanceCountCard("Total", entries.size, Modifier.weight(1f))
-        AttendanceCountCard("Marked", marked, Modifier.weight(1f))
-        AttendanceCountCard("Remaining", remaining, Modifier.weight(1f))
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(top = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        AttendanceTab.entries.forEach { tab ->
-            val count = when (tab) {
-                AttendanceTab.PRESENT -> present
-                AttendanceTab.ABSENT -> absent
-                AttendanceTab.HALF_DAY -> halfDay
-                AttendanceTab.MORE -> entries.count {
-                    it.markStatus == AttendanceRepository.MARK_LEAVE ||
-                        it.markStatus == AttendanceRepository.MARK_WEEKLY_OFF
-                }
-            }
-            if (tab == selectedTab) {
-                Button(onClick = { onTabChange(tab) }) { Text("${tab.label} $count") }
-            } else {
-                OutlinedButton(onClick = { onTabChange(tab) }) { Text("${tab.label} $count") }
-            }
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AttendanceCountCard("Total", entries.size, Modifier.weight(1f))
+            AttendanceCountCard("Marked", marked, Modifier.weight(1f))
+            AttendanceCountCard("Remaining", remaining, Modifier.weight(1f))
         }
-    }
 
-    if (selectedTab == AttendanceTab.MORE) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(top = 8.dp),
+                .padding(top = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            AttendanceMoreStatus.entries.forEach { status ->
-                if (status == selectedMoreStatus) {
-                    Button(onClick = { onMoreStatusChange(status) }) { Text(status.label) }
+            AttendanceTab.entries.forEach { tab ->
+                val count = when (tab) {
+                    AttendanceTab.PRESENT -> present
+                    AttendanceTab.ABSENT -> absent
+                    AttendanceTab.HALF_DAY -> halfDay
+                    AttendanceTab.MORE -> entries.count {
+                        it.markStatus == AttendanceRepository.MARK_LEAVE ||
+                            it.markStatus == AttendanceRepository.MARK_WEEKLY_OFF
+                    }
+                }
+                if (tab == selectedTab) {
+                    Button(onClick = { onTabChange(tab) }) { Text("${tab.label} $count") }
                 } else {
-                    OutlinedButton(onClick = { onMoreStatusChange(status) }) { Text(status.label) }
+                    OutlinedButton(onClick = { onTabChange(tab) }) { Text("${tab.label} $count") }
                 }
             }
         }
-    }
 
-    OutlinedTextField(
-        value = search,
-        onValueChange = onSearchChange,
-        label = { Text("Search worker") },
-        singleLine = true,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp),
-    )
-
-    if (editable && remaining > 0) {
-        Button(
-            onClick = {
-                scope.launch {
-                    onError(null)
-                    runCatching { repository.markRemainingPresent(register.id) }
-                        .onFailure { onError(it.message ?: "Attendance could not be updated") }
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 10.dp),
-        ) {
-            Text("Mark remaining $remaining as Present")
-        }
-    }
-
-    if (!editable) {
-        Text(
-            if (register.status in setOf("submitted", "in_review", "approved")) {
-                "${register.status.replace('_', ' ')} • read only until an authorized user reopens it"
-            } else {
-                "Read-only attendance"
-            },
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(top = 10.dp),
-        )
-    }
-
-    val targetStatus = selectedTab.markStatus ?: selectedMoreStatus.markStatus
-    val normalizedSearch = search.trim()
-    val visibleEntries = entries.filter { entry ->
-        val belongsToBucket = entry.markStatus == targetStatus ||
-            entry.markStatus == AttendanceRepository.MARK_NOT_MARKED
-        val matchesSearch = normalizedSearch.isBlank() ||
-            entry.workerName.contains(normalizedSearch, ignoreCase = true) ||
-            entry.workerNumber.contains(normalizedSearch, ignoreCase = true) ||
-            entry.trade.orEmpty().contains(normalizedSearch, ignoreCase = true)
-        belongsToBucket && matchesSearch
-    }
-
-    Text(
-        "${selectedTab.label} • ${visibleEntries.size} available",
-        style = MaterialTheme.typography.titleSmall,
-        modifier = Modifier.padding(top = 14.dp, bottom = 8.dp),
-    )
-
-    LazyColumn(
-        modifier = Modifier.weight(1f),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        items(
-            items = visibleEntries.chunked(2),
-            key = { row -> row.joinToString("|") { it.assignmentId } },
-        ) { row ->
+        if (selectedTab == AttendanceTab.MORE) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                row.forEach { entry ->
-                    WorkerAttendanceButton(
-                        entry = entry,
-                        targetStatus = targetStatus,
-                        editable = editable,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            scope.launch {
-                                onError(null)
-                                val nextStatus = if (entry.markStatus == targetStatus) {
-                                    AttendanceRepository.MARK_NOT_MARKED
-                                } else {
-                                    targetStatus
-                                }
-                                runCatching {
-                                    repository.markWorker(
-                                        registerId = register.id,
-                                        assignmentId = entry.assignmentId,
-                                        markStatus = nextStatus,
-                                    )
-                                }.onFailure {
-                                    onError(it.message ?: "Attendance could not be updated")
-                                }
-                            }
-                        },
-                    )
+                AttendanceMoreStatus.entries.forEach { status ->
+                    if (status == selectedMoreStatus) {
+                        Button(onClick = { onMoreStatusChange(status) }) { Text(status.label) }
+                    } else {
+                        OutlinedButton(onClick = { onMoreStatusChange(status) }) { Text(status.label) }
+                    }
                 }
-                if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+
+        OutlinedTextField(
+            value = search,
+            onValueChange = onSearchChange,
+            label = { Text("Search worker") },
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp),
+        )
+
+        if (editable && remaining > 0) {
+            Button(
+                onClick = {
+                    scope.launch {
+                        onError(null)
+                        runCatching { repository.markRemainingPresent(register.id) }
+                            .onFailure { onError(it.message ?: "Attendance could not be updated") }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+            ) {
+                Text("Mark remaining $remaining as Present")
+            }
+        }
+
+        if (!editable) {
+            Text(
+                if (register.status in setOf("submitted", "in_review", "approved")) {
+                    "${register.status.replace('_', ' ')} • read only until an authorized user reopens it"
+                } else {
+                    "Read-only attendance"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        }
+
+        val targetStatus = selectedTab.markStatus ?: selectedMoreStatus.markStatus
+        val normalizedSearch = search.trim()
+        val visibleEntries = entries.filter { entry ->
+            val belongsToBucket = entry.markStatus == targetStatus ||
+                entry.markStatus == AttendanceRepository.MARK_NOT_MARKED
+            val matchesSearch = normalizedSearch.isBlank() ||
+                entry.workerName.contains(normalizedSearch, ignoreCase = true) ||
+                entry.workerNumber.contains(normalizedSearch, ignoreCase = true) ||
+                entry.trade.orEmpty().contains(normalizedSearch, ignoreCase = true)
+            belongsToBucket && matchesSearch
+        }
+
+        Text(
+            "${selectedTab.label} • ${visibleEntries.size} available",
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(top = 14.dp, bottom = 8.dp),
+        )
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(
+                items = visibleEntries.chunked(2),
+                key = { row -> row.joinToString("|") { it.assignmentId } },
+            ) { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (row.isNotEmpty()) {
+                        val entry = row[0]
+                        WorkerAttendanceButton(
+                            entry = entry,
+                            targetStatus = targetStatus,
+                            editable = editable,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                scope.launch {
+                                    onError(null)
+                                    val nextStatus = if (entry.markStatus == targetStatus) {
+                                        AttendanceRepository.MARK_NOT_MARKED
+                                    } else {
+                                        targetStatus
+                                    }
+                                    runCatching {
+                                        repository.markWorker(
+                                            registerId = register.id,
+                                            assignmentId = entry.assignmentId,
+                                            markStatus = nextStatus,
+                                        )
+                                    }.onFailure {
+                                        onError(it.message ?: "Attendance could not be updated")
+                                    }
+                                }
+                            },
+                        )
+                    }
+                    if (row.size > 1) {
+                        val entry = row[1]
+                        WorkerAttendanceButton(
+                            entry = entry,
+                            targetStatus = targetStatus,
+                            editable = editable,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                scope.launch {
+                                    onError(null)
+                                    val nextStatus = if (entry.markStatus == targetStatus) {
+                                        AttendanceRepository.MARK_NOT_MARKED
+                                    } else {
+                                        targetStatus
+                                    }
+                                    runCatching {
+                                        repository.markWorker(
+                                            registerId = register.id,
+                                            assignmentId = entry.assignmentId,
+                                            markStatus = nextStatus,
+                                        )
+                                    }.onFailure {
+                                        onError(it.message ?: "Attendance could not be updated")
+                                    }
+                                }
+                            },
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
             }
         }
     }
