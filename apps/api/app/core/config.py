@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     ai_allow_tenant_knowledge: bool = True
     ai_allow_upgrade_guidance: bool = True
 
+    native_dev_auth_enabled: bool = False
+    native_dev_auth_secret: str = ""
+
     session_cookie_name: str = "construction_os_session"
     csrf_cookie_name: str = "construction_os_csrf"
     session_cookie_secure: bool = True
@@ -68,6 +71,13 @@ class Settings(BaseSettings):
             raise ValueError("Session touch interval must be shorter than the idle timeout")
         if self.environment.lower() == "production" and not self.session_cookie_secure:
             raise ValueError("Secure session cookies are required in production")
+        if self.native_dev_auth_enabled:
+            if self.environment.lower() == "production":
+                raise ValueError("Development native authentication cannot be enabled in production")
+            if len(self.native_dev_auth_secret.strip()) < 16:
+                raise ValueError(
+                    "NATIVE_DEV_AUTH_SECRET must be at least 16 characters when development auth is enabled"
+                )
         if not self.environment_name.strip():
             raise ValueError("ENVIRONMENT_NAME cannot be empty")
         if not self.storage_provider.strip():

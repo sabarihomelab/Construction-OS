@@ -5,7 +5,10 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from app.core.config import Settings
 from app.db.base import Base
+from app.modules.authentication.bootstrap import configure_authentication_providers
+from app.modules.authentication.development_provider import DevelopmentAuthenticationProvider
 from app.modules.authentication.native_schemas import (
     NativeAuthenticationRequest,
     NativeMembershipSelectionRequest,
@@ -13,6 +16,7 @@ from app.modules.authentication.native_schemas import (
 )
 from app.modules.authentication.native_service import _assertion_from_grant
 from app.modules.authentication.providers import (
+    AUTHENTICATION_PROVIDERS,
     AuthenticationAssertion,
     AuthenticationProviderRegistry,
 )
@@ -77,6 +81,8 @@ def test_provider_registry_is_provider_neutral_and_rejects_duplicates() -> None:
     assert registry.keys() == ("test-oidc",)
     with pytest.raises(ValueError):
         registry.register(provider)
+    registry.clear()
+    assert registry.keys() == ()
 
 
 @pytest.mark.asyncio
@@ -85,6 +91,63 @@ async def test_provider_produces_server_side_assertion() -> None:
     assert assertion.subject == "subject-123"
     assert assertion.email_verified
     assert assertion.method == AuthenticationMethod.OIDC
+
+
+@pytest.mark.asyncio
+async def test_development_provider_requires_secret_and_returns_verified_assertion() -> None:
+    provider = DevelopmentAuthenticationProvider("development-secret-123")
+    with pytest.raises(ValueError):
+        await provider.authenticate(
+            {"email": "field@example.com", "secret": "wrong-development-secret"}
+        )
+
+    assertion = await provider.authenticate(
+        {
+            "email": "Field@Example.com",
+            "display_name": "Field User",
+            "secret": "development-secret-123",
+        }
+    )
+    assert assertion.provider_key == "development"
+    assert assertion.subject == "dev:field@example.com"
+    assert assertion.email == "field@example.com"
+    assert assertion.email_verified
+    assert provider.allow_verified_email_lookup
+
+
+def test_development_provider_is_disabled_by_default() -> None:
+    settings = Settings(_env_file=None)
+    configure_authentication_providers(settings)
+    assert AUTHENTICATION_PROVIDERS.keys() == ()
+
+
+def test_development_provider_can_be_enabled_only_with_strong_secret() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            native_dev_auth_enabled=True,
+            native_dev_auth_secret="short",
+            _env_file=None,
+        )
+
+    settings = Settings(
+        native_dev_auth_enabled=True,
+        native_dev_auth_secret="development-secret-123",
+        _env_file=None,
+    )
+    configure_authentication_providers(settings)
+    assert AUTHENTICATION_PROVIDERS.keys() == ("development",)
+    AUTHENTICATION_PROVIDERS.clear()
+
+
+def test_production_cannot_enable_development_authentication() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            environment="production",
+            session_cookie_secure=True,
+            native_dev_auth_enabled=True,
+            native_dev_auth_secret="development-secret-123",
+            _env_file=None,
+        )
 
 
 def test_grant_round_trip_preserves_server_verified_authentication_context() -> None:

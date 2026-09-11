@@ -62,7 +62,13 @@ async def authenticate_native_client(
         assertion = await provider.authenticate(payload.payload)
         if assertion.provider_key != provider.provider_key:
             raise NativeAuthenticationError("Authentication provider returned an invalid assertion")
-        result = await begin_native_authentication(db, assertion)
+        result = await begin_native_authentication(
+            db,
+            assertion,
+            allow_verified_email_lookup=bool(
+                getattr(provider, "allow_verified_email_lookup", False)
+            ),
+        )
         await db.commit()
     except ValueError as exc:
         raise HTTPException(

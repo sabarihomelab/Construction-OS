@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+from app.modules.authentication.bootstrap import configure_authentication_providers
 from app.modules.authentication.native_router import router as native_authentication_router
 from app.modules.configuration.router import router as configuration_router
 from app.modules.events.router import router as realtime_router
@@ -16,6 +17,7 @@ from app.runtime.deployment import build_runtime_plan
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    configure_authentication_providers(settings)
     runtime_plan = build_runtime_plan(settings)
     register_runtime_search_providers(runtime_plan)
 

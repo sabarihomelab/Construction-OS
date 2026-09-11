@@ -49,6 +49,9 @@ class AuthenticationProviderRegistry:
     def keys(self) -> tuple[str, ...]:
         return tuple(sorted(self._providers))
 
+    def clear(self) -> None:
+        self._providers.clear()
+
 
 AUTHENTICATION_PROVIDERS = AuthenticationProviderRegistry()
 AuthenticationCallback = Awaitable[AuthenticationAssertion]

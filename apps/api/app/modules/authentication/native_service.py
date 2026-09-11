@@ -2,14 +2,19 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.authentication.providers import AuthenticationAssertion
 from app.modules.identity.models import MembershipStatus, OrganizationMembership, User, UserStatus
 from app.modules.organizations.models import Organization
 from app.modules.sessions.models import MobileAuthenticationGrant
-from app.modules.sessions.service import IssuedSession, generate_secret, hash_secret
+from app.modules.sessions.service import (
+    IssuedSession,
+    create_session,
+    generate_secret,
+    hash_secret,
+)
 
 
 class NativeAuthenticationError(ValueError):
@@ -46,7 +51,9 @@ def _assertion_from_grant(grant: MobileAuthenticationGrant) -> AuthenticationAss
 async def _active_user_for_assertion(
     db: AsyncSession,
     assertion: AuthenticationAssertion,
-) -> User:
+    *,
+    allow_verified_email_lookup: bool = False,
+) -> tuple[User, bool]:
     user = await db.scalar(
         select(User).where(
             User.identity_provider == assertion.provider_key,
@@ -55,9 +62,22 @@ async def _active_user_for_assertion(
             User.status == UserStatus.ACTIVE,
         )
     )
-    if user is None:
-        raise NativeAuthenticationError("Authenticated identity is not linked to an active user")
-    return user
+    if user is not None:
+        return user, True
+
+    if allow_verified_email_lookup and assertion.email_verified:
+        normalized_email = assertion.email.strip().lower()
+        user = await db.scalar(
+            select(User).where(
+                func.lower(User.primary_email) == normalized_email,
+                User.is_active.is_(True),
+                User.status == UserStatus.ACTIVE,
+            )
+        )
+        if user is not None:
+            return user, False
+
+    raise NativeAuthenticationError("Authenticated identity is not linked to an active user")
 
 
 async def active_memberships_for_user(
@@ -92,20 +112,34 @@ async def begin_native_authentication(
     *,
     now: datetime | None = None,
     grant_ttl_seconds: int = 300,
+    allow_verified_email_lookup: bool = False,
 ) -> IssuedSession | PendingMembershipSelection:
     from app.modules.authentication.service import issue_session_for_assertion, validate_assertion
 
     current = now or datetime.now(UTC)
     validate_assertion(assertion, now=current)
-    user = await _active_user_for_assertion(db, assertion)
+    user, identity_linked = await _active_user_for_assertion(
+        db,
+        assertion,
+        allow_verified_email_lookup=allow_verified_email_lookup,
+    )
     memberships = await active_memberships_for_user(db, user.id)
     if not memberships:
         raise NativeAuthenticationError("Authenticated user has no active organization membership")
     if len(memberships) == 1:
-        return await issue_session_for_assertion(
+        if identity_linked:
+            return await issue_session_for_assertion(
+                db,
+                assertion=assertion,
+                membership_id=memberships[0].membership_id,
+            )
+        return await create_session(
             db,
-            assertion=assertion,
+            user_id=user.id,
             membership_id=memberships[0].membership_id,
+            authentication_method=assertion.method,
+            authentication_level=assertion.level,
+            mfa_verified_at=assertion.mfa_verified_at,
         )
 
     raw_grant = generate_secret()
@@ -135,8 +169,6 @@ async def complete_native_membership_selection(
     membership_id: UUID,
     now: datetime | None = None,
 ) -> IssuedSession:
-    from app.modules.authentication.service import issue_session_for_assertion
-
     current = now or datetime.now(UTC)
     grant = await db.scalar(
         select(MobileAuthenticationGrant)
@@ -159,8 +191,11 @@ async def complete_native_membership_selection(
 
     grant.consumed_at = current
     await db.flush()
-    return await issue_session_for_assertion(
+    return await create_session(
         db,
-        assertion=_assertion_from_grant(grant),
+        user_id=grant.user_id,
         membership_id=membership.id,
+        authentication_method=grant.authentication_method,
+        authentication_level=grant.authentication_level,
+        mfa_verified_at=grant.mfa_verified_at,
     )
