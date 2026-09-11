@@ -45,6 +45,22 @@ def test_non_configurable_admin_ignores_tenant_disable_override() -> None:
     assert "admin.operations" in keys
 
 
+def test_available_module_page_inherits_deployment_module_gate() -> None:
+    permissions = {"commercial.party.view"}
+
+    without_commercial = resolve_visible_features(
+        permissions,
+        deployment_modules=frozenset({"projects"}),
+    )
+    with_commercial = resolve_visible_features(
+        permissions,
+        deployment_modules=frozenset({"projects", "commercial"}),
+    )
+
+    assert "commercial.parties" not in {feature.key for feature in without_commercial}
+    assert "commercial.parties" in {feature.key for feature in with_commercial}
+
+
 def test_only_available_features_are_shown_by_default() -> None:
     permissions = set(PERMISSIONS_BY_KEY)
     visible = resolve_visible_features(permissions)
