@@ -303,6 +303,16 @@ class GoodsReceipt(UUIDTimestampMixin, Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
+            ["stock_location_id", "project_id", "organization_id"],
+            [
+                "material_stock_locations.id",
+                "material_stock_locations.project_id",
+                "material_stock_locations.organization_id",
+            ],
+            name="fk_goods_receipts_stock_location_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
             ["project_id", "received_by_membership_id", "organization_id"],
             [
                 "project_memberships.project_id",
@@ -321,6 +331,7 @@ class GoodsReceipt(UUIDTimestampMixin, Base):
     organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     project_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     purchase_order_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    stock_location_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     number: Mapped[str] = mapped_column(String(64))
     status: Mapped[GoodsReceiptStatus] = mapped_column(
         Enum(GoodsReceiptStatus, native_enum=False, values_callable=enum_values),
