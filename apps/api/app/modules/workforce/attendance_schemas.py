@@ -1,9 +1,11 @@
 from datetime import date, datetime
 from decimal import Decimal
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.modules.offline.models import SyncMutationStatus
 from app.modules.workforce.attendance_models import (
     AttendanceHistoryType,
     AttendanceMarkStatus,
@@ -138,3 +140,51 @@ class AttendanceDPRSummaryRead(BaseModel):
     attendance_date: date
     shift_code: str
     rows: list[AttendanceDPRSummaryRow]
+
+
+class AttendanceOfflineOperation(StrEnum):
+    CREATE_REGISTER = "create_register"
+    REPLACE_ENTRIES = "replace_entries"
+    SUBMIT = "submit"
+
+
+class AttendanceOfflineMutationRequest(BaseModel):
+    device_id: UUID
+    client_mutation_id: UUID
+    entity_id: UUID
+    operation: AttendanceOfflineOperation
+    base_revision: int | None = Field(default=None, ge=1)
+    create: AttendanceRegisterCreate | None = None
+    entries: AttendanceEntriesWrite | None = None
+    action: AttendanceVersionAction | None = None
+
+    @model_validator(mode="after")
+    def validate_operation_payload(self) -> "AttendanceOfflineMutationRequest":
+        supplied = sum(item is not None for item in (self.create, self.entries, self.action))
+        if supplied != 1:
+            raise ValueError("Exactly one Attendance operation payload is required")
+
+        if self.operation == AttendanceOfflineOperation.CREATE_REGISTER:
+            if self.create is None or self.base_revision is not None:
+                raise ValueError("Create requires create payload and no base_revision")
+        elif self.operation == AttendanceOfflineOperation.REPLACE_ENTRIES:
+            if self.entries is None or self.base_revision is None:
+                raise ValueError("Entry replacement requires entries payload and base_revision")
+            if self.entries.expected_revision != self.base_revision:
+                raise ValueError("entries.expected_revision must match base_revision")
+        elif self.operation == AttendanceOfflineOperation.SUBMIT:
+            if self.action is None or self.base_revision is None:
+                raise ValueError("Submit requires action payload and base_revision")
+            if self.action.expected_revision != self.base_revision:
+                raise ValueError("action.expected_revision must match base_revision")
+        return self
+
+
+class AttendanceOfflineMutationResponse(BaseModel):
+    client_mutation_id: UUID
+    entity_id: UUID
+    status: SyncMutationStatus
+    replayed: bool
+    server_revision: int | None = Field(default=None, ge=1)
+    result: dict[str, object] = Field(default_factory=dict)
+    error_code: str | None = None

@@ -1,4 +1,6 @@
 from decimal import Decimal
+from inspect import signature
+from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI
@@ -8,8 +10,13 @@ from app.db import model_registry as _model_registry  # noqa: F401
 from app.db.base import Base
 from app.modules.configuration.registry import CONFIGURATION_BY_KEY
 from app.modules.features.registry import FEATURES_BY_KEY, FeatureReleaseState
+from app.modules.offline.service import begin_mutation
 from app.modules.workforce.api import router
-from app.modules.workforce.attendance_schemas import AttendanceEntryRead, AttendanceEntryWrite
+from app.modules.workforce.attendance_schemas import (
+    AttendanceEntryRead,
+    AttendanceEntryWrite,
+    AttendanceOfflineMutationRequest,
+)
 from app.runtime.modules import MODULES_BY_KEY
 
 
@@ -44,6 +51,7 @@ def test_attendance_api_exposes_bulk_muster_and_dpr_contract() -> None:
     assert f"{detail}/reject" in paths
     assert f"{detail}/history" in paths
     assert f"{detail}/dpr-summary" in paths
+    assert f"{root}/offline/mutations" in paths
 
 
 def test_attendance_models_are_registered_with_project_safe_dimensions() -> None:
@@ -87,3 +95,52 @@ def test_attendance_rules_use_shared_configuration_registry() -> None:
         definition = CONFIGURATION_BY_KEY[key]
         assert definition.module_key == "workforce"
         assert definition.configurable is True
+
+
+def test_offline_attendance_create_uses_stable_mutation_and_temporary_entity_ids() -> None:
+    request = AttendanceOfflineMutationRequest(
+        device_id=uuid4(),
+        client_mutation_id=uuid4(),
+        entity_id=uuid4(),
+        operation="create_register",
+        create={
+            "attendance_date": "2026-09-11",
+            "shift_code": "day",
+            "populate_active_workers": True,
+        },
+    )
+
+    assert request.base_revision is None
+    assert request.create is not None
+    assert request.entries is None
+    assert request.action is None
+
+
+def test_offline_attendance_revision_must_match_operation_payload() -> None:
+    with pytest.raises(ValidationError):
+        AttendanceOfflineMutationRequest(
+            device_id=uuid4(),
+            client_mutation_id=uuid4(),
+            entity_id=uuid4(),
+            operation="replace_entries",
+            base_revision=2,
+            entries={"expected_revision": 3, "entries": []},
+        )
+
+    with pytest.raises(ValidationError):
+        AttendanceOfflineMutationRequest(
+            device_id=uuid4(),
+            client_mutation_id=uuid4(),
+            entity_id=uuid4(),
+            operation="submit",
+            base_revision=2,
+            action={"expected_revision": 3},
+        )
+
+
+def test_offline_mutation_foundation_requires_authenticated_device_owner() -> None:
+    parameters = signature(begin_mutation).parameters
+    assert "organization_id" in parameters
+    assert "user_id" in parameters
+    assert "device_id" in parameters
+    assert parameters["user_id"].default is parameters["user_id"].empty

@@ -89,6 +89,7 @@ async def begin_mutation(
     db: AsyncSession,
     *,
     organization_id: UUID,
+    user_id: UUID,
     device_id: UUID,
     client_mutation_id: UUID,
     entity_type: str,
@@ -99,6 +100,15 @@ async def begin_mutation(
 ) -> tuple[SyncMutationReceipt, bool]:
     if base_version is not None and base_version < 1:
         raise OfflineSyncError("base_version must be at least 1")
+
+    device = await db.get(ClientDevice, device_id)
+    if (
+        device is None
+        or device.organization_id != organization_id
+        or device.user_id != user_id
+        or device.revoked_at is not None
+    ):
+        raise OfflineSyncError("Active device registration was not found")
 
     request_hash = canonical_request_hash(request_payload)
     existing = await db.scalar(
@@ -114,10 +124,6 @@ async def begin_mutation(
                 "The same client mutation ID was reused with different content"
             )
         return existing, True
-
-    device = await db.get(ClientDevice, device_id)
-    if device is None or device.organization_id != organization_id or device.revoked_at is not None:
-        raise OfflineSyncError("Active device registration was not found")
 
     receipt = SyncMutationReceipt(
         organization_id=organization_id,
@@ -176,6 +182,7 @@ async def mark_mutation_conflict(
     server_version: int,
     client_patch: Mapping[str, object],
     server_values: Mapping[str, object],
+    result: Mapping[str, object] | None = None,
     now: datetime | None = None,
 ) -> SyncConflict:
     if base_version < 1 or server_version < 1:
@@ -201,6 +208,7 @@ async def mark_mutation_conflict(
     db.add(conflict)
     receipt.status = SyncMutationStatus.CONFLICT
     receipt.server_version = server_version
+    receipt.result = dict(result or {})
     receipt.error_code = "version_conflict"
     receipt.completed_at = now or datetime.now(UTC)
     await db.flush()
