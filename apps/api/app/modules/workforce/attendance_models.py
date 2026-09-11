@@ -9,6 +9,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Enum,
+    ForeignKey,
     ForeignKeyConstraint,
     Index,
     Numeric,
@@ -243,5 +244,7 @@ class AttendanceHistoryEvent(UUIDTimestampMixin, Base):
         Enum(AttendanceHistoryType, native_enum=False, values_callable=enum_values)
     )
     register_revision: Mapped[int] = mapped_column(BigInteger)
-    actor_user_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    actor_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     details: Mapped[dict[str, object]] = mapped_column(JSONB, default=dict)
