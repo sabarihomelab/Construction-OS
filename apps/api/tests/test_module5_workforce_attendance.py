@@ -8,6 +8,8 @@ from pydantic import ValidationError
 
 from app.db import model_registry as _model_registry  # noqa: F401
 from app.db.base import Base
+from app.modules.authorization.catalog import PERMISSIONS_BY_KEY
+from app.modules.authorization.models import PermissionRisk
 from app.modules.configuration.registry import CONFIGURATION_BY_KEY
 from app.modules.features.registry import FEATURES_BY_KEY, FeatureReleaseState
 from app.modules.offline.service import begin_mutation
@@ -51,9 +53,18 @@ def test_attendance_api_exposes_bulk_muster_and_dpr_contract() -> None:
     assert f"{detail}/submit" in paths
     assert f"{detail}/approve" in paths
     assert f"{detail}/reject" in paths
+    assert f"{detail}/reopen" in paths
     assert f"{detail}/history" in paths
     assert f"{detail}/dpr-summary" in paths
     assert f"{root}/offline/mutations" in paths
+
+
+def test_attendance_reopen_is_a_separate_critical_permission() -> None:
+    permission = PERMISSIONS_BY_KEY["workforce.attendance.reopen"]
+    assert permission.module == "workforce"
+    assert permission.resource == "attendance"
+    assert permission.action == "reopen"
+    assert permission.risk == PermissionRisk.CRITICAL
 
 
 def test_attendance_models_are_registered_with_project_safe_dimensions() -> None:
