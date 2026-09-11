@@ -48,6 +48,7 @@ class AppContainer(context: Context) {
     private val dprMutationSyncService = DprMutationSyncService(
         api = api,
         dao = database.dprDao(),
+        deviceRegistrar = deviceRegistrar,
     )
 
     val authController = AuthController(

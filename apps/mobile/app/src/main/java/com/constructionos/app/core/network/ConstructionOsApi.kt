@@ -97,6 +97,12 @@ interface ConstructionOsApi {
         @Path("projectId") projectId: String,
         @Body request: DailyReportCreateRequest,
     ): Response<DailyReportResponse>
+
+    @POST("projects/{projectId}/daily-reports/offline/mutations")
+    suspend fun submitDailyReportMutation(
+        @Path("projectId") projectId: String,
+        @Body request: DailyReportOfflineMutationRequest,
+    ): Response<DailyReportOfflineMutationResponse>
 }
 
 data class NativeProviderListResponse(
