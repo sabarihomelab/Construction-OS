@@ -13,13 +13,14 @@ class ProjectRepository(
     fun observeProjects(organizationId: String): Flow<List<ProjectEntity>> =
         dao.observeForOrganization(organizationId)
 
-    suspend fun refresh(organizationId: String) {
+    suspend fun refresh(organizationId: String): List<ProjectEntity> {
         val projects = api.projects()
             .asSequence()
             .filter { it.organizationId == organizationId }
             .map(ProjectResponse::toEntity)
             .toList()
         dao.replaceForOrganization(organizationId, projects)
+        return projects
     }
 
     suspend fun clear(organizationId: String) {

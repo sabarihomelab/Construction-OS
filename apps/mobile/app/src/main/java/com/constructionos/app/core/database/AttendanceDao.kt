@@ -19,6 +19,18 @@ interface AttendanceDao {
         ORDER BY COALESCE(trade, ''), worker_name, worker_number
         """,
     )
+    fun observeActiveRoster(projectId: String, attendanceDate: String): Flow<List<AttendanceRosterEntity>>
+
+    @Query(
+        """
+        SELECT * FROM attendance_roster
+        WHERE project_id = :projectId
+          AND status = 'active'
+          AND (start_date IS NULL OR start_date <= :attendanceDate)
+          AND (end_date IS NULL OR end_date >= :attendanceDate)
+        ORDER BY COALESCE(trade, ''), worker_name, worker_number
+        """,
+    )
     suspend fun activeRoster(projectId: String, attendanceDate: String): List<AttendanceRosterEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -30,7 +42,9 @@ interface AttendanceDao {
     @Transaction
     suspend fun replaceRoster(projectId: String, entries: List<AttendanceRosterEntity>) {
         clearRoster(projectId)
-        upsertRoster(entries)
+        if (entries.isNotEmpty()) {
+            upsertRoster(entries)
+        }
     }
 
     @Query(
@@ -85,7 +99,9 @@ interface AttendanceDao {
     @Transaction
     suspend fun replaceEntries(registerId: String, entries: List<AttendanceEntryEntity>) {
         clearEntries(registerId)
-        upsertEntries(entries)
+        if (entries.isNotEmpty()) {
+            upsertEntries(entries)
+        }
     }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
