@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import json
+from dataclasses import asdict
 
 from app.db.session import SessionLocal
 from app.modules.organizations.bootstrap import CompanyBootstrapError, bootstrap_initial_company
@@ -34,7 +35,7 @@ async def _run(args: argparse.Namespace) -> int:
             await db.rollback()
             print(json.dumps({"status": "error", "detail": str(exc)}))
             return 2
-        print(json.dumps({"status": "created", **result.__dict__}, sort_keys=True))
+        print(json.dumps({"status": "created", **asdict(result)}, sort_keys=True))
         return 0
 
 
