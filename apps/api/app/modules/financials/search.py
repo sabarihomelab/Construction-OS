@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.financials.job_cost_models import ProjectCostEntry, SiteExpense
 from app.modules.financials.models import ProjectCommitment
+from app.modules.financials.payables_models import VendorBill
 from app.modules.search.providers import search_projection_providers
 from app.modules.search.schemas import SearchProjection
 
@@ -108,10 +109,53 @@ async def project_commitment_search_projection(
     )
 
 
+async def vendor_bill_search_projection(
+    db: AsyncSession,
+    organization_id: UUID,
+    entity_id: str,
+) -> SearchProjection | None:
+    try:
+        row_id = UUID(entity_id)
+    except ValueError:
+        return None
+    row = await db.scalar(
+        select(VendorBill).where(
+            VendorBill.id == row_id,
+            VendorBill.organization_id == organization_id,
+        )
+    )
+    if row is None:
+        return None
+    return SearchProjection(
+        entity_type="vendor_bill",
+        entity_id=str(row.id),
+        entity_version=row.revision,
+        required_permission_key="financials.payable.view",
+        scope_type="project",
+        scope_id=str(row.project_id),
+        title=row.bill_number,
+        subtitle=f"Vendor bill · {row.status.value} · {row.match_status.value}",
+        body=(
+            f"Supplier invoice {row.supplier_invoice_number} · "
+            f"{row.total_amount} {row.currency_code}"
+        ),
+        keywords=[
+            row.bill_number,
+            row.supplier_invoice_number,
+            row.status.value,
+            row.match_status.value,
+            row.currency_code,
+        ],
+        route_hint=f"/projects/{row.project_id}/financials/vendor-bills/{row.id}",
+        source_updated_at=row.updated_at,
+    )
+
+
 for entity_type, provider in (
     ("site_expense", site_expense_search_projection),
     ("project_cost_entry", project_cost_search_projection),
     ("project_commitment", project_commitment_search_projection),
+    ("vendor_bill", vendor_bill_search_projection),
 ):
     if not search_projection_providers.contains(entity_type):
         search_projection_providers.register(entity_type, provider)
