@@ -1,4 +1,3 @@
-from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
@@ -6,7 +5,6 @@ from uuid import UUID
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
-    DateTime,
     Enum,
     ForeignKeyConstraint,
     Index,
@@ -15,7 +13,6 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
-    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -72,6 +69,10 @@ class DPRWorkProgressEntry(UUIDTimestampMixin, Base):
             "wbs_code_id IS NOT NULL OR boq_item_id IS NOT NULL",
             name="ck_dpr_work_progress_control_reference",
         ),
+        CheckConstraint(
+            "source_revision IS NULL OR source_revision >= 1",
+            name="ck_dpr_work_progress_source_revision",
+        ),
         Index("ix_dpr_work_progress_report", "daily_report_id", "created_at"),
         Index("ix_dpr_work_progress_project_wbs", "project_id", "wbs_code_id"),
         Index("ix_dpr_work_progress_project_boq", "project_id", "boq_item_id"),
@@ -94,36 +95,3 @@ class DPRWorkProgressEntry(UUIDTimestampMixin, Base):
     source_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     source_revision: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
-class DPRSourceReference(UUIDTimestampMixin, Base):
-    __tablename__ = "dpr_source_references"
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["daily_report_id", "project_id", "organization_id"],
-            ["daily_reports.id", "daily_reports.project_id", "daily_reports.organization_id"],
-            name="fk_dpr_source_reference_report_scope",
-            ondelete="CASCADE",
-        ),
-        UniqueConstraint(
-            "daily_report_id",
-            "source_type",
-            "source_id",
-            name="uq_dpr_source_reference",
-        ),
-        CheckConstraint(
-            "source_revision IS NULL OR source_revision >= 1",
-            name="ck_dpr_source_reference_revision",
-        ),
-        Index("ix_dpr_source_reference_report", "daily_report_id", "source_type"),
-    )
-
-    organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
-    project_id: Mapped[UUID] = mapped_column(Uuid, index=True)
-    daily_report_id: Mapped[UUID] = mapped_column(Uuid, index=True)
-    source_type: Mapped[str] = mapped_column(String(80))
-    source_id: Mapped[UUID] = mapped_column(Uuid, index=True)
-    source_revision: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    captured_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), index=True
-    )
