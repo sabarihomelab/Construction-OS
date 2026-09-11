@@ -54,8 +54,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.6.0"
-      - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace
+      - name: Test and build debug APK
+        run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace
 
   local-stack:
     runs-on: ubuntu-latest
