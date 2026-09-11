@@ -58,6 +58,7 @@ from app.modules.estimating import models as estimating_models  # noqa: F401
 from app.modules.events.models import OutboxEvent
 from app.modules.exports.models import DataExportManifestItem, DataExportRequest
 from app.modules.features.models import OrganizationFeature
+from app.modules.field import dpr_models as field_dpr_models  # noqa: F401
 from app.modules.field.models import (
     DailyReport,
     DailyReportCrewEntry,
@@ -139,6 +140,7 @@ from app.modules.operations.models import (
 )
 from app.modules.organizations.models import Organization, OrganizationSettings
 from app.modules.projects.models import Project, ProjectMembership, ProjectRoleAssignment
+from app.modules.reporting import template_models as reporting_template_models  # noqa: F401
 from app.modules.reporting.models import (
     DashboardDefinition,
     ReportDefinition,
