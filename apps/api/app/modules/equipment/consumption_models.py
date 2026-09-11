@@ -48,6 +48,16 @@ class MaterialConsumption(UUIDTimestampMixin, Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
+            ["stock_location_id", "project_id", "organization_id"],
+            [
+                "material_stock_locations.id",
+                "material_stock_locations.project_id",
+                "material_stock_locations.organization_id",
+            ],
+            name="fk_material_consumptions_stock_location_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
             ["wbs_code_id", "project_id", "organization_id"],
             [
                 "project_wbs_codes.id",
@@ -130,6 +140,7 @@ class MaterialConsumption(UUIDTimestampMixin, Base):
     organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     project_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     material_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    stock_location_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     wbs_code_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     boq_item_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     consumption_date: Mapped[date] = mapped_column(Date)
