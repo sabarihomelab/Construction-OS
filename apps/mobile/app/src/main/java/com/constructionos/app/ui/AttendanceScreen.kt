@@ -35,6 +35,7 @@ import com.constructionos.app.core.attendance.AttendanceRepository
 import com.constructionos.app.core.authorization.hasProjectPermission
 import com.constructionos.app.core.database.AttendanceEntryEntity
 import com.constructionos.app.core.database.AttendanceRegisterEntity
+import com.constructionos.app.core.database.AttendanceSyncState
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.network.SessionContextResponse
 import java.time.LocalDate
@@ -78,13 +79,9 @@ fun AttendanceScreen(
     val rosterFlow = remember(project.id, selectedDate) {
         repository.observeRoster(project.id, selectedDate)
     }
-    val pendingFlow = remember(project.id) { repository.observePendingMutationCount(project.id) }
-    val attentionFlow = remember(project.id) { repository.observeAttentionCount(project.id) }
 
     val registers by registersFlow.collectAsState(initial = emptyList())
     val roster by rosterFlow.collectAsState(initial = emptyList())
-    val pending by pendingFlow.collectAsState(initial = 0)
-    val attention by attentionFlow.collectAsState(initial = 0)
     val register = registers.firstOrNull { it.shiftCode == "day" } ?: registers.firstOrNull()
 
     val canCreate = context.hasProjectPermission(project.id, "workforce.attendance.create")
@@ -137,22 +134,14 @@ fun AttendanceScreen(
             ) { Text("›") }
         }
 
-        when {
-            attention > 0 -> Text(
-                "Needs attention • $attention sync issue${if (attention == 1) "" else "s"}",
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-
-            pending > 0 -> Text(
-                "Saved on device • $pending change${if (pending == 1) "" else "s"} waiting",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-
-            register != null -> Text(
-                "Synced",
+        if (register != null) {
+            Text(
+                text = syncStateLabel(register.syncState),
+                color = if (register.syncState == AttendanceSyncState.NEEDS_ATTENTION) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 10.dp),
             )
@@ -475,6 +464,15 @@ private fun WorkerAttendanceButton(
             }
         }
     }
+}
+
+private fun syncStateLabel(syncState: String): String = when (syncState) {
+    AttendanceSyncState.SAVED_ON_DEVICE -> "Saved on device"
+    AttendanceSyncState.WAITING_FOR_NETWORK -> "Waiting for network"
+    AttendanceSyncState.SYNCING -> "Syncing"
+    AttendanceSyncState.NEEDS_ATTENTION -> "Needs attention"
+    AttendanceSyncState.SYNCED -> "Synced"
+    else -> "Saved on device"
 }
 
 private fun todayFor(project: ProjectEntity): LocalDate {
