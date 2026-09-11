@@ -98,6 +98,12 @@ class ProjectPartyAssignmentCreate(BaseModel):
     role: ProjectPartyRole
 
 
+class ProjectPartyAssignmentUpdate(BaseModel):
+    expected_updated_at: datetime
+    active: bool
+    reason: str | None = Field(default=None, max_length=1000)
+
+
 class ProjectPartyAssignmentRead(BaseModel):
     id: UUID
     organization_id: UUID
@@ -105,6 +111,7 @@ class ProjectPartyAssignmentRead(BaseModel):
     party_id: UUID
     role: ProjectPartyRole
     active: bool
+    updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
