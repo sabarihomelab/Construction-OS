@@ -7,9 +7,15 @@ from fastapi import FastAPI
 from app.db import model_registry as _model_registry  # noqa: F401
 from app.db.base import Base
 from app.modules.field.api import router
+from app.modules.field.dpr_jobs import (
+    DPR_APPROVAL_JOB_TYPE,
+    dpr_approval_idempotency_key,
+    register_dpr_report_handlers,
+)
 from app.modules.field.dpr_report_type import DPR_REPORT_TYPE_KEY
 from app.modules.field.dpr_schemas import DPRRenderRequest
 from app.modules.files.object_store import LocalGeneratedObjectStore
+from app.modules.jobs.handlers import JobHandlerRegistry
 from app.modules.reporting.template_execution import render_uploaded_docx
 from app.modules.reporting.template_models import TemplateOutputFormat
 from app.modules.reporting.template_renderer import render_report
@@ -25,6 +31,7 @@ from app.modules.reporting.type_registry import (
     ReportGenerationTrigger,
     report_types,
 )
+from app.runtime.modules import MODULES_BY_KEY
 
 
 def _paths() -> dict[str, dict[str, object]]:
@@ -64,6 +71,7 @@ def test_dpr_report_type_declares_business_specific_capabilities() -> None:
     assert contract.supports_photos is True
     assert contract.supports_signatures is True
     assert contract.issued_output_formats == ("pdf", "docx")
+    assert contract.default_output_format == "pdf"
     assert "{{project.number}}" in contract.filename_pattern
 
 
@@ -73,16 +81,34 @@ def test_preview_is_default_and_official_issue_is_explicit() -> None:
     assert request.generation_trigger == ReportGenerationTrigger.MANUAL
 
 
-def test_dpr_api_exposes_work_progress_issue_history_and_download() -> None:
+def test_dpr_api_exposes_frontend_generation_and_history_contract() -> None:
     paths = _paths()
     root = "/api/v1/projects/{project_id}/daily-reports/{report_id}"
 
     assert set(paths[f"{root}/work-progress"]) >= {"get", "put"}
     assert f"{root}/report-payload" in paths
     assert f"{root}/render" in paths
+    assert f"{root}/report-generation" in paths
     assert f"{root}/render-history" in paths
     assert f"{root}/render-history/{{render_id}}/download" in paths
     assert "/api/v1/projects/{project_id}/dpr-templates" in paths
+
+
+def test_dpr_approval_job_is_idempotent_per_revision_and_uses_reporting_profile() -> None:
+    registry = JobHandlerRegistry()
+    register_dpr_report_handlers(registry)
+    spec = registry.get(DPR_APPROVAL_JOB_TYPE)
+
+    assert spec.profile == "reporting"
+    assert spec.module_key == "field"
+    assert spec.timeout_seconds == 300
+    assert MODULES_BY_KEY["field"].worker_profiles == ("reporting",)
+    key = dpr_approval_idempotency_key(
+        UUID("00000000-0000-0000-0000-000000000001"),
+        7,
+        "pdf",
+    )
+    assert key.endswith(":7:pdf")
 
 
 def test_report_history_pins_exact_file_version() -> None:
@@ -93,10 +119,7 @@ def test_report_history_pins_exact_file_version() -> None:
     assert "generation_trigger" in table.c
     assert "issued_at" in table.c
 
-    targets = {
-        fk.target_fullname
-        for fk in table.c.output_file_version.foreign_keys
-    }
+    targets = {fk.target_fullname for fk in table.c.output_file_version.foreign_keys}
     assert "file_versions.version" in targets
 
 
