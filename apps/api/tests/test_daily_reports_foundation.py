@@ -72,10 +72,10 @@ def test_daily_report_permissions_are_atomic() -> None:
     assert "field.daily_log.view" not in PERMISSIONS_BY_KEY
 
 
-def test_field_feature_uses_new_permission_and_stays_hidden_until_ui_is_ready() -> None:
+def test_field_feature_is_available_with_real_dpr_ui() -> None:
     feature = FEATURES_BY_KEY["field"]
     assert feature.required_permissions == ("field.daily_report.view",)
-    assert feature.release_state == FeatureReleaseState.PLANNED
+    assert feature.release_state == FeatureReleaseState.AVAILABLE
     assert feature.offline_enabled
 
 
