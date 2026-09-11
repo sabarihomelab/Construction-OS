@@ -5,6 +5,10 @@ from sqlalchemy import select
 
 from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
+from app.modules.procurement.inventory_bridge import (
+    create_goods_receipt_with_stock_location,
+    receive_goods_receipt_with_inventory,
+)
 from app.modules.procurement.models import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -20,6 +24,7 @@ from app.modules.procurement.schemas import (
     GoodsReceiptLineCreate,
     GoodsReceiptLineRead,
     GoodsReceiptRead,
+    GoodsReceiptReceiveAction,
     PurchaseOrderCreate,
     PurchaseOrderLineCreate,
     PurchaseOrderLineRead,
@@ -36,10 +41,8 @@ from app.modules.procurement.service import (
     add_goods_receipt_line,
     add_purchase_order_line,
     add_requisition_line,
-    create_goods_receipt,
     create_purchase_order,
     create_requisition,
-    receive_goods_receipt,
     transition_purchase_order,
     transition_requisition,
 )
@@ -310,7 +313,7 @@ async def create_goods_receipt_route(project_id: UUID, payload: GoodsReceiptCrea
     context = await build_access_context(db, session.membership_id)
     _project_permission(context, project_id, "procurement.receipt.create")
     try:
-        row = await create_goods_receipt(db, organization_id=context.organization_id, project_id=project_id, received_by_membership_id=session.membership_id, values=payload.model_dump(), actor_user_id=session.user_id, session_id=session.id)
+        row = await create_goods_receipt_with_stock_location(db, organization_id=context.organization_id, project_id=project_id, received_by_membership_id=session.membership_id, values=payload.model_dump(), actor_user_id=session.user_id, session_id=session.id)
         await db.commit()
         await db.refresh(row)
         return row
@@ -342,11 +345,11 @@ async def add_goods_receipt_line_route(project_id: UUID, goods_receipt_id: UUID,
 
 
 @router.post("/projects/{project_id}/procurement/goods-receipts/{goods_receipt_id}/receive", response_model=GoodsReceiptRead)
-async def receive_goods_receipt_route(project_id: UUID, goods_receipt_id: UUID, payload: RevisionAction, db: DbSession, session: CurrentSession, _csrf: CsrfProtected) -> GoodsReceipt:
+async def receive_goods_receipt_route(project_id: UUID, goods_receipt_id: UUID, payload: GoodsReceiptReceiveAction, db: DbSession, session: CurrentSession, _csrf: CsrfProtected) -> GoodsReceipt:
     context = await build_access_context(db, session.membership_id)
     _project_permission(context, project_id, "procurement.receipt.receive")
     try:
-        row = await receive_goods_receipt(db, organization_id=context.organization_id, project_id=project_id, goods_receipt_id=goods_receipt_id, expected_revision=payload.expected_revision, actor_user_id=session.user_id, session_id=session.id, reason=payload.reason)
+        row = await receive_goods_receipt_with_inventory(db, organization_id=context.organization_id, project_id=project_id, goods_receipt_id=goods_receipt_id, expected_revision=payload.expected_revision, actor_user_id=session.user_id, stock_location_id=payload.stock_location_id, session_id=session.id, reason=payload.reason)
         await db.commit()
         await db.refresh(row)
         return row
