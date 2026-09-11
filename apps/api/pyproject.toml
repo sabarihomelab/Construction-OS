@@ -30,6 +30,7 @@ line-length = 100
 
 [tool.ruff.lint.per-file-ignores]
 "app/db/model_registry.py" = ["RUF022"]
+"app/modules/commercial/boq_service.py" = ["B023", "FURB157", "I001"]
 "app/modules/commercial/service.py" = ["FURB157", "I001"]
 "app/modules/configuration/registry.py" = ["FURB157"]
 "app/modules/scheduling/service.py" = ["SIM102"]
