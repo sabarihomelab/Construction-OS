@@ -16,8 +16,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AttendanceMutationEntity::class,
         DprReportEntity::class,
         DprMutationEntity::class,
+        DprWorkProgressEntity::class,
+        DprWbsReferenceEntity::class,
+        DprBoqReferenceEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class ConstructionOsDatabase : RoomDatabase() {
@@ -192,6 +195,67 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
             }
         }
 
+        private val migration3To4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS dpr_work_progress (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        report_id TEXT NOT NULL,
+                        project_id TEXT NOT NULL,
+                        position INTEGER NOT NULL,
+                        wbs_code_id TEXT,
+                        boq_item_id TEXT,
+                        description TEXT NOT NULL,
+                        location TEXT,
+                        quantity TEXT,
+                        unit_code TEXT,
+                        progress_percent TEXT,
+                        remarks TEXT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_dpr_work_progress_report_id_position ON dpr_work_progress(report_id, position)",
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS dpr_wbs_references (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        project_id TEXT NOT NULL,
+                        code TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        kind TEXT NOT NULL,
+                        parent_id TEXT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_dpr_wbs_references_project_id_code ON dpr_wbs_references(project_id, code)",
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS dpr_boq_references (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        project_id TEXT NOT NULL,
+                        boq_id TEXT NOT NULL,
+                        boq_code TEXT NOT NULL,
+                        boq_name TEXT NOT NULL,
+                        wbs_code_id TEXT,
+                        item_code TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        unit_code TEXT NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_dpr_boq_references_project_id_boq_code_item_code ON dpr_boq_references(project_id, boq_code, item_code)",
+                )
+            }
+        }
+
         fun getInstance(context: Context): ConstructionOsDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -199,7 +263,7 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
                     ConstructionOsDatabase::class.java,
                     "construction-os.db",
                 )
-                    .addMigrations(migration1To2, migration2To3)
+                    .addMigrations(migration1To2, migration2To3, migration3To4)
                     .build()
                     .also { instance = it }
             }
