@@ -4,6 +4,10 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from app.modules.field.dpr_custom_field_schemas import (
+    DPRCustomFieldReplace,
+    DPRCustomFieldValueWrite,
+)
 from app.modules.field.dpr_offline_router import _permission_for
 from app.modules.field.dpr_offline_router import router as dpr_offline_router
 from app.modules.field.dpr_offline_schemas import (
@@ -152,6 +156,53 @@ def test_daily_report_offline_delays_use_update_permission() -> None:
 
     assert payload.delays is not None
     assert payload.delays.rows[0].description == "Awaiting structural clarification"
+    assert _permission_for(payload.operation) == "field.daily_report.update"
+
+
+def test_daily_report_offline_custom_fields_require_matching_revision() -> None:
+    device_id, mutation_id, report_id = _ids()
+    definition_id = uuid4()
+    with pytest.raises(ValidationError, match="custom_fields.expected_revision must match"):
+        DailyReportOfflineMutationRequest(
+            device_id=device_id,
+            client_mutation_id=mutation_id,
+            entity_id=report_id,
+            operation=DailyReportOfflineOperation.REPLACE_CUSTOM_FIELDS,
+            base_revision=8,
+            custom_fields=DPRCustomFieldReplace(
+                expected_revision=7,
+                values=[
+                    DPRCustomFieldValueWrite(
+                        definition_id=definition_id,
+                        value="Zone A",
+                    )
+                ],
+            ),
+        )
+
+
+def test_daily_report_offline_custom_fields_use_update_permission() -> None:
+    device_id, mutation_id, report_id = _ids()
+    definition_id = uuid4()
+    payload = DailyReportOfflineMutationRequest(
+        device_id=device_id,
+        client_mutation_id=mutation_id,
+        entity_id=report_id,
+        operation=DailyReportOfflineOperation.REPLACE_CUSTOM_FIELDS,
+        base_revision=8,
+        custom_fields=DPRCustomFieldReplace(
+            expected_revision=8,
+            values=[
+                DPRCustomFieldValueWrite(
+                    definition_id=definition_id,
+                    value="Zone A",
+                )
+            ],
+        ),
+    )
+
+    assert payload.custom_fields is not None
+    assert payload.custom_fields.values[0].definition_id == definition_id
     assert _permission_for(payload.operation) == "field.daily_report.update"
 
 
