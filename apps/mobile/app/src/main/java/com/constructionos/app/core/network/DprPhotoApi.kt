@@ -6,6 +6,8 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
@@ -18,6 +20,51 @@ interface DprPhotoApi {
         @Path("projectId") projectId: String,
         @Path("reportId") reportId: String,
     ): List<DprPhotoResponse>
+
+    @POST("projects/{projectId}/daily-reports/{reportId}/photos/resumable")
+    suspend fun startResumableUpload(
+        @Path("projectId") projectId: String,
+        @Path("reportId") reportId: String,
+        @Body request: DprPhotoUploadStartRequest,
+    ): DprPhotoResumableSessionResponse
+
+    @GET("projects/{projectId}/daily-reports/{reportId}/photos/uploads/{uploadId}/status")
+    suspend fun resumableStatus(
+        @Path("projectId") projectId: String,
+        @Path("reportId") reportId: String,
+        @Path("uploadId") uploadId: String,
+    ): DprPhotoResumableSessionResponse
+
+    @PATCH("projects/{projectId}/daily-reports/{reportId}/photos/uploads/{uploadId}/chunk")
+    suspend fun uploadChunk(
+        @Path("projectId") projectId: String,
+        @Path("reportId") reportId: String,
+        @Path("uploadId") uploadId: String,
+        @Header("Upload-Offset") uploadOffset: Long,
+        @Header("X-Chunk-SHA256") chunkSha256: String,
+        @Body body: RequestBody,
+    ): DprPhotoChunkResponse
+
+    @POST(
+        "projects/{projectId}/daily-reports/{reportId}/photos/uploads/" +
+            "{uploadId}/resumable-finalize",
+    )
+    suspend fun finalizeResumableUpload(
+        @Path("projectId") projectId: String,
+        @Path("reportId") reportId: String,
+        @Path("uploadId") uploadId: String,
+        @Body request: DprPhotoFinalizeRequest,
+    ): DprPhotoResponse
+
+    @DELETE(
+        "projects/{projectId}/daily-reports/{reportId}/photos/uploads/" +
+            "{uploadId}/resumable",
+    )
+    suspend fun cancelResumableUpload(
+        @Path("projectId") projectId: String,
+        @Path("reportId") reportId: String,
+        @Path("uploadId") uploadId: String,
+    ): Response<Unit>
 
     @POST("projects/{projectId}/daily-reports/{reportId}/photos/uploads")
     suspend fun startUpload(
@@ -63,6 +110,27 @@ data class DprPhotoUploadStartRequest(
     @SerializedName("content_type") val contentType: String,
     @SerializedName("size_bytes") val sizeBytes: Long,
     val sha256: String,
+)
+
+data class DprPhotoResumableSessionResponse(
+    @SerializedName("upload_id") val uploadId: String,
+    @SerializedName("client_photo_id") val clientPhotoId: String,
+    val status: String,
+    @SerializedName("uploaded_bytes") val uploadedBytes: Long,
+    @SerializedName("size_bytes") val sizeBytes: Long,
+    @SerializedName("chunk_size_bytes") val chunkSizeBytes: Int,
+    @SerializedName("content_already_present") val contentAlreadyPresent: Boolean,
+    @SerializedName("expires_at") val expiresAt: String,
+    @SerializedName("finalized_asset_id") val finalizedAssetId: String? = null,
+    @SerializedName("finalized_version") val finalizedVersion: Int? = null,
+)
+
+data class DprPhotoChunkResponse(
+    @SerializedName("upload_id") val uploadId: String,
+    val status: String,
+    @SerializedName("uploaded_bytes") val uploadedBytes: Long,
+    @SerializedName("size_bytes") val sizeBytes: Long,
+    val complete: Boolean,
 )
 
 data class DprPhotoUploadTargetResponse(
