@@ -41,12 +41,14 @@ import com.constructionos.app.core.authorization.projectHomeActions
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.network.SessionContextResponse
+import com.constructionos.app.core.parties.PartyRepository
 import com.constructionos.app.core.workspace.WorkspaceCoordinator
 
 private const val PROJECT_SELECTOR_ROUTE = "project-selector"
 private const val PROJECT_HOME_ROUTE = "project-home/{projectId}"
 private const val ATTENDANCE_ROUTE = "attendance/{projectId}"
 private const val DAILY_REPORT_ROUTE = "daily-report/{projectId}"
+private const val PARTY_DIRECTORY_ROUTE = "party-directory/{projectId}"
 
 private enum class ProjectTab(val label: String) {
     HOME("Home"),
@@ -60,6 +62,7 @@ fun WorkspaceNavigation(
     workspace: WorkspaceCoordinator,
     attendanceRepository: AttendanceRepository,
     dprRepository: DprRepository,
+    partyRepository: PartyRepository,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -148,6 +151,9 @@ fun WorkspaceNavigation(
                     onOpenDailyReport = {
                         navController.navigate(dailyReportRoute(project.id))
                     },
+                    onOpenPartyDirectory = {
+                        navController.navigate(partyDirectoryRoute(project.id))
+                    },
                     onLogout = onLogout,
                 )
             }
@@ -184,6 +190,26 @@ fun WorkspaceNavigation(
                     project = project,
                     context = context,
                     repository = dprRepository,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+        }
+
+        composable(
+            route = PARTY_DIRECTORY_ROUTE,
+            arguments = listOf(navArgument("projectId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId").orEmpty()
+            val project = projects.firstOrNull { it.id == projectId }
+            if (project == null) {
+                MissingProjectScreen(onChooseProject = { navController.popBackStack() })
+            } else if ("commercial.party.view" !in context.permissions) {
+                MissingPermissionScreen(onBack = { navController.popBackStack() })
+            } else {
+                PartyDirectoryScreen(
+                    organizationId = context.organizationId,
+                    project = project,
+                    repository = partyRepository,
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -296,6 +322,7 @@ private fun ProjectWorkspaceScreen(
     onChooseProject: () -> Unit,
     onOpenAttendance: () -> Unit,
     onOpenDailyReport: () -> Unit,
+    onOpenPartyDirectory: () -> Unit,
     onLogout: () -> Unit,
 ) {
     var selectedTab by rememberSaveable(project.id) { mutableStateOf(ProjectTab.HOME.name) }
@@ -304,6 +331,7 @@ private fun ProjectWorkspaceScreen(
     val attentionFlow = remember(project.id) { attendanceRepository.observeAttentionCount(project.id) }
     val pending by pendingFlow.collectAsState(initial = 0)
     val attention by attentionFlow.collectAsState(initial = 0)
+    val canViewPartyDirectory = "commercial.party.view" in context.permissions
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -338,6 +366,8 @@ private fun ProjectWorkspaceScreen(
 
             ProjectTab.MORE -> ProjectMoreContent(
                 project = project,
+                canViewPartyDirectory = canViewPartyDirectory,
+                onOpenPartyDirectory = onOpenPartyDirectory,
                 onChooseProject = onChooseProject,
                 onLogout = onLogout,
                 modifier = Modifier.weight(1f),
@@ -529,6 +559,8 @@ private fun ProjectActionRow(
 @Composable
 private fun ProjectMoreContent(
     project: ProjectEntity,
+    canViewPartyDirectory: Boolean,
+    onOpenPartyDirectory: () -> Unit,
     onChooseProject: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
@@ -553,6 +585,29 @@ private fun ProjectMoreContent(
                 project.locality?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             }
             HorizontalDivider()
+        }
+        if (canViewPartyDirectory) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Text("Party directory", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Clients, vendors, suppliers and subcontractors with project relationships.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                    TextButton(
+                        onClick = onOpenPartyDirectory,
+                        modifier = Modifier.padding(top = 2.dp),
+                    ) {
+                        Text("Open")
+                    }
+                }
+                HorizontalDivider()
+            }
         }
         item {
             OutlinedButton(
@@ -591,6 +646,25 @@ private fun MissingProjectScreen(onChooseProject: () -> Unit) {
     }
 }
 
+@Composable
+private fun MissingPermissionScreen(onBack: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("Access unavailable", style = MaterialTheme.typography.titleLarge)
+        Text(
+            "The server no longer allows Party Directory access for this session.",
+            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
+        )
+        Button(onClick = onBack) { Text("Back") }
+    }
+}
+
 private fun projectHomeRoute(projectId: String): String = "project-home/$projectId"
 private fun attendanceRoute(projectId: String): String = "attendance/$projectId"
 private fun dailyReportRoute(projectId: String): String = "daily-report/$projectId"
+private fun partyDirectoryRoute(projectId: String): String = "party-directory/$projectId"
