@@ -8,8 +8,10 @@ import com.constructionos.app.core.authorization.AccessAdminRepository
 import com.constructionos.app.core.authorization.ProjectAccessAdminRepository
 import com.constructionos.app.core.boq.BoqFieldRepository
 import com.constructionos.app.core.database.ConstructionOsDatabase
+import com.constructionos.app.core.database.DprAttendanceSummaryDatabase
 import com.constructionos.app.core.database.DprPhotoQueueDatabase
 import com.constructionos.app.core.deployment.WorkspaceConnection
+import com.constructionos.app.core.dpr.DprAttendanceSummaryRepository
 import com.constructionos.app.core.dpr.DprLifecycleRepository
 import com.constructionos.app.core.dpr.DprMutationSyncService
 import com.constructionos.app.core.dpr.DprPhotoRepository
@@ -43,11 +45,16 @@ class AppContainer(
     private val workforceApi = NetworkFactory.createWorkforceApi(connection.apiBaseUrl, sessionStore)
     private val dprLifecycleApi = NetworkFactory.createDprLifecycleApi(connection.apiBaseUrl, sessionStore)
     private val dprPhotoApi = NetworkFactory.createDprPhotoApi(connection.apiBaseUrl, sessionStore)
+    private val dprAttendanceApi = NetworkFactory.createDprAttendanceApi(connection.apiBaseUrl, sessionStore)
     private val database = ConstructionOsDatabase.getInstance(
         applicationContext,
         localNamespace,
     )
     private val dprPhotoDatabase = DprPhotoQueueDatabase.getInstance(
+        applicationContext,
+        localNamespace,
+    )
+    private val dprAttendanceSummaryDatabase = DprAttendanceSummaryDatabase.getInstance(
         applicationContext,
         localNamespace,
     )
@@ -89,6 +96,11 @@ class AppContainer(
         dao = database.dprDao(),
         syncScheduler = syncScheduler,
         cacheDir = applicationContext.cacheDir,
+    )
+
+    val dprAttendanceSummaryRepository = DprAttendanceSummaryRepository(
+        api = dprAttendanceApi,
+        dao = dprAttendanceSummaryDatabase.dprAttendanceSummaryDao(),
     )
 
     val dprPhotoRepository = DprPhotoRepository(
