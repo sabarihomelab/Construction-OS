@@ -2,9 +2,11 @@ package com.constructionos.app.core.authorization
 
 import com.constructionos.app.core.network.ConstructionOsApi
 import com.constructionos.app.core.network.SecurityMembershipCreateRequest
+import com.constructionos.app.core.network.SecurityMembershipPartyRequest
 import com.constructionos.app.core.network.SecurityMembershipResponse
 import com.constructionos.app.core.network.SecurityMembershipRoleSetRequest
 import com.constructionos.app.core.network.SecurityMembershipStatusRequest
+import com.constructionos.app.core.network.SecurityPartyReferenceResponse
 import com.constructionos.app.core.network.SecurityPermissionResponse
 import com.constructionos.app.core.network.SecurityRoleCreateRequest
 import com.constructionos.app.core.network.SecurityRoleFromTemplateRequest
@@ -15,7 +17,8 @@ import com.constructionos.app.core.network.SecurityRoleTemplateResponse
 
 /**
  * Security administration is intentionally online-only.
- * Roles, permissions and memberships are server-authoritative and are not cached in Room.
+ * Roles, permissions, memberships and represented-party links are server-authoritative
+ * and are not cached in Room.
  */
 class AccessAdminRepository(
     private val api: ConstructionOsApi,
@@ -25,6 +28,7 @@ class AccessAdminRepository(
         templates = api.roleTemplates(),
         permissions = api.securityPermissions(),
         memberships = api.securityMemberships(),
+        partyReferences = api.securityPartyReferences(),
     )
 
     suspend fun installDefaults(): List<SecurityRoleResponse> =
@@ -74,6 +78,7 @@ class AccessAdminRepository(
         kind: String,
         status: String,
         roleIds: Set<String> = emptySet(),
+        representedPartyId: String? = null,
     ): SecurityMembershipResponse = api.createSecurityMembership(
         SecurityMembershipCreateRequest(
             primaryEmail = email,
@@ -81,6 +86,7 @@ class AccessAdminRepository(
             kind = kind,
             status = status,
             roleIds = roleIds.sorted(),
+            representedPartyId = representedPartyId,
         )
     )
 
@@ -90,6 +96,14 @@ class AccessAdminRepository(
     ): SecurityMembershipResponse = api.replaceSecurityMembershipRoles(
         membershipId,
         SecurityMembershipRoleSetRequest(roleIds.sorted()),
+    )
+
+    suspend fun updateMembershipParty(
+        membershipId: String,
+        partyId: String?,
+    ): SecurityMembershipResponse = api.updateSecurityMembershipParty(
+        membershipId,
+        SecurityMembershipPartyRequest(partyId),
     )
 
     suspend fun updateMembershipStatus(
@@ -106,4 +120,5 @@ data class AccessAdminSnapshot(
     val templates: List<SecurityRoleTemplateResponse>,
     val permissions: List<SecurityPermissionResponse>,
     val memberships: List<SecurityMembershipResponse>,
+    val partyReferences: List<SecurityPartyReferenceResponse>,
 )
