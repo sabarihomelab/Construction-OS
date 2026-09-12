@@ -134,6 +134,8 @@ class DprPhotoRepository(
                 capturedAt = row.capturedAt,
                 uploadSessionId = existing?.uploadSessionId,
                 uploadTargetUrl = null,
+                uploadedBytes = row.sizeBytes,
+                chunkSizeBytes = existing?.chunkSizeBytes ?: DEFAULT_CHUNK_SIZE_BYTES,
                 serverAssetId = row.assetId,
                 serverVersion = row.version,
                 baseRevision = row.reportRevision,
@@ -150,18 +152,24 @@ class DprPhotoRepository(
     suspend fun discardLocalPhoto(clientPhotoId: String) = withContext(Dispatchers.IO) {
         val photo = photoDao.photo(clientPhotoId) ?: return@withContext
         require(photo.serverAssetId == null) { "Synced photos must be removed through the server." }
-        photo.originalPath?.let { File(it).parentFile?.deleteRecursively() }
-        photoDao.delete(clientPhotoId)
+        if (photo.uploadSessionId == null) {
+            photo.originalPath?.let { File(it).parentFile?.deleteRecursively() }
+            photoDao.delete(clientPhotoId)
+        } else {
+            photoDao.markCancelRequested(clientPhotoId, System.currentTimeMillis())
+            syncScheduler.scheduleOnce()
+        }
     }
 
     suspend fun retryPhoto(clientPhotoId: String) {
         val photo = requireNotNull(photoDao.photo(clientPhotoId)) { "Photo was not found." }
         require(photo.state == DprPhotoState.NEEDS_ATTENTION) { "Photo does not need a retry." }
-        photoDao.updateUploadState(
+        photoDao.updateResumableState(
             clientPhotoId = photo.clientPhotoId,
             state = DprPhotoState.WAITING_FOR_NETWORK,
             uploadSessionId = photo.uploadSessionId,
-            uploadTargetUrl = photo.uploadTargetUrl,
+            uploadedBytes = photo.uploadedBytes,
+            chunkSizeBytes = photo.chunkSizeBytes,
             errorCode = null,
             attemptCount = photo.attemptCount,
             updatedAt = System.currentTimeMillis(),
@@ -277,6 +285,7 @@ class DprPhotoRepository(
     companion object {
         private const val MAX_PHOTO_BYTES = 25L * 1024L * 1024L
         private const val THUMBNAIL_MAX_PX = 512
+        private const val DEFAULT_CHUNK_SIZE_BYTES = 5 * 1024 * 1024
         private val SUPPORTED_CONTENT_TYPES = setOf(
             "image/jpeg",
             "image/jpg",
