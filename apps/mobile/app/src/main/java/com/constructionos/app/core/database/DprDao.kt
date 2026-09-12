@@ -39,6 +39,15 @@ interface DprDao {
 
     @Query(
         """
+        SELECT * FROM dpr_delays
+        WHERE report_id = :reportId
+        ORDER BY position, id
+        """,
+    )
+    fun observeDelays(reportId: String): Flow<List<DprDelayEntity>>
+
+    @Query(
+        """
         SELECT * FROM dpr_wbs_references
         WHERE project_id = :projectId
         ORDER BY code, id
@@ -76,11 +85,23 @@ interface DprDao {
     )
     suspend fun workProgress(reportId: String): List<DprWorkProgressEntity>
 
+    @Query(
+        """
+        SELECT * FROM dpr_delays
+        WHERE report_id = :reportId
+        ORDER BY position, id
+        """,
+    )
+    suspend fun delays(reportId: String): List<DprDelayEntity>
+
     @Upsert
     suspend fun upsertReport(report: DprReportEntity)
 
     @Upsert
     suspend fun upsertWorkProgress(rows: List<DprWorkProgressEntity>)
+
+    @Upsert
+    suspend fun upsertDelays(rows: List<DprDelayEntity>)
 
     @Upsert
     suspend fun upsertWbsReferences(rows: List<DprWbsReferenceEntity>)
@@ -93,6 +114,9 @@ interface DprDao {
 
     @Query("DELETE FROM dpr_work_progress WHERE report_id = :reportId")
     suspend fun deleteWorkProgress(reportId: String)
+
+    @Query("DELETE FROM dpr_delays WHERE report_id = :reportId")
+    suspend fun deleteDelays(reportId: String)
 
     @Query("DELETE FROM dpr_wbs_references WHERE project_id = :projectId")
     suspend fun deleteWbsReferences(projectId: String)
@@ -264,6 +288,28 @@ interface DprDao {
     }
 
     @Transaction
+    suspend fun replaceDelaysLocally(
+        reportId: String,
+        rows: List<DprDelayEntity>,
+        mutation: DprMutationEntity,
+        updatedAt: Long,
+    ) {
+        deleteDelays(reportId)
+        if (rows.isNotEmpty()) upsertDelays(rows)
+        upsertMutation(mutation)
+        updateReportSyncState(reportId, DprSyncState.SAVED_ON_DEVICE, updatedAt)
+    }
+
+    @Transaction
+    suspend fun replaceDelaysFromServer(
+        reportId: String,
+        rows: List<DprDelayEntity>,
+    ) {
+        deleteDelays(reportId)
+        if (rows.isNotEmpty()) upsertDelays(rows)
+    }
+
+    @Transaction
     suspend fun replaceReferences(
         projectId: String,
         wbs: List<DprWbsReferenceEntity>,
@@ -321,12 +367,17 @@ interface DprDao {
         mutation: DprMutationEntity,
         serverReport: DprReportEntity,
         serverWorkProgress: List<DprWorkProgressEntity>? = null,
+        serverDelays: List<DprDelayEntity>? = null,
         updatedAt: Long,
     ) {
         upsertReport(serverReport.copy(id = mutation.reportId, localUpdatedAt = updatedAt))
         if (serverWorkProgress != null) {
             deleteWorkProgress(mutation.reportId)
             if (serverWorkProgress.isNotEmpty()) upsertWorkProgress(serverWorkProgress)
+        }
+        if (serverDelays != null) {
+            deleteDelays(mutation.reportId)
+            if (serverDelays.isNotEmpty()) upsertDelays(serverDelays)
         }
         updateMutationState(
             mutationId = mutation.clientMutationId,
