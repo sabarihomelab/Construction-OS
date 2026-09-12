@@ -1,8 +1,6 @@
 package com.constructionos.app.core.dpr
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.constructionos.app.core.database.DprDao
@@ -18,7 +16,6 @@ import java.io.File
 import java.security.MessageDigest
 import java.time.Instant
 import java.util.UUID
-import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -83,7 +80,7 @@ class DprPhotoRepository(
                 workingDirectory = directory,
             )
             val thumbnail = File(directory, "thumbnail.jpg")
-            createThumbnail(prepared.file, thumbnail)
+            uploadPreparer.createThumbnail(prepared.file, thumbnail)
 
             val now = System.currentTimeMillis()
             photoDao.upsert(
@@ -226,47 +223,6 @@ class DprPhotoRepository(
         return CopiedPhoto(total, digest.digest().toHex())
     }
 
-    private fun createThumbnail(original: File, thumbnail: File) {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(original.absolutePath, bounds)
-        require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Selected file is not a readable image." }
-
-        var sampleSize = 1
-        while (max(bounds.outWidth / sampleSize, bounds.outHeight / sampleSize) > 1024) {
-            sampleSize *= 2
-        }
-        val decoded = BitmapFactory.decodeFile(
-            original.absolutePath,
-            BitmapFactory.Options().apply { inSampleSize = sampleSize },
-        ) ?: throw IllegalArgumentException("Selected image could not be decoded.")
-
-        try {
-            val largest = max(decoded.width, decoded.height)
-            val scaled = if (largest > THUMBNAIL_MAX_PX) {
-                val ratio = THUMBNAIL_MAX_PX.toFloat() / largest.toFloat()
-                Bitmap.createScaledBitmap(
-                    decoded,
-                    (decoded.width * ratio).toInt().coerceAtLeast(1),
-                    (decoded.height * ratio).toInt().coerceAtLeast(1),
-                    true,
-                )
-            } else {
-                decoded
-            }
-            try {
-                thumbnail.outputStream().buffered().use { output ->
-                    check(scaled.compress(Bitmap.CompressFormat.JPEG, 82, output)) {
-                        "Could not create photo thumbnail."
-                    }
-                }
-            } finally {
-                if (scaled !== decoded) scaled.recycle()
-            }
-        } finally {
-            decoded.recycle()
-        }
-    }
-
     private fun detectContentType(file: File, declared: String?): String? {
         val signature = ByteArray(16)
         val count = file.inputStream().use { it.read(signature) }
@@ -308,7 +264,6 @@ class DprPhotoRepository(
 
     companion object {
         private const val MAX_PHOTO_BYTES = 25L * 1024L * 1024L
-        private const val THUMBNAIL_MAX_PX = 512
         private const val DEFAULT_CHUNK_SIZE_BYTES = 5 * 1024 * 1024
         private val SUPPORTED_CONTENT_TYPES = setOf(
             "image/jpeg",
