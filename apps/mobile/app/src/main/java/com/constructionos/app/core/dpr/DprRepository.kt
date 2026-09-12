@@ -1,16 +1,21 @@
 package com.constructionos.app.core.dpr
 
+import com.constructionos.app.core.database.DprBoqReferenceEntity
 import com.constructionos.app.core.database.DprDao
 import com.constructionos.app.core.database.DprMutationEntity
 import com.constructionos.app.core.database.DprMutationState
 import com.constructionos.app.core.database.DprReportEntity
 import com.constructionos.app.core.database.DprSyncState
+import com.constructionos.app.core.database.DprWbsReferenceEntity
+import com.constructionos.app.core.database.DprWorkProgressEntity
 import com.constructionos.app.core.network.ConstructionOsApi
 import com.constructionos.app.core.network.DailyReportCreateRequest
 import com.constructionos.app.core.network.DailyReportResponse
 import com.constructionos.app.core.network.DailyReportUpdateRequest
+import com.constructionos.app.core.network.DprWorkProgressWriteRequest
 import com.constructionos.app.core.offline.WorkspaceSyncScheduler
 import com.google.gson.Gson
+import java.math.BigDecimal
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 
@@ -26,25 +31,75 @@ class DprRepository(
     fun observeProjectReports(projectId: String): Flow<List<DprReportEntity>> =
         dao.observeProjectReports(projectId)
 
+    fun observeWorkProgress(reportId: String): Flow<List<DprWorkProgressEntity>> =
+        dao.observeWorkProgress(reportId)
+
+    fun observeWbsReferences(projectId: String): Flow<List<DprWbsReferenceEntity>> =
+        dao.observeWbsReferences(projectId)
+
+    fun observeBoqReferences(projectId: String): Flow<List<DprBoqReferenceEntity>> =
+        dao.observeBoqReferences(projectId)
+
     suspend fun refreshProject(projectId: String) {
-        api.dailyReports(projectId).forEach { remote ->
+        val remotes = api.dailyReports(projectId)
+        remotes.forEach { remote ->
             val existing = dao.report(projectId, remote.reportDate, remote.shiftCode)
-            if (existing != null && existing.serverId == null) {
-                return@forEach
-            }
-            if (existing != null && existing.syncState != DprSyncState.SYNCED) {
-                return@forEach
-            }
-            if (existing != null && dao.activeMutationCount(existing.id) > 0) {
-                return@forEach
-            }
+            if (existing != null && existing.serverId == null) return@forEach
+            if (existing != null && existing.syncState != DprSyncState.SYNCED) return@forEach
+            if (existing != null && dao.activeMutationCount(existing.id) > 0) return@forEach
+            val localId = existing?.id ?: remote.id
             dao.upsertReport(
                 remote.toEntity(
-                    localId = existing?.id ?: remote.id,
+                    localId = localId,
                     localUpdatedAt = existing?.localUpdatedAt ?: System.currentTimeMillis(),
                 ),
             )
+            val rows = api.dprWorkProgress(projectId, remote.id).mapIndexed { index, row ->
+                DprWorkProgressEntity(
+                    id = row.id,
+                    reportId = localId,
+                    projectId = projectId,
+                    position = index,
+                    wbsCodeId = row.wbsCodeId,
+                    boqItemId = row.boqItemId,
+                    description = row.description,
+                    location = row.location,
+                    quantity = row.quantity,
+                    unitCode = row.unitCode,
+                    progressPercent = row.progressPercent,
+                    remarks = row.remarks,
+                )
+            }
+            dao.replaceWorkProgressFromServer(localId, rows)
         }
+
+        val references = api.dprWorkProgressReferences(projectId)
+        dao.replaceReferences(
+            projectId = projectId,
+            wbs = references.wbsCodes.map { row ->
+                DprWbsReferenceEntity(
+                    id = row.id,
+                    projectId = projectId,
+                    code = row.code,
+                    name = row.name,
+                    kind = row.kind,
+                    parentId = row.parentId,
+                )
+            },
+            boq = references.boqItems.map { row ->
+                DprBoqReferenceEntity(
+                    id = row.id,
+                    projectId = projectId,
+                    boqId = row.boqId,
+                    boqCode = row.boqCode,
+                    boqName = row.boqName,
+                    wbsCodeId = row.wbsCodeId,
+                    itemCode = row.itemCode,
+                    description = row.description,
+                    unitCode = row.unitCode,
+                )
+            },
+        )
     }
 
     suspend fun startLocalDraft(
@@ -122,14 +177,15 @@ class DprRepository(
             }.getOrElse {
                 throw IllegalStateException("The local daily report draft could not be read.", it)
             }
-            val updatedCreate = create.copy(
-                weatherCondition = normalizedWeather,
-                notes = normalizedNotes,
-            )
             dao.updatePendingCreate(
                 reportId = report.id,
                 mutationId = createMutation.clientMutationId,
-                payloadJson = gson.toJson(updatedCreate),
+                payloadJson = gson.toJson(
+                    create.copy(
+                        weatherCondition = normalizedWeather,
+                        notes = normalizedNotes,
+                    ),
+                ),
                 weatherCondition = normalizedWeather,
                 notes = normalizedNotes,
                 updatedAt = now,
@@ -170,14 +226,107 @@ class DprRepository(
         syncScheduler.scheduleOnce()
     }
 
+    suspend fun saveWorkProgress(
+        reportId: String,
+        rows: List<DprWorkProgressDraft>,
+    ) {
+        val report = requireNotNull(dao.reportById(reportId)) { "Daily report was not found" }
+        require(report.status == STATUS_DRAFT) { "Only a draft daily report can be edited." }
+        require(rows.size <= 1000) { "A daily report can contain at most 1000 work progress rows." }
+
+        val normalized = rows.mapIndexed { index, draft ->
+            val description = draft.description.trim()
+            require(description.isNotEmpty()) { "Work progress description is required." }
+            require(description.length <= 2000) { "Work progress description must be 2000 characters or fewer." }
+            require(draft.wbsCodeId != null || draft.boqItemId != null) {
+                "Select a WBS / Cost Code or approved BOQ item."
+            }
+            draft.quantity.normalizedDecimal("Quantity")?.let { require(it >= BigDecimal.ZERO) { "Quantity cannot be negative." } }
+            draft.progressPercent.normalizedDecimal("Progress")?.let {
+                require(it >= BigDecimal.ZERO && it <= BigDecimal("100")) { "Progress must be between 0 and 100." }
+            }
+            DprWorkProgressEntity(
+                id = draft.id ?: UUID.randomUUID().toString(),
+                reportId = report.id,
+                projectId = report.projectId,
+                position = index,
+                wbsCodeId = draft.wbsCodeId,
+                boqItemId = draft.boqItemId,
+                description = description,
+                location = draft.location.normalizedOrNull(),
+                quantity = draft.quantity.normalizedOrNull(),
+                unitCode = draft.unitCode.normalizedOrNull(),
+                progressPercent = draft.progressPercent.normalizedOrNull(),
+                remarks = draft.remarks.normalizedOrNull(),
+            )
+        }
+
+        val payload = DprPendingWorkProgressPayload(
+            rows = normalized.map { it.toWriteRequest() },
+        )
+        val now = System.currentTimeMillis()
+        val existing = dao.mutation(report.id, OP_REPLACE_WORK_PROGRESS)
+        val mutation = existing?.copy(
+            payloadJson = gson.toJson(payload),
+            updatedAt = now,
+        ) ?: DprMutationEntity(
+            clientMutationId = UUID.randomUUID().toString(),
+            projectId = report.projectId,
+            reportId = report.id,
+            operation = OP_REPLACE_WORK_PROGRESS,
+            payloadJson = gson.toJson(payload),
+            state = DprMutationState.PENDING,
+            errorCode = null,
+            attemptCount = 0,
+            createdAt = now,
+            updatedAt = now,
+        )
+        dao.replaceWorkProgressLocally(report.id, normalized, mutation, now)
+        syncScheduler.scheduleOnce()
+    }
+
     companion object {
         const val STATUS_DRAFT = "draft"
         const val OP_CREATE = "create_report"
         const val OP_UPDATE_HEADER = "update_header"
+        const val OP_REPLACE_WORK_PROGRESS = "replace_work_progress"
     }
 }
 
+data class DprWorkProgressDraft(
+    val id: String? = null,
+    val wbsCodeId: String? = null,
+    val boqItemId: String? = null,
+    val description: String,
+    val location: String? = null,
+    val quantity: String? = null,
+    val unitCode: String? = null,
+    val progressPercent: String? = null,
+    val remarks: String? = null,
+)
+
+internal data class DprPendingWorkProgressPayload(
+    val rows: List<DprWorkProgressWriteRequest>,
+    val reason: String? = null,
+)
+
+private fun DprWorkProgressEntity.toWriteRequest(): DprWorkProgressWriteRequest = DprWorkProgressWriteRequest(
+    wbsCodeId = wbsCodeId,
+    boqItemId = boqItemId,
+    description = description,
+    location = location,
+    quantity = quantity,
+    unitCode = unitCode,
+    progressPercent = progressPercent,
+    remarks = remarks,
+)
+
 private fun String?.normalizedOrNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
+
+private fun String?.normalizedDecimal(label: String): BigDecimal? {
+    val value = normalizedOrNull() ?: return null
+    return value.toBigDecimalOrNull() ?: throw IllegalArgumentException("$label must be a valid number.")
+}
 
 internal fun DailyReportResponse.toEntity(
     localId: String = id,
