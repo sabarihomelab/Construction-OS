@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class DPRPhotoUploadStart(BaseModel):
+    expected_revision: int = Field(ge=1)
     client_photo_id: UUID
     original_filename: str = Field(min_length=1, max_length=255)
     content_type: str = Field(min_length=1, max_length=160)
