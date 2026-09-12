@@ -25,6 +25,10 @@ class UploadOffsetConflict(FileValidationError):
         self.expected_offset = expected_offset
 
 
+class UploadAlreadyFinalized(FileValidationError):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class ResumableUploadSnapshot:
     upload: UploadSession
@@ -51,6 +55,28 @@ def request_hash(
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
+
+
+async def _reconcile_offset(
+    *,
+    provider: ResumableStorageProvider,
+    upload: UploadSession,
+    state: ResumableUploadState,
+) -> None:
+    if state.deduplicated_storage_object_id is not None:
+        state.uploaded_bytes = upload.expected_size_bytes or state.uploaded_bytes
+        return
+    if upload.status == UploadStatus.FINALIZED or state.cancelled_at is not None:
+        return
+    actual = await provider.uploaded_size(upload.temporary_storage_key)
+    expected = upload.expected_size_bytes
+    if expected is not None and actual > expected:
+        raise FileValidationError("Stored upload exceeds the expected file size")
+    state.uploaded_bytes = actual
+    if expected is not None and actual == expected:
+        upload.status = UploadStatus.UPLOADED
+    elif upload.status != UploadStatus.UPLOADED:
+        upload.status = UploadStatus.UPLOADING
 
 
 async def begin_or_resume_upload(
@@ -107,12 +133,14 @@ async def begin_or_resume_upload(
             upload.expires_at = now + timedelta(hours=1)
             upload.status = UploadStatus.UPLOADING
             upload.failure_reason = None
+        await _reconcile_offset(provider=provider, upload=upload, state=state)
         target = await provider.create_upload_target(
             storage_key=upload.temporary_storage_key,
             content_type=upload.declared_content_type,
             expected_size_bytes=upload.expected_size_bytes,
             expires_at=upload.expires_at,
         )
+        await db.flush()
         return ResumableUploadSnapshot(upload=upload, state=state, target=target)
 
     existing_object = await db.scalar(
@@ -166,23 +194,30 @@ async def begin_or_resume_upload(
 async def resumable_status(
     db: AsyncSession,
     *,
+    provider: ResumableStorageProvider,
     organization_id: UUID,
     upload_id: UUID,
 ) -> tuple[UploadSession, ResumableUploadState]:
     state = await db.scalar(
-        select(ResumableUploadState).where(
+        select(ResumableUploadState)
+        .where(
             ResumableUploadState.upload_session_id == upload_id,
             ResumableUploadState.organization_id == organization_id,
         )
+        .with_for_update()
     )
     upload = await db.scalar(
-        select(UploadSession).where(
+        select(UploadSession)
+        .where(
             UploadSession.id == upload_id,
             UploadSession.organization_id == organization_id,
         )
+        .with_for_update()
     )
     if state is None or upload is None:
         raise FileValidationError("Resumable upload session was not found")
+    await _reconcile_offset(provider=provider, upload=upload, state=state)
+    await db.flush()
     return upload, state
 
 
@@ -218,6 +253,7 @@ async def append_resumable_chunk(
         raise FileValidationError("Upload was cancelled")
     if upload.status == UploadStatus.FINALIZED:
         return upload, state
+    await _reconcile_offset(provider=provider, upload=upload, state=state)
     if state.uploaded_bytes != offset:
         raise UploadOffsetConflict(state.uploaded_bytes)
     if not chunk:
@@ -301,7 +337,7 @@ async def cancel_resumable_upload(
     if state is None or upload is None:
         raise FileValidationError("Resumable upload session was not found")
     if upload.status == UploadStatus.FINALIZED or state.finalized_asset_id is not None:
-        return upload, state
+        raise UploadAlreadyFinalized("Upload was already finalized")
     if state.cancelled_at is not None:
         return upload, state
     await provider.delete_object(upload.temporary_storage_key)
@@ -315,5 +351,6 @@ async def cancel_resumable_upload(
     upload.status = UploadStatus.FAILED
     upload.failure_reason = "cancelled_by_user"
     state.cancelled_at = now
+    state.uploaded_bytes = 0
     await db.flush()
     return upload, state
