@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.modules.authorization.models import RoleAssignmentScope
+from app.modules.identity.models import MembershipKind
 from app.modules.projects.models import ProjectMembershipStatus, ProjectStatus
 
 
@@ -107,3 +109,29 @@ class ProjectRoleAssignmentRead(BaseModel):
     role_id: UUID
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProjectRoleSet(BaseModel):
+    role_ids: set[UUID] = Field(default_factory=set)
+
+
+class ProjectAccessRoleRead(BaseModel):
+    id: UUID
+    key: str
+    name: str
+    assignment_scope: RoleAssignmentScope
+    is_template: bool
+    is_protected: bool
+
+
+class ProjectAccessMembershipRead(BaseModel):
+    id: UUID
+    organization_membership_id: UUID
+    user_id: UUID
+    display_name: str
+    primary_email: str
+    membership_kind: MembershipKind
+    status: ProjectMembershipStatus
+    title: str | None
+    role_ids: list[UUID]
+    roles: list[ProjectAccessRoleRead]
