@@ -2,7 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.modules.authorization.models import PermissionRisk
+from app.modules.authorization.models import PermissionRisk, RoleAssignmentScope
 from app.modules.identity.models import MembershipKind, MembershipStatus
 
 
@@ -20,6 +20,7 @@ class RoleCreate(BaseModel):
     key: str = Field(pattern=r"^[a-z0-9_]+(?:-[a-z0-9_]+)*$", min_length=2, max_length=100)
     name: str = Field(min_length=1, max_length=160)
     description: str | None = None
+    assignment_scope: RoleAssignmentScope = RoleAssignmentScope.PROJECT
 
 
 class RoleCreateWithPermissions(RoleCreate):
@@ -77,6 +78,7 @@ class AssignedRoleRead(BaseModel):
     id: UUID
     key: str
     name: str
+    assignment_scope: RoleAssignmentScope
     is_template: bool
     is_protected: bool
 
