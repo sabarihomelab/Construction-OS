@@ -149,7 +149,6 @@ class AppContainer(
         attendanceMutationSyncService = attendanceMutationSyncService,
         dprRepository = dprRepository,
         dprMutationSyncService = dprMutationSyncService,
-        dprPhotoRepository = dprPhotoRepository,
         dprPhotoSyncService = dprPhotoSyncService,
     )
 
