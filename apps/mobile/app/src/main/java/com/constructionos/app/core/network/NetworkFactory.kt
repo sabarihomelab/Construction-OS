@@ -42,6 +42,12 @@ object NetworkFactory {
     ): DprLifecycleApi = authenticatedRetrofit(baseUrl, tokenProvider)
         .create(DprLifecycleApi::class.java)
 
+    fun createDprPhotoApi(
+        baseUrl: String,
+        tokenProvider: SessionTokenProvider,
+    ): DprPhotoApi = authenticatedRetrofit(baseUrl, tokenProvider)
+        .create(DprPhotoApi::class.java)
+
     fun createBootstrapApi(baseUrl: String): ConstructionOsApi {
         val client = OkHttpClient.Builder().build()
         return createRetrofit(baseUrl, client).create(ConstructionOsApi::class.java)
