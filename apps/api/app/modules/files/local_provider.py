@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -56,6 +57,45 @@ class LocalStorageProvider:
             temporary.replace(target)
 
         await asyncio.to_thread(_write)
+
+    async def write_upload_chunk(
+        self,
+        *,
+        storage_key: str,
+        offset: int,
+        content: bytes,
+    ) -> int:
+        if offset < 0:
+            raise LocalStorageProviderError("Upload offset cannot be negative")
+        if not content:
+            raise LocalStorageProviderError("Upload chunk cannot be empty")
+        target = self._path(storage_key)
+
+        def _append() -> int:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            current_size = target.stat().st_size if target.exists() else 0
+            if current_size != offset:
+                raise LocalStorageProviderError(
+                    f"Upload offset mismatch; server has {current_size} bytes"
+                )
+            with target.open("ab") as handle:
+                handle.write(content)
+                handle.flush()
+            return current_size + len(content)
+
+        return await asyncio.to_thread(_append)
+
+    async def clone_object(self, *, source_storage_key: str, target_storage_key: str) -> None:
+        source = self._path(source_storage_key)
+        target = self._path(target_storage_key)
+        if not source.is_file():
+            raise LocalStorageProviderError("Source object was not found")
+
+        def _copy() -> None:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+
+        await asyncio.to_thread(_copy)
 
     async def inspect_object(self, storage_key: str) -> StoredObjectInfo:
         target = self._path(storage_key)
