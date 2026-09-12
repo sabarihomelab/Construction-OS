@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.audit.models import AuditActorType, AuditRisk
 from app.modules.audit.service import record_audit_event
 from app.modules.authorization.models import (
+    MembershipPartyAffiliation,
     MembershipRole,
     OrganizationAuthorizationState,
     Permission,
@@ -577,6 +578,17 @@ async def set_membership_status(
         raise AuthorizationValidationError("Membership was not found")
     if membership.user_id == actor_user_id and status != MembershipStatus.ACTIVE:
         raise AuthorizationValidationError("You cannot suspend or end your own company membership")
+    if status == MembershipStatus.ACTIVE and membership.kind == MembershipKind.EXTERNAL:
+        affiliation = await db.scalar(
+            select(MembershipPartyAffiliation.membership_id).where(
+                MembershipPartyAffiliation.membership_id == membership.id,
+                MembershipPartyAffiliation.organization_id == organization_id,
+            )
+        )
+        if affiliation is None:
+            raise AuthorizationValidationError(
+                "External memberships must represent a party before activation"
+            )
     before = membership.status
     membership.status = status
     now = datetime.now(UTC)
