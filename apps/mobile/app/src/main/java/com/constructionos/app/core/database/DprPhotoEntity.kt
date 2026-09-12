@@ -27,6 +27,7 @@ data class DprPhotoEntity(
     val caption: String?,
     @ColumnInfo(name = "captured_at") val capturedAt: String?,
     @ColumnInfo(name = "upload_session_id") val uploadSessionId: String?,
+    @ColumnInfo(name = "upload_target_url") val uploadTargetUrl: String?,
     @ColumnInfo(name = "server_asset_id") val serverAssetId: String?,
     @ColumnInfo(name = "server_version") val serverVersion: Int?,
     @ColumnInfo(name = "base_revision") val baseRevision: Int,
