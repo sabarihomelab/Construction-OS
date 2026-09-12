@@ -4,10 +4,14 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.core.deps import DbSession
+from app.modules.authorization.models import Role
 from app.modules.features.schemas import AccessContext
 from app.modules.features.service import build_access_context
-from app.modules.projects.models import Project, ProjectMembership
+from app.modules.identity.models import OrganizationMembership, User
+from app.modules.projects.models import Project, ProjectMembership, ProjectRoleAssignment
 from app.modules.projects.schemas import (
+    ProjectAccessMembershipRead,
+    ProjectAccessRoleRead,
     ProjectCreate,
     ProjectMembershipCreate,
     ProjectMembershipRead,
@@ -15,6 +19,7 @@ from app.modules.projects.schemas import (
     ProjectRead,
     ProjectRoleAssignmentCreate,
     ProjectRoleAssignmentRead,
+    ProjectRoleSet,
     ProjectUpdate,
 )
 from app.modules.projects.service import (
@@ -23,6 +28,7 @@ from app.modules.projects.service import (
     add_project_member,
     assign_project_role,
     create_project,
+    replace_project_roles,
     set_project_membership_status,
     update_project,
 )
@@ -59,6 +65,68 @@ async def _load_project_or_404(db: DbSession, context: AccessContext, project_id
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project
+
+
+async def _project_access_item(
+    db: DbSession,
+    *,
+    organization_id: UUID,
+    membership: ProjectMembership,
+) -> ProjectAccessMembershipRead:
+    company_membership = await db.scalar(
+        select(OrganizationMembership).where(
+            OrganizationMembership.id == membership.organization_membership_id,
+            OrganizationMembership.organization_id == organization_id,
+        )
+    )
+    if company_membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Project membership is missing its company membership",
+        )
+    user = await db.get(User, company_membership.user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Project membership is missing its user",
+        )
+    roles = list(
+        (
+            await db.scalars(
+                select(Role)
+                .join(ProjectRoleAssignment, ProjectRoleAssignment.role_id == Role.id)
+                .where(
+                    ProjectRoleAssignment.project_membership_id == membership.id,
+                    ProjectRoleAssignment.organization_id == organization_id,
+                    Role.organization_id == organization_id,
+                )
+                .order_by(Role.name, Role.key)
+            )
+        ).all()
+    )
+    role_reads = [
+        ProjectAccessRoleRead(
+            id=role.id,
+            key=role.key,
+            name=role.name,
+            assignment_scope=role.assignment_scope,
+            is_template=role.is_template,
+            is_protected=role.is_protected,
+        )
+        for role in roles
+    ]
+    return ProjectAccessMembershipRead(
+        id=membership.id,
+        organization_membership_id=membership.organization_membership_id,
+        user_id=user.id,
+        display_name=user.display_name,
+        primary_email=user.primary_email,
+        membership_kind=company_membership.kind,
+        status=membership.status,
+        title=membership.title,
+        role_ids=[role.id for role in roles],
+        roles=role_reads,
+    )
 
 
 @router.get("", response_model=list[ProjectRead])
@@ -171,6 +239,37 @@ async def list_project_memberships(
     return list(rows.all())
 
 
+@router.get("/{project_id}/access", response_model=list[ProjectAccessMembershipRead])
+async def list_project_access(
+    project_id: UUID,
+    db: DbSession,
+    session: CurrentSession,
+) -> list[ProjectAccessMembershipRead]:
+    context = await build_access_context(db, session.membership_id)
+    _require_project_permission(context, project_id, "projects.membership.view")
+    await _load_project_or_404(db, context, project_id)
+    memberships = list(
+        (
+            await db.scalars(
+                select(ProjectMembership)
+                .where(
+                    ProjectMembership.organization_id == context.organization_id,
+                    ProjectMembership.project_id == project_id,
+                )
+                .order_by(ProjectMembership.created_at, ProjectMembership.id)
+            )
+        ).all()
+    )
+    return [
+        await _project_access_item(
+            db,
+            organization_id=context.organization_id,
+            membership=membership,
+        )
+        for membership in memberships
+    ]
+
+
 @router.post(
     "/{project_id}/memberships",
     response_model=ProjectMembershipRead,
@@ -271,6 +370,48 @@ async def add_project_role_assignment(
         await db.commit()
         await db.refresh(assignment)
         return assignment
+    except ProjectValidationError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.put(
+    "/{project_id}/memberships/{project_membership_id}/roles",
+    response_model=ProjectAccessMembershipRead,
+)
+async def put_project_role_assignments(
+    project_id: UUID,
+    project_membership_id: UUID,
+    payload: ProjectRoleSet,
+    db: DbSession,
+    session: CurrentSession,
+) -> ProjectAccessMembershipRead:
+    context = await build_access_context(db, session.membership_id)
+    _require_project_permission(context, project_id, "projects.membership.manage")
+    membership = await db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.id == project_membership_id,
+            ProjectMembership.project_id == project_id,
+            ProjectMembership.organization_id == context.organization_id,
+        )
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project membership not found")
+    try:
+        await replace_project_roles(
+            db,
+            organization_id=context.organization_id,
+            project_membership_id=project_membership_id,
+            role_ids=set(payload.role_ids),
+            actor_user_id=session.user_id,
+            session_id=session.id,
+        )
+        await db.commit()
+        return await _project_access_item(
+            db,
+            organization_id=context.organization_id,
+            membership=membership,
+        )
     except ProjectValidationError as exc:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
