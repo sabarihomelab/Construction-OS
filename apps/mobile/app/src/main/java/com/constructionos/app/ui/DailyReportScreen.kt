@@ -183,7 +183,7 @@ fun DailyReportScreen(
                             repository.saveDraftHeader(
                                 reportId = reportId,
                                 weatherCondition = weather,
-                                notes = if ("notes" in enabledSections) notes else null,
+                                notes = if ("notes" in enabledSections) notes else report?.notes,
                             )
                         }.onFailure { error ->
                             message = error.message ?: "Daily report details could not be saved"
