@@ -121,6 +121,7 @@ interface DprPhotoDao {
             server_version = :serverVersion,
             base_revision = :reportRevision,
             original_path = NULL,
+            upload_path = NULL,
             error_code = NULL,
             updated_at = :updatedAt
         WHERE client_photo_id = :clientPhotoId
