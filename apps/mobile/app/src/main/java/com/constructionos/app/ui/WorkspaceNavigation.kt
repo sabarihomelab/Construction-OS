@@ -44,6 +44,7 @@ import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.network.SessionContextResponse
 import com.constructionos.app.core.parties.PartyRepository
+import com.constructionos.app.core.wbs.WbsRepository
 import com.constructionos.app.core.workspace.WorkspaceCoordinator
 
 private const val PROJECT_SELECTOR_ROUTE = "project-selector"
@@ -51,6 +52,7 @@ private const val PROJECT_HOME_ROUTE = "project-home/{projectId}"
 private const val ATTENDANCE_ROUTE = "attendance/{projectId}"
 private const val DAILY_REPORT_ROUTE = "daily-report/{projectId}"
 private const val PARTY_DIRECTORY_ROUTE = "party-directory/{projectId}"
+private const val WBS_ROUTE = "wbs/{projectId}"
 private const val PROJECT_ACCESS_ROUTE = "project-access/{projectId}"
 private const val ACCESS_MANAGEMENT_ROUTE = "access-management"
 
@@ -67,6 +69,7 @@ fun WorkspaceNavigation(
     attendanceRepository: AttendanceRepository,
     dprRepository: DprRepository,
     partyRepository: PartyRepository,
+    wbsRepository: WbsRepository,
     accessAdminRepository: AccessAdminRepository,
     projectAccessAdminRepository: ProjectAccessAdminRepository,
     onLogout: () -> Unit,
@@ -154,6 +157,7 @@ fun WorkspaceNavigation(
                     onOpenAttendance = { navController.navigate(attendanceRoute(project.id)) },
                     onOpenDailyReport = { navController.navigate(dailyReportRoute(project.id)) },
                     onOpenPartyDirectory = { navController.navigate(partyDirectoryRoute(project.id)) },
+                    onOpenWbs = { navController.navigate(wbsRoute(project.id)) },
                     onOpenProjectAccess = { navController.navigate(projectAccessRoute(project.id)) },
                     onOpenAccessManagement = { navController.navigate(ACCESS_MANAGEMENT_ROUTE) },
                     onLogout = onLogout,
@@ -221,6 +225,30 @@ fun WorkspaceNavigation(
         }
 
         composable(
+            route = WBS_ROUTE,
+            arguments = listOf(navArgument("projectId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId").orEmpty()
+            val project = projects.firstOrNull { it.id == projectId }
+            val permissions = context.projectPermissions(projectId)
+            val wbsReleased = context.hasMobileFeature("commercial.wbs")
+            if (project == null) {
+                MissingProjectScreen(onChooseProject = { navController.popBackStack() })
+            } else if (!wbsReleased || "commercial.wbs.view" !in permissions) {
+                MissingPermissionScreen(
+                    message = "WBS / Cost Codes are not available for this project and session.",
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                WbsLookupScreen(
+                    project = project,
+                    repository = wbsRepository,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+        }
+
+        composable(
             route = PROJECT_ACCESS_ROUTE,
             arguments = listOf(navArgument("projectId") { type = NavType.StringType }),
         ) { backStackEntry ->
@@ -263,6 +291,9 @@ fun WorkspaceNavigation(
 
 private fun SessionContextResponse.projectPermissions(projectId: String): Set<String> =
     permissions.toSet() + projectPermissions[projectId].orEmpty()
+
+private fun SessionContextResponse.hasMobileFeature(featureKey: String): Boolean =
+    features.any { it.key == featureKey && it.mobileEnabled }
 
 @Composable
 private fun WorkspaceStartupScreen(modifier: Modifier = Modifier) {
@@ -322,6 +353,7 @@ private fun ProjectWorkspaceScreen(
     onOpenAttendance: () -> Unit,
     onOpenDailyReport: () -> Unit,
     onOpenPartyDirectory: () -> Unit,
+    onOpenWbs: () -> Unit,
     onOpenProjectAccess: () -> Unit,
     onOpenAccessManagement: () -> Unit,
     onLogout: () -> Unit,
@@ -335,6 +367,7 @@ private fun ProjectWorkspaceScreen(
     val canViewPartyDirectory = "commercial.party.view" in context.permissions
     val canViewAccessManagement = "security.role.view" in context.permissions
     val projectPermissions = context.projectPermissions(project.id)
+    val canViewWbs = context.hasMobileFeature("commercial.wbs") && "commercial.wbs.view" in projectPermissions
     val canViewProjectAccess = "projects.membership.view" in projectPermissions
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -349,9 +382,11 @@ private fun ProjectWorkspaceScreen(
             ProjectTab.MORE -> ProjectMoreContent(
                 project = project,
                 canViewPartyDirectory = canViewPartyDirectory,
+                canViewWbs = canViewWbs,
                 canViewProjectAccess = canViewProjectAccess,
                 canViewAccessManagement = canViewAccessManagement,
                 onOpenPartyDirectory = onOpenPartyDirectory,
+                onOpenWbs = onOpenWbs,
                 onOpenProjectAccess = onOpenProjectAccess,
                 onOpenAccessManagement = onOpenAccessManagement,
                 onChooseProject = onChooseProject,
@@ -468,9 +503,11 @@ private fun ProjectActionRow(action: ProjectHomeAction, onClick: (() -> Unit)?) 
 private fun ProjectMoreContent(
     project: ProjectEntity,
     canViewPartyDirectory: Boolean,
+    canViewWbs: Boolean,
     canViewProjectAccess: Boolean,
     canViewAccessManagement: Boolean,
     onOpenPartyDirectory: () -> Unit,
+    onOpenWbs: () -> Unit,
     onOpenProjectAccess: () -> Unit,
     onOpenAccessManagement: () -> Unit,
     onChooseProject: () -> Unit,
@@ -497,6 +534,11 @@ private fun ProjectMoreContent(
         if (canViewPartyDirectory) {
             item {
                 MoreLink("Party directory", "Clients, vendors, suppliers and subcontractors with project relationships.", onOpenPartyDirectory)
+            }
+        }
+        if (canViewWbs) {
+            item {
+                MoreLink("WBS / Cost Codes", "Search the project hierarchy from the local field cache.", onOpenWbs)
             }
         }
         if (canViewProjectAccess) {
@@ -550,4 +592,5 @@ private fun projectHomeRoute(projectId: String): String = "project-home/$project
 private fun attendanceRoute(projectId: String): String = "attendance/$projectId"
 private fun dailyReportRoute(projectId: String): String = "daily-report/$projectId"
 private fun partyDirectoryRoute(projectId: String): String = "party-directory/$projectId"
+private fun wbsRoute(projectId: String): String = "wbs/$projectId"
 private fun projectAccessRoute(projectId: String): String = "project-access/$projectId"
