@@ -11,6 +11,7 @@ import com.constructionos.app.core.network.NetworkFactory
 import com.constructionos.app.core.offline.DeviceRegistrar
 import com.constructionos.app.core.offline.WorkspaceSyncScheduler
 import com.constructionos.app.core.offline.WorkspaceSyncService
+import com.constructionos.app.core.parties.PartyRepository
 import com.constructionos.app.core.projects.ProjectRepository
 import com.constructionos.app.core.projects.ProjectSelectionStore
 import com.constructionos.app.core.session.SecureSessionStore
@@ -49,6 +50,11 @@ class AppContainer(context: Context) {
         api = api,
         dao = database.dprDao(),
         deviceRegistrar = deviceRegistrar,
+    )
+
+    val partyRepository = PartyRepository(
+        api = api,
+        dao = database.partyDao(),
     )
 
     val authController = AuthController(
