@@ -7,7 +7,6 @@ from app.core.config import get_settings
 from app.core.deps import DbSession
 from app.modules.organizations.models import Organization
 
-
 router = APIRouter(prefix="/deployment", tags=["deployment"])
 
 
