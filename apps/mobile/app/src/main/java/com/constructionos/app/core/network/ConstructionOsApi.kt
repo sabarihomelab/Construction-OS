@@ -9,6 +9,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface ConstructionOsApi {
+    @GET("deployment/bootstrap") suspend fun deploymentBootstrap(): DeploymentBootstrapResponse
     @GET("auth/native/providers") suspend fun nativeProviders(): NativeProviderListResponse
     @POST("auth/native/authenticate") suspend fun authenticateNative(@Body request: NativeAuthenticationRequest): NativeAuthenticationResponse
     @POST("auth/native/select-membership") suspend fun selectMembership(@Body request: NativeMembershipSelectionRequest): NativeAuthenticationResponse
@@ -44,6 +45,21 @@ interface ConstructionOsApi {
     @GET("projects/{projectId}/daily-reports/work-progress/references") suspend fun dprWorkProgressReferences(@Path("projectId") projectId: String): DprWorkProgressReferenceResponse
     @POST("projects/{projectId}/daily-reports/offline/mutations") suspend fun submitDailyReportMutation(@Path("projectId") projectId: String, @Body request: DailyReportOfflineMutationRequest): Response<DailyReportOfflineMutationResponse>
 }
+
+data class DeploymentBootstrapResponse(
+    @SerializedName("deployment_id") val deploymentId: String,
+    @SerializedName("dedicated_company") val dedicatedCompany: Boolean,
+    val organization: DeploymentOrganizationResponse? = null,
+    val environment: String,
+    @SerializedName("environment_name") val environmentName: String,
+    @SerializedName("api_path") val apiPath: String,
+)
+
+data class DeploymentOrganizationResponse(
+    val id: String,
+    val name: String,
+    val slug: String,
+)
 
 data class EffectiveConfigurationResponse(
     val settings: List<ResolvedConfigurationSettingResponse> = emptyList(),
