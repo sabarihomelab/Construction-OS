@@ -1,7 +1,6 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response, status
-from sqlalchemy import select
 
 from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
@@ -23,6 +22,7 @@ from app.modules.files.local_provider import LocalStorageProviderError, configur
 from app.modules.files.models import UploadSession, UploadStatus
 from app.modules.files.resumable_models import ResumableUploadState
 from app.modules.files.resumable_service import (
+    UploadAlreadyFinalized,
     UploadOffsetConflict,
     append_resumable_chunk,
     begin_or_resume_upload,
@@ -58,7 +58,7 @@ def _require_permission(context, project_id: UUID, permission_key: str) -> None:
 
 
 def _raise_domain_error(exc: Exception) -> None:
-    if isinstance(exc, (DPRPhotoConflictError, UploadOffsetConflict)):
+    if isinstance(exc, (DPRPhotoConflictError, UploadOffsetConflict, UploadAlreadyFinalized)):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if isinstance(
         exc,
@@ -83,6 +83,7 @@ async def _owned_state(
 ) -> tuple[UploadSession, ResumableUploadState]:
     upload, state = await resumable_status(
         db,
+        provider=configured_storage_provider(),
         organization_id=organization_id,
         upload_id=upload_id,
     )
@@ -156,7 +157,13 @@ async def start_resumable_photo_upload(
         )
         await db.commit()
         return _session_read(snapshot.upload, snapshot.state)
-    except (DPRPhotoConflictError, DPRPhotoValidationError, FileValidationError, StorageCapacityError, LocalStorageProviderError) as exc:
+    except (
+        DPRPhotoConflictError,
+        DPRPhotoValidationError,
+        FileValidationError,
+        StorageCapacityError,
+        LocalStorageProviderError,
+    ) as exc:
         await db.rollback()
         _raise_domain_error(exc)
 
@@ -181,7 +188,9 @@ async def get_resumable_photo_status(
         report_id=report_id,
         upload_id=upload_id,
     )
-    return _session_read(upload, state)
+    result = _session_read(upload, state)
+    await db.commit()
+    return result
 
 
 @router.patch(
@@ -299,7 +308,12 @@ async def finalize_resumable_photo_upload(
             created_at=link.created_at,
             report_revision=report.revision,
         )
-    except (DPRPhotoConflictError, DPRPhotoValidationError, FileValidationError, LocalStorageProviderError) as exc:
+    except (
+        DPRPhotoConflictError,
+        DPRPhotoValidationError,
+        FileValidationError,
+        LocalStorageProviderError,
+    ) as exc:
         await db.rollback()
         _raise_domain_error(exc)
 
@@ -334,6 +348,6 @@ async def cancel_resumable_photo_upload_route(
         )
         await db.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except (FileValidationError, LocalStorageProviderError) as exc:
+    except (UploadAlreadyFinalized, FileValidationError, LocalStorageProviderError) as exc:
         await db.rollback()
         _raise_domain_error(exc)
