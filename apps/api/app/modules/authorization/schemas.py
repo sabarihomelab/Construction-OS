@@ -3,6 +3,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.modules.authorization.models import PermissionRisk, RoleAssignmentScope
+from app.modules.commercial.models import PartyType
 from app.modules.identity.models import MembershipKind, MembershipStatus
 
 
@@ -92,6 +93,9 @@ class MembershipAdminRead(BaseModel):
     status: MembershipStatus
     role_ids: list[UUID]
     roles: list[AssignedRoleRead]
+    represented_party_id: UUID | None = None
+    represented_party_name: str | None = None
+    represented_party_type: PartyType | None = None
 
 
 class MembershipAdminCreate(BaseModel):
@@ -100,6 +104,7 @@ class MembershipAdminCreate(BaseModel):
     kind: MembershipKind = MembershipKind.INTERNAL
     status: MembershipStatus = MembershipStatus.INVITED
     role_ids: set[UUID] = Field(default_factory=set)
+    represented_party_id: UUID | None = None
 
     @field_validator("primary_email", mode="before")
     @classmethod
@@ -113,3 +118,14 @@ class MembershipRoleSet(BaseModel):
 
 class MembershipStatusSet(BaseModel):
     status: MembershipStatus
+
+
+class MembershipPartyAffiliationSet(BaseModel):
+    party_id: UUID | None = None
+
+
+class SecurityPartyReferenceRead(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    party_type: PartyType
