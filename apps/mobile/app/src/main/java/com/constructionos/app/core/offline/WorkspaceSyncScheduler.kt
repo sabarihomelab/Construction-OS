@@ -13,7 +13,7 @@ import com.constructionos.app.core.deployment.WorkspaceConnectionStore
 
 class WorkspaceSyncScheduler(
     context: Context,
-    private val deploymentId: String,
+    private val connectionNamespace: String,
 ) {
     private val applicationContext = context.applicationContext
     private val workManager = WorkManager.getInstance(applicationContext)
@@ -35,7 +35,7 @@ class WorkspaceSyncScheduler(
             .setConstraints(networkConstraints)
             .setInputData(
                 workDataOf(
-                    WorkspaceConnectionStore.WORKER_DEPLOYMENT_ID to deploymentId,
+                    WorkspaceConnectionStore.WORKER_CONNECTION_NAMESPACE to connectionNamespace,
                 ),
             )
             .build()
@@ -60,7 +60,7 @@ class WorkspaceSyncScheduler(
         disableLegacyPeriodicSync()
     }
 
-    private fun oneTimeWorkName(): String = "$ONE_TIME_WORK_PREFIX:$deploymentId"
+    private fun oneTimeWorkName(): String = "$ONE_TIME_WORK_PREFIX:$connectionNamespace"
 
     companion object {
         private const val ONE_TIME_WORK_PREFIX = "workspace-sync-now"
