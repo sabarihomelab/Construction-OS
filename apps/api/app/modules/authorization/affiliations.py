@@ -5,7 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.audit.models import AuditActorType, AuditRisk
 from app.modules.audit.service import record_audit_event
-from app.modules.authorization.models import MembershipPartyAffiliation, OrganizationAuthorizationState
+from app.modules.authorization.models import (
+    MembershipPartyAffiliation,
+    OrganizationAuthorizationState,
+)
 from app.modules.commercial.models import Party, PartyStatus
 from app.modules.events.service import enqueue_event
 from app.modules.identity.models import MembershipKind, MembershipStatus, OrganizationMembership
