@@ -71,6 +71,26 @@ data class DprWorkProgressReplaceRequest(
     val reason: String? = null,
 )
 
+data class DprWorkProgressResponse(
+    val id: String,
+    @SerializedName("organization_id") val organizationId: String,
+    @SerializedName("project_id") val projectId: String,
+    @SerializedName("daily_report_id") val dailyReportId: String,
+    @SerializedName("wbs_code_id") val wbsCodeId: String? = null,
+    @SerializedName("boq_item_id") val boqItemId: String? = null,
+    val description: String,
+    val location: String? = null,
+    val quantity: String? = null,
+    @SerializedName("unit_code") val unitCode: String? = null,
+    @SerializedName("progress_percent") val progressPercent: String? = null,
+    @SerializedName("source_type") val sourceType: String,
+    @SerializedName("source_id") val sourceId: String? = null,
+    @SerializedName("source_revision") val sourceRevision: Int? = null,
+    val remarks: String? = null,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("updated_at") val updatedAt: String,
+)
+
 data class DprWorkProgressWbsReferenceResponse(
     val id: String,
     val code: String,
