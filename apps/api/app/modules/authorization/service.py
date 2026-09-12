@@ -11,6 +11,7 @@ from app.modules.authorization.models import (
     OrganizationAuthorizationState,
     Permission,
     Role,
+    RoleAssignmentScope,
     RolePermission,
 )
 from app.modules.authorization.templates import INDIA_ROLE_TEMPLATES, ROLE_TEMPLATES_BY_KEY
@@ -30,6 +31,14 @@ class AuthorizationValidationError(ValueError):
 
 class AuthorizationConflictError(ValueError):
     pass
+
+
+def _template_assignment_scope(scope_hint: str) -> RoleAssignmentScope:
+    if scope_hint == "company":
+        return RoleAssignmentScope.COMPANY
+    if scope_hint == "project":
+        return RoleAssignmentScope.PROJECT
+    return RoleAssignmentScope.BOTH
 
 
 async def _touch_authorization(
@@ -104,6 +113,7 @@ async def create_role(
     permission_keys: set[str] | None,
     actor_user_id: UUID,
     session_id: UUID | None,
+    assignment_scope: RoleAssignmentScope = RoleAssignmentScope.BOTH,
     is_template: bool = False,
 ) -> Role:
     existing = await db.scalar(
@@ -117,6 +127,7 @@ async def create_role(
         key=key,
         name=name.strip(),
         description=description.strip() if description and description.strip() else None,
+        assignment_scope=assignment_scope,
         is_template=is_template,
         is_protected=False,
         is_active=True,
@@ -151,7 +162,12 @@ async def create_role(
         actor_user_id=actor_user_id,
         session_id=session_id,
         risk=AuditRisk.CRITICAL,
-        changes={"key": role.key, "name": role.name, "is_template": role.is_template},
+        changes={
+            "key": role.key,
+            "name": role.name,
+            "assignment_scope": role.assignment_scope.value,
+            "is_template": role.is_template,
+        },
     )
     return role
 
@@ -233,11 +249,15 @@ async def replace_role_permissions(
     if expected_version is not None and role.version != expected_version:
         raise AuthorizationConflictError("Role changed; refresh before saving")
 
-    active_rows = await db.scalars(
-        select(Permission.key).where(
-            Permission.key.in_(permission_keys), Permission.is_active.is_(True)
+    active_rows = (
+        await db.scalars(
+            select(Permission.key).where(
+                Permission.key.in_(permission_keys), Permission.is_active.is_(True)
+            )
         )
-    ) if permission_keys else None
+        if permission_keys
+        else None
+    )
     valid_keys = set(active_rows.all()) if active_rows is not None else set()
     unknown = permission_keys - valid_keys
     if unknown:
@@ -299,6 +319,7 @@ async def clone_role(
         permission_keys=permissions,
         actor_user_id=actor_user_id,
         session_id=session_id,
+        assignment_scope=source.assignment_scope,
     )
 
 
@@ -325,6 +346,7 @@ async def create_role_from_template(
         permission_keys=set(template.permission_keys),
         actor_user_id=actor_user_id,
         session_id=session_id,
+        assignment_scope=_template_assignment_scope(template.scope_hint),
         is_template=mark_default,
     )
 
@@ -336,9 +358,7 @@ async def install_default_roles(
     actor_user_id: UUID,
     session_id: UUID | None,
 ) -> list[Role]:
-    existing_rows = await db.scalars(
-        select(Role).where(Role.organization_id == organization_id)
-    )
+    existing_rows = await db.scalars(select(Role).where(Role.organization_id == organization_id))
     existing_by_key = {role.key: role for role in existing_rows.all()}
     installed: list[Role] = []
     for template in INDIA_ROLE_TEMPLATES:
@@ -488,13 +508,18 @@ async def replace_membership_roles(
                         Role.id.in_(role_ids),
                         Role.organization_id == organization_id,
                         Role.is_active.is_(True),
+                        Role.assignment_scope.in_(
+                            (RoleAssignmentScope.COMPANY, RoleAssignmentScope.BOTH)
+                        ),
                     )
                 )
             ).all()
         )
         valid_ids = {role.id for role in roles}
         if valid_ids != role_ids:
-            raise AuthorizationValidationError("One or more roles are unavailable")
+            raise AuthorizationValidationError(
+                "Company memberships may only receive active company-scoped roles"
+            )
     before = set(
         (
             await db.scalars(
@@ -504,7 +529,10 @@ async def replace_membership_roles(
     )
     await db.execute(delete(MembershipRole).where(MembershipRole.membership_id == membership.id))
     db.add_all(
-        [MembershipRole(membership_id=membership.id, role_id=role_id) for role_id in sorted(role_ids, key=str)]
+        [
+            MembershipRole(membership_id=membership.id, role_id=role_id)
+            for role_id in sorted(role_ids, key=str)
+        ]
     )
     await _touch_authorization(
         db,
