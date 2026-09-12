@@ -12,6 +12,13 @@ from app.modules.field.dpr_offline_schemas import (
     DailyReportOfflineMutationResponse,
     DailyReportOfflineOperation,
 )
+from app.modules.field.dpr_schemas import DPRWorkProgressRead
+from app.modules.field.dpr_service import (
+    DPRConflictError,
+    DPRValidationError,
+    list_work_progress,
+    replace_work_progress,
+)
 from app.modules.field.models import DailyReport
 from app.modules.field.router import _require_permission
 from app.modules.field.schemas import DailyReportRead
@@ -45,7 +52,10 @@ _ENTITY_TYPE = "daily_report"
 def _permission_for(operation: DailyReportOfflineOperation) -> str:
     if operation == DailyReportOfflineOperation.CREATE_REPORT:
         return "field.daily_report.create"
-    if operation == DailyReportOfflineOperation.UPDATE_HEADER:
+    if operation in {
+        DailyReportOfflineOperation.UPDATE_HEADER,
+        DailyReportOfflineOperation.REPLACE_WORK_PROGRESS,
+    }:
         return "field.daily_report.update"
     return "field.daily_report.submit"
 
@@ -53,7 +63,10 @@ def _permission_for(operation: DailyReportOfflineOperation) -> str:
 def _sync_operation(operation: DailyReportOfflineOperation) -> SyncMutationOperation:
     if operation == DailyReportOfflineOperation.CREATE_REPORT:
         return SyncMutationOperation.CREATE
-    if operation == DailyReportOfflineOperation.UPDATE_HEADER:
+    if operation in {
+        DailyReportOfflineOperation.UPDATE_HEADER,
+        DailyReportOfflineOperation.REPLACE_WORK_PROGRESS,
+    }:
         return SyncMutationOperation.UPDATE
     return SyncMutationOperation.ACTION
 
@@ -132,6 +145,30 @@ def _report_result(report: DailyReport) -> dict[str, object]:
     }
 
 
+async def _operation_result(
+    db: DbSession,
+    *,
+    operation: DailyReportOfflineOperation,
+    report: DailyReport,
+    organization_id: UUID,
+    project_id: UUID,
+) -> dict[str, object]:
+    result = _report_result(report)
+    if operation != DailyReportOfflineOperation.REPLACE_WORK_PROGRESS:
+        return result
+
+    rows = await list_work_progress(
+        db,
+        organization_id=organization_id,
+        project_id=project_id,
+        report_id=report.id,
+    )
+    result["work_progress"] = [
+        DPRWorkProgressRead.model_validate(row).model_dump(mode="json") for row in rows
+    ]
+    return result
+
+
 async def _apply_operation(
     db: DbSession,
     *,
@@ -173,6 +210,22 @@ async def _apply_operation(
             actor_user_id=user_id,
             session_id=session_id,
             reason=update.reason,
+        )
+
+    if payload.operation == DailyReportOfflineOperation.REPLACE_WORK_PROGRESS:
+        work_progress = payload.work_progress
+        if work_progress is None:
+            raise DPRValidationError("DPR work progress payload is required")
+        return await replace_work_progress(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            report_id=payload.entity_id,
+            expected_revision=work_progress.expected_revision,
+            rows=work_progress.rows,
+            actor_user_id=user_id,
+            session_id=session_id,
+            reason=work_progress.reason,
         )
 
     action = payload.action
@@ -248,7 +301,7 @@ async def apply_daily_report_offline_mutation(
                     user_id=session.user_id,
                     session_id=session.id,
                 )
-        except DailyReportConflictError as exc:
+        except (DailyReportConflictError, DPRConflictError) as exc:
             current = await _current_report(
                 db,
                 organization_id=context.organization_id,
@@ -278,7 +331,7 @@ async def apply_daily_report_offline_mutation(
                     error_code="domain_conflict",
                     result={"detail": str(exc)},
                 )
-        except DailyReportValidationError as exc:
+        except (DailyReportValidationError, DPRValidationError) as exc:
             await mark_mutation_rejected(
                 db,
                 receipt,
@@ -291,7 +344,13 @@ async def apply_daily_report_offline_mutation(
                 db,
                 receipt,
                 server_version=report.revision,
-                result=_report_result(report),
+                result=await _operation_result(
+                    db,
+                    operation=payload.operation,
+                    report=report,
+                    organization_id=context.organization_id,
+                    project_id=project_id,
+                ),
             )
         await db.commit()
         return _json_response(receipt, replayed=False)

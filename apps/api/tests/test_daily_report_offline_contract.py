@@ -4,11 +4,12 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.modules.field.dpr_offline_router import router as dpr_offline_router
+from app.modules.field.dpr_offline_router import _permission_for, router as dpr_offline_router
 from app.modules.field.dpr_offline_schemas import (
     DailyReportOfflineMutationRequest,
     DailyReportOfflineOperation,
 )
+from app.modules.field.dpr_schemas import DPRWorkProgressReplace, DPRWorkProgressWrite
 from app.modules.field.schemas import (
     DailyReportCreate,
     DailyReportUpdate,
@@ -50,6 +51,57 @@ def test_daily_report_offline_update_requires_matching_revision() -> None:
             base_revision=3,
             update=DailyReportUpdate(expected_revision=2, notes="Updated"),
         )
+
+
+def test_daily_report_offline_work_progress_requires_matching_revision() -> None:
+    device_id, mutation_id, report_id = _ids()
+    wbs_id = uuid4()
+    with pytest.raises(ValidationError, match="work_progress.expected_revision must match"):
+        DailyReportOfflineMutationRequest(
+            device_id=device_id,
+            client_mutation_id=mutation_id,
+            entity_id=report_id,
+            operation=DailyReportOfflineOperation.REPLACE_WORK_PROGRESS,
+            base_revision=6,
+            work_progress=DPRWorkProgressReplace(
+                expected_revision=5,
+                rows=[
+                    DPRWorkProgressWrite(
+                        wbs_code_id=wbs_id,
+                        description="Level 2 slab reinforcement",
+                        progress_percent=65,
+                    )
+                ],
+            ),
+        )
+
+
+def test_daily_report_offline_work_progress_uses_update_permission() -> None:
+    device_id, mutation_id, report_id = _ids()
+    wbs_id = uuid4()
+    payload = DailyReportOfflineMutationRequest(
+        device_id=device_id,
+        client_mutation_id=mutation_id,
+        entity_id=report_id,
+        operation=DailyReportOfflineOperation.REPLACE_WORK_PROGRESS,
+        base_revision=5,
+        work_progress=DPRWorkProgressReplace(
+            expected_revision=5,
+            rows=[
+                DPRWorkProgressWrite(
+                    wbs_code_id=wbs_id,
+                    description="Level 2 slab reinforcement",
+                    quantity=12,
+                    unit_code="t",
+                    progress_percent=65,
+                )
+            ],
+        ),
+    )
+
+    assert payload.work_progress is not None
+    assert payload.work_progress.expected_revision == 5
+    assert _permission_for(payload.operation) == "field.daily_report.update"
 
 
 def test_daily_report_offline_submit_requires_action_and_revision() -> None:
