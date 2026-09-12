@@ -1,5 +1,6 @@
 from app.modules.audit.models import AuditEvent
 from app.modules.authorization.models import (
+    MembershipPartyAffiliation,
     MembershipRole,
     OrganizationAuthorizationState,
     Permission,
@@ -275,6 +276,7 @@ __all__ = [
     "MeetingProjectCounter",
     "MeetingReference",
     "MeetingSeries",
+    "MembershipPartyAffiliation",
     "MembershipPreference",
     "MembershipPreferenceState",
     "MembershipRole",
