@@ -62,6 +62,8 @@ class ResumableStorageProvider(StorageProvider, Protocol):
         content: bytes,
     ) -> int: ...
 
+    async def uploaded_size(self, storage_key: str) -> int: ...
+
     async def clone_object(
         self,
         *,
