@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from app.core.config import Settings
 from app.main import create_app
 from app.modules.field.dpr_photo_schemas import DPRPhotoUploadStart
 from app.modules.files.jobs import FILE_PROCESS_JOB_TYPE
@@ -49,20 +50,14 @@ def test_dpr_photo_start_requires_revision_and_limits_size() -> None:
 
 def test_file_processing_job_is_registered_for_runtime_worker() -> None:
     registry = JobHandlerRegistry()
-    register_runtime_handlers(build_runtime_plan_from_defaults(), registry)
+    register_runtime_handlers(build_runtime_plan(Settings()), registry)
     assert FILE_PROCESS_JOB_TYPE in registry.registered_job_types()
-
-
-def build_runtime_plan_from_defaults():
-    from app.core.config import Settings
-
-    return build_runtime_plan(Settings())
 
 
 def test_local_upload_provider_rejects_path_escape(tmp_path: Path) -> None:
     provider = LocalStorageProvider(tmp_path)
     with pytest.raises(LocalStorageProviderError):
-        provider._path("../../outside.jpg")  # noqa: SLF001
+        provider._path("../../outside.jpg")
 
 
 @pytest.mark.asyncio
