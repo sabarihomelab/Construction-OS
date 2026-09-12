@@ -7,11 +7,14 @@ import com.constructionos.app.core.database.DprPhotoState
 import com.constructionos.app.core.database.DprSyncState
 import com.constructionos.app.core.network.DprPhotoApi
 import com.constructionos.app.core.network.DprPhotoFinalizeRequest
+import com.constructionos.app.core.network.DprPhotoResumableSessionResponse
 import com.constructionos.app.core.network.DprPhotoUploadStartRequest
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
+import java.security.MessageDigest
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
 
 class DprPhotoSyncService(
@@ -23,13 +26,61 @@ class DprPhotoSyncService(
     suspend fun drain() {
         while (true) {
             val photo = photoDao.pendingPhotos(limit = 1).firstOrNull() ?: return
-            if (!syncPhoto(photo)) return
+            if (photo.state == DprPhotoState.CANCEL_REQUESTED) {
+                if (!cancelPhoto(photo)) return
+            } else if (!syncPhoto(photo)) {
+                return
+            }
+        }
+    }
+
+    private suspend fun cancelPhoto(photo: DprPhotoEntity): Boolean {
+        val uploadId = photo.uploadSessionId
+        if (uploadId == null) {
+            deleteLocalPhoto(photo)
+            return true
+        }
+        val report = dprDao.reportById(photo.reportId)
+        val serverId = report?.serverId
+        if (report == null || serverId == null) {
+            photoDao.markNeedsAttention(photo.clientPhotoId, "cancel_report_not_found", now())
+            return false
+        }
+        return try {
+            val response = api.cancelResumableUpload(report.projectId, serverId, uploadId)
+            if (!response.isSuccessful) throw HttpException(response)
+            deleteLocalPhoto(photo)
+            true
+        } catch (error: HttpException) {
+            when {
+                error.code() == 401 -> throw error
+                error.code() == 408 || error.code() == 429 || error.code() in 500..599 -> throw error
+                error.code() == 409 -> {
+                    photoDao.markNeedsAttention(
+                        photo.clientPhotoId,
+                        "cancel_raced_with_finalize",
+                        now(),
+                    )
+                    runCatching { dprRepository.refreshProject(report.projectId) }
+                    false
+                }
+                else -> {
+                    photoDao.markNeedsAttention(
+                        photo.clientPhotoId,
+                        "cancel_http_${error.code()}",
+                        now(),
+                    )
+                    false
+                }
+            }
+        } catch (error: IOException) {
+            throw error
         }
     }
 
     private suspend fun syncPhoto(initial: DprPhotoEntity): Boolean {
         var photo = photoDao.photo(initial.clientPhotoId) ?: return true
-        val report = dprDao.reportById(photo.reportId)
+        var report = dprDao.reportById(photo.reportId)
         if (report == null) {
             photoDao.markNeedsAttention(photo.clientPhotoId, "report_not_found", now())
             return false
@@ -48,15 +99,7 @@ class DprPhotoSyncService(
             report.syncState != DprSyncState.SYNCED ||
             dprDao.activeMutationCount(report.id) > 0
         ) {
-            photoDao.updateUploadState(
-                clientPhotoId = photo.clientPhotoId,
-                state = DprPhotoState.WAITING_FOR_NETWORK,
-                uploadSessionId = photo.uploadSessionId,
-                uploadTargetUrl = photo.uploadTargetUrl,
-                errorCode = null,
-                attemptCount = photo.attemptCount,
-                updatedAt = now(),
-            )
+            markWaiting(photo)
             return false
         }
 
@@ -74,76 +117,34 @@ class DprPhotoSyncService(
         }
 
         try {
-            if (photo.uploadSessionId == null || photo.uploadTargetUrl == null) {
-                val session = api.startUpload(
-                    projectId = report.projectId,
-                    reportId = requireNotNull(report.serverId),
-                    request = DprPhotoUploadStartRequest(
-                        expectedRevision = report.revision,
-                        clientPhotoId = photo.clientPhotoId,
-                        originalFilename = photo.filename,
-                        contentType = contentType,
-                        sizeBytes = photo.sizeBytes,
-                        sha256 = sha256,
-                    ),
-                )
-                require(session.clientPhotoId == photo.clientPhotoId) {
-                    "Company server returned the wrong photo identity."
-                }
-                require(session.target.method.equals("PUT", ignoreCase = true)) {
-                    "Unsupported photo upload method."
-                }
-                require(session.target.headers.isEmpty()) {
-                    "This app build does not support custom photo upload headers."
-                }
-                requireSafeRelativeUploadTarget(session.target.url)
-                photoDao.updateUploadState(
-                    clientPhotoId = photo.clientPhotoId,
-                    state = DprPhotoState.UPLOADING,
-                    uploadSessionId = session.uploadId,
-                    uploadTargetUrl = session.target.url,
-                    errorCode = null,
-                    attemptCount = photo.attemptCount + 1,
-                    updatedAt = now(),
-                )
-                photo = requireNotNull(photoDao.photo(photo.clientPhotoId))
-            } else {
-                requireSafeRelativeUploadTarget(photo.uploadTargetUrl)
-                photoDao.updateUploadState(
-                    clientPhotoId = photo.clientPhotoId,
-                    state = DprPhotoState.UPLOADING,
-                    uploadSessionId = photo.uploadSessionId,
-                    uploadTargetUrl = photo.uploadTargetUrl,
-                    errorCode = null,
-                    attemptCount = photo.attemptCount + 1,
-                    updatedAt = now(),
-                )
-            }
-
-            val uploadId = requireNotNull(photo.uploadSessionId)
-            val uploadTarget = requireNotNull(photo.uploadTargetUrl)
-            val uploadResponse = api.uploadContent(
-                relativeUrl = uploadTarget,
-                body = original.asRequestBody(contentType.toMediaType()),
+            val session = establishSession(photo, report.projectId, requireNotNull(report.serverId), report.revision)
+            photoDao.updateResumableState(
+                clientPhotoId = photo.clientPhotoId,
+                state = DprPhotoState.UPLOADING,
+                uploadSessionId = session.uploadId,
+                uploadedBytes = session.uploadedBytes,
+                chunkSizeBytes = session.chunkSizeBytes,
+                errorCode = null,
+                attemptCount = photo.attemptCount + 1,
+                updatedAt = now(),
             )
-            if (!uploadResponse.isSuccessful) {
-                if (uploadResponse.code() == 410) {
-                    runCatching {
-                        api.cancelUpload(report.projectId, requireNotNull(report.serverId), uploadId)
-                    }
-                    photoDao.resetUploadSession(photo.clientPhotoId, now())
-                    throw IOException("DPR photo upload session expired")
-                }
-                throw HttpException(uploadResponse)
+            photo = requireNotNull(photoDao.photo(photo.clientPhotoId))
+
+            if (session.status != "finalized") {
+                uploadMissingChunks(
+                    photo = photo,
+                    original = original,
+                    reportServerId = requireNotNull(report.serverId),
+                )
             }
 
-            val latestReport = requireNotNull(dprDao.reportById(photo.reportId))
-            val finalized = api.finalizeUpload(
-                projectId = latestReport.projectId,
-                reportId = requireNotNull(latestReport.serverId),
-                uploadId = uploadId,
+            report = requireNotNull(dprDao.reportById(photo.reportId))
+            val finalized = api.finalizeResumableUpload(
+                projectId = report.projectId,
+                reportId = requireNotNull(report.serverId),
+                uploadId = session.uploadId,
                 request = DprPhotoFinalizeRequest(
-                    expectedRevision = latestReport.revision,
+                    expectedRevision = report.revision,
                     clientPhotoId = photo.clientPhotoId,
                     caption = photo.caption,
                     capturedAt = photo.capturedAt,
@@ -152,25 +153,21 @@ class DprPhotoSyncService(
             original.delete()
             photoDao.markSynced(
                 clientPhotoId = photo.clientPhotoId,
-                uploadSessionId = uploadId,
+                uploadSessionId = session.uploadId,
                 serverAssetId = finalized.assetId,
                 serverVersion = finalized.version,
                 reportRevision = finalized.reportRevision,
                 updatedAt = now(),
             )
-            dprRepository.refreshProject(latestReport.projectId)
+            dprRepository.refreshProject(report.projectId)
             return true
         } catch (error: HttpException) {
             return handleHttpFailure(photo, error)
         } catch (error: IOException) {
-            resetForRetry(photo)
+            markWaiting(photoDao.photo(photo.clientPhotoId) ?: photo)
             throw error
         } catch (error: IllegalArgumentException) {
-            photoDao.markNeedsAttention(
-                photo.clientPhotoId,
-                "unsupported_upload_target",
-                now(),
-            )
+            photoDao.markNeedsAttention(photo.clientPhotoId, "invalid_upload_state", now())
             return false
         } catch (error: IllegalStateException) {
             photoDao.markNeedsAttention(photo.clientPhotoId, "invalid_upload_state", now())
@@ -178,11 +175,103 @@ class DprPhotoSyncService(
         }
     }
 
+    private suspend fun establishSession(
+        photo: DprPhotoEntity,
+        projectId: String,
+        reportServerId: String,
+        revision: Int,
+    ): DprPhotoResumableSessionResponse {
+        val existingId = photo.uploadSessionId
+        if (existingId != null) {
+            runCatching {
+                api.resumableStatus(projectId, reportServerId, existingId)
+            }.getOrNull()?.let { return it }
+        }
+        return api.startResumableUpload(
+            projectId = projectId,
+            reportId = reportServerId,
+            request = DprPhotoUploadStartRequest(
+                expectedRevision = revision,
+                clientPhotoId = photo.clientPhotoId,
+                originalFilename = photo.filename,
+                contentType = requireNotNull(photo.contentType),
+                sizeBytes = photo.sizeBytes,
+                sha256 = requireNotNull(photo.sha256),
+            ),
+        ).also { session ->
+            require(session.clientPhotoId == photo.clientPhotoId) {
+                "Company server returned the wrong photo identity."
+            }
+            require(session.sizeBytes == photo.sizeBytes) {
+                "Company server returned the wrong photo size."
+            }
+            require(session.chunkSizeBytes > 0) {
+                "Company server returned an invalid chunk size."
+            }
+        }
+    }
+
+    private suspend fun uploadMissingChunks(
+        photo: DprPhotoEntity,
+        original: File,
+        reportServerId: String,
+    ) {
+        var current = requireNotNull(photoDao.photo(photo.clientPhotoId))
+        var offset = current.uploadedBytes
+        while (offset < current.sizeBytes) {
+            val chunkSize = minOf(current.chunkSizeBytes.toLong(), current.sizeBytes - offset).toInt()
+            val bytes = readChunk(original, offset, chunkSize)
+            val digest = sha256(bytes)
+            try {
+                val response = api.uploadChunk(
+                    projectId = current.projectId,
+                    reportId = reportServerId,
+                    uploadId = requireNotNull(current.uploadSessionId),
+                    uploadOffset = offset,
+                    chunkSha256 = digest,
+                    body = bytes.toRequestBody("application/octet-stream".toMediaType()),
+                )
+                offset = response.uploadedBytes
+                require(offset in 0..current.sizeBytes) { "Server returned an invalid upload offset." }
+                photoDao.updateResumableState(
+                    clientPhotoId = current.clientPhotoId,
+                    state = DprPhotoState.UPLOADING,
+                    uploadSessionId = current.uploadSessionId,
+                    uploadedBytes = offset,
+                    chunkSizeBytes = current.chunkSizeBytes,
+                    errorCode = null,
+                    attemptCount = current.attemptCount,
+                    updatedAt = now(),
+                )
+                current = requireNotNull(photoDao.photo(current.clientPhotoId))
+            } catch (error: HttpException) {
+                if (error.code() != 409) throw error
+                val status = api.resumableStatus(
+                    current.projectId,
+                    reportServerId,
+                    requireNotNull(current.uploadSessionId),
+                )
+                offset = status.uploadedBytes
+                photoDao.updateResumableState(
+                    clientPhotoId = current.clientPhotoId,
+                    state = DprPhotoState.UPLOADING,
+                    uploadSessionId = status.uploadId,
+                    uploadedBytes = status.uploadedBytes,
+                    chunkSizeBytes = status.chunkSizeBytes,
+                    errorCode = null,
+                    attemptCount = current.attemptCount,
+                    updatedAt = now(),
+                )
+                current = requireNotNull(photoDao.photo(current.clientPhotoId))
+            }
+        }
+    }
+
     private suspend fun handleHttpFailure(photo: DprPhotoEntity, error: HttpException): Boolean {
         return when {
             error.code() == 401 -> throw error
-            error.code() in 500..599 -> {
-                resetForRetry(photo)
+            error.code() == 408 || error.code() == 429 || error.code() in 500..599 -> {
+                markWaiting(photoDao.photo(photo.clientPhotoId) ?: photo)
                 throw error
             }
             error.code() == 409 -> {
@@ -213,24 +302,36 @@ class DprPhotoSyncService(
         }
     }
 
-    private suspend fun resetForRetry(photo: DprPhotoEntity) {
-        val current = photoDao.photo(photo.clientPhotoId) ?: return
-        photoDao.updateUploadState(
-            clientPhotoId = current.clientPhotoId,
+    private suspend fun markWaiting(photo: DprPhotoEntity) {
+        photoDao.updateResumableState(
+            clientPhotoId = photo.clientPhotoId,
             state = DprPhotoState.WAITING_FOR_NETWORK,
-            uploadSessionId = current.uploadSessionId,
-            uploadTargetUrl = current.uploadTargetUrl,
+            uploadSessionId = photo.uploadSessionId,
+            uploadedBytes = photo.uploadedBytes,
+            chunkSizeBytes = photo.chunkSizeBytes,
             errorCode = null,
-            attemptCount = current.attemptCount,
+            attemptCount = photo.attemptCount,
             updatedAt = now(),
         )
     }
 
-    private fun requireSafeRelativeUploadTarget(url: String) {
-        require(url.startsWith("/api/v1/") && "://" !in url) {
-            "External photo upload targets require a non-authenticated upload client."
-        }
+    private suspend fun deleteLocalPhoto(photo: DprPhotoEntity) {
+        photo.originalPath?.let { File(it).parentFile?.deleteRecursively() }
+        photoDao.delete(photo.clientPhotoId)
     }
+
+    private fun readChunk(file: File, offset: Long, size: Int): ByteArray {
+        val buffer = ByteArray(size)
+        RandomAccessFile(file, "r").use { handle ->
+            handle.seek(offset)
+            handle.readFully(buffer)
+        }
+        return buffer
+    }
+
+    private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+        .digest(bytes)
+        .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     private fun now(): Long = System.currentTimeMillis()
 }
