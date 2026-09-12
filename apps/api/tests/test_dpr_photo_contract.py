@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import Settings
-from app.main import create_app
+from app.main import app
 from app.modules.field.dpr_photo_schemas import DPRPhotoUploadStart
 from app.modules.files.jobs import FILE_PROCESS_JOB_TYPE
 from app.modules.files.local_provider import LocalStorageProvider, LocalStorageProviderError
@@ -22,7 +22,7 @@ PHOTO_ROUTE_PREFIX = "/api/v1/projects/{project_id}/daily-reports/{report_id}/ph
 
 
 def test_dpr_photo_routes_are_mounted() -> None:
-    paths = {path for route in create_app().routes if (path := getattr(route, "path", None)) is not None}
+    paths = set(app.openapi()["paths"])
     assert PHOTO_ROUTE_PREFIX in paths
     assert f"{PHOTO_ROUTE_PREFIX}/uploads" in paths
     assert f"{PHOTO_ROUTE_PREFIX}/uploads/{{upload_id}}/content" in paths
