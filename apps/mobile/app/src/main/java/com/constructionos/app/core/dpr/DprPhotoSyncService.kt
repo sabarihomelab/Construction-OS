@@ -103,15 +103,15 @@ class DprPhotoSyncService(
             return false
         }
 
-        val originalPath = photo.originalPath
+        val uploadPath = photo.uploadPath ?: photo.originalPath
         val sha256 = photo.sha256
         val contentType = photo.contentType
-        if (originalPath.isNullOrBlank() || sha256.isNullOrBlank() || contentType.isNullOrBlank()) {
+        if (uploadPath.isNullOrBlank() || sha256.isNullOrBlank() || contentType.isNullOrBlank()) {
             photoDao.markNeedsAttention(photo.clientPhotoId, "local_file_metadata_missing", now())
             return false
         }
-        val original = File(originalPath)
-        if (!original.isFile || original.length() != photo.sizeBytes) {
+        val uploadFile = File(uploadPath)
+        if (!uploadFile.isFile || uploadFile.length() != photo.sizeBytes) {
             photoDao.markNeedsAttention(photo.clientPhotoId, "local_file_missing", now())
             return false
         }
@@ -133,7 +133,7 @@ class DprPhotoSyncService(
             if (session.status != "finalized") {
                 uploadMissingChunks(
                     photo = photo,
-                    original = original,
+                    uploadFile = uploadFile,
                     reportServerId = requireNotNull(report.serverId),
                 )
             }
@@ -150,7 +150,7 @@ class DprPhotoSyncService(
                     capturedAt = photo.capturedAt,
                 ),
             )
-            original.delete()
+            deleteAcknowledgedPayloads(photo)
             photoDao.markSynced(
                 clientPhotoId = photo.clientPhotoId,
                 uploadSessionId = session.uploadId,
@@ -231,14 +231,14 @@ class DprPhotoSyncService(
 
     private suspend fun uploadMissingChunks(
         photo: DprPhotoEntity,
-        original: File,
+        uploadFile: File,
         reportServerId: String,
     ) {
         var current = requireNotNull(photoDao.photo(photo.clientPhotoId))
         var offset = current.uploadedBytes
         while (offset < current.sizeBytes) {
             val chunkSize = minOf(current.chunkSizeBytes.toLong(), current.sizeBytes - offset).toInt()
-            val bytes = readChunk(original, offset, chunkSize)
+            val bytes = readChunk(uploadFile, offset, chunkSize)
             val digest = sha256(bytes)
             try {
                 val response = api.uploadChunk(
@@ -337,9 +337,20 @@ class DprPhotoSyncService(
     }
 
     private suspend fun deleteLocalPhoto(photo: DprPhotoEntity) {
-        photo.originalPath?.let { File(it).parentFile?.deleteRecursively() }
+        localDirectory(photo)?.deleteRecursively()
         photoDao.delete(photo.clientPhotoId)
     }
+
+    private fun deleteAcknowledgedPayloads(photo: DprPhotoEntity) {
+        setOfNotNull(photo.uploadPath, photo.originalPath)
+            .map(::File)
+            .forEach { it.delete() }
+    }
+
+    private fun localDirectory(photo: DprPhotoEntity): File? =
+        photo.originalPath?.let(::File)?.parentFile
+            ?: photo.uploadPath?.let(::File)?.parentFile
+            ?: photo.thumbnailPath?.let(::File)?.parentFile
 
     private fun readChunk(file: File, offset: Long, size: Int): ByteArray {
         val buffer = ByteArray(size)
