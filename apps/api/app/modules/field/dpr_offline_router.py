@@ -6,6 +6,10 @@ from sqlalchemy import select
 
 from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
+from app.modules.field.dpr_custom_field_service import (
+    list_dpr_custom_field_values,
+    replace_dpr_custom_fields,
+)
 from app.modules.field.dpr_jobs import enqueue_dpr_approval_report
 from app.modules.field.dpr_offline_schemas import (
     DailyReportOfflineMutationRequest,
@@ -57,9 +61,16 @@ def _permission_for(operation: DailyReportOfflineOperation) -> str:
         DailyReportOfflineOperation.UPDATE_HEADER,
         DailyReportOfflineOperation.REPLACE_WORK_PROGRESS,
         DailyReportOfflineOperation.REPLACE_DELAYS,
+        DailyReportOfflineOperation.REPLACE_CUSTOM_FIELDS,
     }:
         return "field.daily_report.update"
     return "field.daily_report.submit"
+
+
+def _permission_keys(context, project_id: UUID) -> set[str]:
+    result = set(context.permissions)
+    result.update(context.project_permissions.get(str(project_id), []))
+    return result
 
 
 def _sync_operation(operation: DailyReportOfflineOperation) -> SyncMutationOperation:
@@ -69,6 +80,7 @@ def _sync_operation(operation: DailyReportOfflineOperation) -> SyncMutationOpera
         DailyReportOfflineOperation.UPDATE_HEADER,
         DailyReportOfflineOperation.REPLACE_WORK_PROGRESS,
         DailyReportOfflineOperation.REPLACE_DELAYS,
+        DailyReportOfflineOperation.REPLACE_CUSTOM_FIELDS,
     }:
         return SyncMutationOperation.UPDATE
     return SyncMutationOperation.ACTION
@@ -155,6 +167,7 @@ async def _operation_result(
     report: DailyReport,
     organization_id: UUID,
     project_id: UUID,
+    permission_keys: set[str],
 ) -> dict[str, object]:
     result = _report_result(report)
     if operation == DailyReportOfflineOperation.REPLACE_WORK_PROGRESS:
@@ -179,6 +192,15 @@ async def _operation_result(
         result["delays"] = [
             DelayEntryRead.model_validate(row).model_dump(mode="json") for row in rows.all()
         ]
+    elif operation == DailyReportOfflineOperation.REPLACE_CUSTOM_FIELDS:
+        values = await list_dpr_custom_field_values(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            report_id=report.id,
+            permission_keys=permission_keys,
+        )
+        result["custom_fields"] = values.model_dump(mode="json")
     return result
 
 
@@ -191,6 +213,7 @@ async def _apply_operation(
     membership_id: UUID,
     user_id: UUID,
     session_id: UUID,
+    permission_keys: set[str],
 ) -> DailyReport:
     if payload.operation == DailyReportOfflineOperation.CREATE_REPORT:
         create = payload.create
@@ -258,6 +281,23 @@ async def _apply_operation(
             reason=delays.reason,
         )
 
+    if payload.operation == DailyReportOfflineOperation.REPLACE_CUSTOM_FIELDS:
+        custom_fields = payload.custom_fields
+        if custom_fields is None:
+            raise DPRValidationError("DPR custom field payload is required")
+        return await replace_dpr_custom_fields(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            report_id=payload.entity_id,
+            expected_revision=custom_fields.expected_revision,
+            values=custom_fields.values,
+            permission_keys=permission_keys,
+            actor_user_id=user_id,
+            session_id=session_id,
+            reason=custom_fields.reason,
+        )
+
     action = payload.action
     if action is None:
         raise DailyReportValidationError("Daily Report submit payload is required")
@@ -295,6 +335,7 @@ async def apply_daily_report_offline_mutation(
 ) -> JSONResponse:
     context = await build_access_context(db, session.membership_id)
     _require_permission(context, project_id, _permission_for(payload.operation))
+    permissions = _permission_keys(context, project_id)
 
     try:
         receipt, replayed = await begin_mutation(
@@ -330,6 +371,7 @@ async def apply_daily_report_offline_mutation(
                     membership_id=context.membership_id,
                     user_id=session.user_id,
                     session_id=session.id,
+                    permission_keys=permissions,
                 )
         except (DailyReportConflictError, DPRConflictError) as exc:
             current = await _current_report(
@@ -380,6 +422,7 @@ async def apply_daily_report_offline_mutation(
                     report=report,
                     organization_id=context.organization_id,
                     project_id=project_id,
+                    permission_keys=permissions,
                 ),
             )
         await db.commit()
