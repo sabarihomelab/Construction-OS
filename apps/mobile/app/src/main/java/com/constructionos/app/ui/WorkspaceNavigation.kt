@@ -5,16 +5,35 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccountTree
+import androidx.compose.material.icons.rounded.AdminPanelSettings
+import androidx.compose.material.icons.rounded.Assignment
+import androidx.compose.material.icons.rounded.Business
+import androidx.compose.material.icons.rounded.Calculate
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.Engineering
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.People
+import androidx.compose.material.icons.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -23,10 +42,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -50,6 +71,13 @@ import com.constructionos.app.core.parties.PartyRepository
 import com.constructionos.app.core.wbs.WbsRepository
 import com.constructionos.app.core.workforce.WorkforceRepository
 import com.constructionos.app.core.workspace.WorkspaceCoordinator
+import com.constructionos.app.ui.design.CosActionCard
+import com.constructionos.app.ui.design.CosMetricCard
+import com.constructionos.app.ui.design.CosProjectHeader
+import com.constructionos.app.ui.design.CosSectionHeader
+import com.constructionos.app.ui.design.CosStatusPill
+import com.constructionos.app.ui.design.CosStatusTone
+import kotlinx.coroutines.launch
 
 private const val PROJECT_SELECTOR_ROUTE = "project-selector"
 private const val PROJECT_HOME_ROUTE = "project-home/{projectId}"
@@ -87,9 +115,7 @@ fun WorkspaceNavigation(
     modifier: Modifier = Modifier,
 ) {
     val navController = rememberNavController()
-    val projectFlow = remember(context.organizationId) {
-        workspace.projects(context.organizationId)
-    }
+    val projectFlow = remember(context.organizationId) { workspace.projects(context.organizationId) }
     val projects by projectFlow.collectAsState(initial = emptyList())
     var selectedProjectId by remember(context.organizationId) {
         mutableStateOf(workspace.selectedProjectId(context.organizationId))
@@ -134,9 +160,7 @@ fun WorkspaceNavigation(
                 onSelectProject = { project ->
                     workspace.selectProject(context.organizationId, project.id)
                     selectedProjectId = project.id
-                    navController.navigate(projectHomeRoute(project.id)) {
-                        launchSingleTop = true
-                    }
+                    navController.navigate(projectHomeRoute(project.id)) { launchSingleTop = true }
                 },
                 onLogout = onLogout,
             )
@@ -399,13 +423,25 @@ private fun SessionContextResponse.hasMobileFeature(featureKey: String): Boolean
 @Composable
 private fun WorkspaceStartupScreen(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.fillMaxSize().padding(24.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        CircularProgressIndicator()
-        Text("Syncing latest site data…", modifier = Modifier.padding(top = 16.dp), style = MaterialTheme.typography.bodyLarge)
-        Text("If the site is offline, saved device data opens automatically.", modifier = Modifier.padding(top = 6.dp), style = MaterialTheme.typography.bodySmall)
+        CircularProgressIndicator(strokeWidth = 3.dp)
+        Text(
+            "Preparing your site",
+            modifier = Modifier.padding(top = 18.dp),
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Text(
+            "Latest field data is syncing. Saved device data remains available offline.",
+            modifier = Modifier.padding(top = 6.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -416,31 +452,74 @@ private fun ProjectSelectorScreen(
     onSelectProject: (ProjectEntity) -> Unit,
     onLogout: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Text("Construction OS", style = MaterialTheme.typography.headlineMedium)
-        Text(text = "Choose project", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 6.dp))
-        Text(text = "Only projects authorized by the server are shown.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 3.dp, bottom = 12.dp))
-        if (projects.isEmpty()) {
-            Text(text = "No saved projects yet. Connect once to load your authorized projects.", modifier = Modifier.padding(top = 16.dp))
-        } else {
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(projects, key = { it.id }) { project ->
-                    TextButton(onClick = { onSelectProject(project) }, modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalAlignment = Alignment.Start) {
-                            Text(project.name, style = MaterialTheme.typography.titleMedium)
-                            Text("${project.number} • ${project.status}", style = MaterialTheme.typography.bodySmall)
-                            if (project.id == selectedProjectId) {
-                                Text("Last selected", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 3.dp))
-                            }
-                        }
+    Surface(color = MaterialTheme.colorScheme.background) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(horizontal = 18.dp),
+        ) {
+            Text(
+                "Construction OS",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(top = 18.dp),
+            )
+            Text(
+                "Choose your project",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(top = 22.dp),
+            )
+            Text(
+                "Only server-authorized projects appear here. Swipe and tap into the site you are working on.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
+            )
+            if (projects.isEmpty()) {
+                CosActionCard(
+                    title = "No projects cached yet",
+                    subtitle = "Connect once to load your authorized project workspace.",
+                    icon = Icons.Rounded.Sync,
+                    onClick = null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(projects, key = { it.id }) { project ->
+                        CosActionCard(
+                            title = project.name,
+                            subtitle = buildString {
+                                append(project.number)
+                                append(" • ")
+                                append(project.status)
+                                project.locality?.takeIf { it.isNotBlank() }?.let {
+                                    append(" • ")
+                                    append(it)
+                                }
+                            },
+                            icon = Icons.Rounded.Business,
+                            onClick = { onSelectProject(project) },
+                            badge = if (project.id == selectedProjectId) "Recent" else null,
+                            emphasized = project.id == selectedProjectId,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
-                    HorizontalDivider()
                 }
             }
-        }
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Offline project cache active", style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = onLogout) { Text("Sign out") }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                CosStatusPill("Offline cache ready", CosStatusTone.SUCCESS)
+                TextButton(onClick = onLogout) { Text("Sign out") }
+            }
         }
     }
 }
@@ -462,7 +541,6 @@ private fun ProjectWorkspaceScreen(
     onOpenAccessManagement: () -> Unit,
     onLogout: () -> Unit,
 ) {
-    var selectedTab by rememberSaveable(project.id) { mutableStateOf(ProjectTab.HOME.name) }
     val actions = remember(context, project.id) { context.projectHomeActions(project.id) }
     val pendingFlow = remember(project.id) { attendanceRepository.observePendingMutationCount(project.id) }
     val attentionFlow = remember(project.id) { attendanceRepository.observeAttentionCount(project.id) }
@@ -481,45 +559,104 @@ private fun ProjectWorkspaceScreen(
             ("workforce.worker.view" in projectPermissions && "workforce.assignment.view" in projectPermissions)
     )
     val canViewProjectAccess = "projects.membership.view" in projectPermissions
+    val tabs = ProjectTab.entries
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { tabs.size })
+    val scope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp)) {
-            Text(project.name, style = MaterialTheme.typography.titleLarge)
-            Text("${project.number} • ${project.status}", style = MaterialTheme.typography.bodySmall)
-        }
-        HorizontalDivider()
-        when (ProjectTab.valueOf(selectedTab)) {
-            ProjectTab.HOME -> ProjectHomeContent(actions, pending, attention, onOpenAttendance, onOpenDailyReport, Modifier.weight(1f))
-            ProjectTab.FIELD -> ProjectFieldContent(actions, onOpenAttendance, onOpenDailyReport, Modifier.weight(1f))
-            ProjectTab.MORE -> ProjectMoreContent(
-                project = project,
-                canViewPartyDirectory = canViewPartyDirectory,
-                canViewWbs = canViewWbs,
-                canViewBoq = canViewBoq,
-                canViewEstimating = canViewEstimating,
-                canViewProjectAccess = canViewProjectAccess,
-                canViewAccessManagement = canViewAccessManagement,
-                onOpenPartyDirectory = onOpenPartyDirectory,
-                onOpenWbs = onOpenWbs,
-                onOpenBoq = onOpenBoq,
-                onOpenEstimating = onOpenEstimating,
-                onOpenProjectAccess = onOpenProjectAccess,
-                onOpenAccessManagement = onOpenAccessManagement,
-                onChooseProject = onChooseProject,
-                onLogout = onLogout,
-                modifier = Modifier.weight(1f),
+    Surface(color = MaterialTheme.colorScheme.background) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            CosProjectHeader(
+                title = project.name,
+                subtitle = "${project.number} • ${project.status}",
+                onProjectClick = onChooseProject,
             )
-        }
-        NavigationBar {
-            NavigationBarItem(selected = selectedTab == ProjectTab.HOME.name, onClick = { selectedTab = ProjectTab.HOME.name }, icon = {}, label = { Text("Home") })
-            NavigationBarItem(selected = selectedTab == ProjectTab.FIELD.name, onClick = { selectedTab = ProjectTab.FIELD.name }, icon = {}, label = { Text("Field") })
-            if (canViewWorkforce) {
-                NavigationBarItem(selected = false, onClick = onOpenWorkforce, icon = {}, label = { Text("Workforce") })
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f),
+                beyondViewportPageCount = 1,
+            ) { page ->
+                when (tabs[page]) {
+                    ProjectTab.HOME -> ProjectHomeContent(
+                        actions = actions,
+                        pending = pending,
+                        attention = attention,
+                        onOpenAttendance = onOpenAttendance,
+                        onOpenDailyReport = onOpenDailyReport,
+                    )
+                    ProjectTab.FIELD -> ProjectFieldContent(
+                        actions = actions,
+                        onOpenAttendance = onOpenAttendance,
+                        onOpenDailyReport = onOpenDailyReport,
+                    )
+                    ProjectTab.MORE -> ProjectMoreContent(
+                        project = project,
+                        canViewPartyDirectory = canViewPartyDirectory,
+                        canViewWbs = canViewWbs,
+                        canViewBoq = canViewBoq,
+                        canViewEstimating = canViewEstimating,
+                        canViewProjectAccess = canViewProjectAccess,
+                        canViewAccessManagement = canViewAccessManagement,
+                        onOpenPartyDirectory = onOpenPartyDirectory,
+                        onOpenWbs = onOpenWbs,
+                        onOpenBoq = onOpenBoq,
+                        onOpenEstimating = onOpenEstimating,
+                        onOpenProjectAccess = onOpenProjectAccess,
+                        onOpenAccessManagement = onOpenAccessManagement,
+                        onChooseProject = onChooseProject,
+                        onLogout = onLogout,
+                    )
+                }
             }
-            NavigationBarItem(selected = false, onClick = onChooseProject, icon = {}, label = { Text("Projects") })
-            NavigationBarItem(selected = selectedTab == ProjectTab.MORE.name, onClick = { selectedTab = ProjectTab.MORE.name }, icon = {}, label = { Text("More") })
+            NavigationBar(
+                modifier = Modifier.navigationBarsPadding(),
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 0.dp,
+            ) {
+                ProjectBottomItem(
+                    selected = pagerState.currentPage == ProjectTab.HOME.ordinal,
+                    label = "Home",
+                    icon = Icons.Rounded.Home,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(ProjectTab.HOME.ordinal) } },
+                )
+                ProjectBottomItem(
+                    selected = pagerState.currentPage == ProjectTab.FIELD.ordinal,
+                    label = "Field",
+                    icon = Icons.Rounded.Engineering,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(ProjectTab.FIELD.ordinal) } },
+                )
+                if (canViewWorkforce) {
+                    ProjectBottomItem(
+                        selected = false,
+                        label = "Crew",
+                        icon = Icons.Rounded.Groups,
+                        onClick = onOpenWorkforce,
+                    )
+                }
+                ProjectBottomItem(
+                    selected = pagerState.currentPage == ProjectTab.MORE.ordinal,
+                    label = "More",
+                    icon = Icons.Rounded.MoreHoriz,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(ProjectTab.MORE.ordinal) } },
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun ProjectBottomItem(
+    selected: Boolean,
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+) {
+    NavigationBarItem(
+        selected = selected,
+        onClick = onClick,
+        icon = { Icon(icon, contentDescription = label) },
+        label = { Text(label) },
+        alwaysShowLabel = false,
+    )
 }
 
 @Composable
@@ -529,38 +666,82 @@ private fun ProjectHomeContent(
     attention: Int,
     onOpenAttendance: () -> Unit,
     onOpenDailyReport: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier = modifier) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         item {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                Text("Today", style = MaterialTheme.typography.titleLarge)
-                Text("Daily work and anything needing attention.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
+            CosSectionHeader(
+                title = "Today",
+                subtitle = "Your active field workflows and sync health.",
+            )
+        }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                CosMetricCard(
+                    value = pending.toString(),
+                    label = if (pending == 1) "change waiting" else "changes waiting",
+                    tone = if (pending > 0) CosStatusTone.WARNING else CosStatusTone.SUCCESS,
+                    modifier = Modifier.weight(1f),
+                )
+                CosMetricCard(
+                    value = attention.toString(),
+                    label = "needs attention",
+                    tone = if (attention > 0) CosStatusTone.ERROR else CosStatusTone.SUCCESS,
+                    modifier = Modifier.weight(1f),
+                )
             }
-            HorizontalDivider()
         }
         if (attention > 0) {
             item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Text("Needs attention", style = MaterialTheme.typography.titleMedium)
-                    Text("$attention attendance sync issue${if (attention == 1) "" else "s"} need review.", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 3.dp))
-                }
-                HorizontalDivider()
+                CosActionCard(
+                    title = "Resolve sync issue",
+                    subtitle = "$attention attendance change${if (attention == 1) "" else "s"} need review before the next governed action.",
+                    icon = Icons.Rounded.WarningAmber,
+                    onClick = onOpenAttendance,
+                    emphasized = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
-        } else if (pending > 0) {
+        } else if (pending == 0) {
             item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Text("Saved on device", style = MaterialTheme.typography.titleMedium)
-                    Text("$pending attendance change${if (pending == 1) "" else "s"} will sync when network is available.", modifier = Modifier.padding(top = 3.dp))
-                }
-                HorizontalDivider()
+                CosActionCard(
+                    title = "Site data synced",
+                    subtitle = "Your local field queue is clear and ready for work.",
+                    icon = Icons.Rounded.CloudDone,
+                    onClick = null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
+        item {
+            CosSectionHeader(
+                title = "Quick actions",
+                subtitle = "Tap a card or swipe to Field for the full set.",
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
         if (actions.isEmpty()) {
-            item { Text("No mobile workflows are available for your current project permissions.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp)) }
+            item {
+                CosActionCard(
+                    title = "No field actions available",
+                    subtitle = "Your current server permissions do not expose a mobile workflow in this project.",
+                    icon = Icons.Rounded.Assignment,
+                    onClick = null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         } else {
             items(actions, key = { it.key.name }) { action ->
-                ProjectActionRow(action = action, onClick = actionClick(action, onOpenAttendance, onOpenDailyReport))
+                ProjectActionCard(
+                    action = action,
+                    onClick = actionClick(action, onOpenAttendance, onOpenDailyReport),
+                )
             }
         }
     }
@@ -571,18 +752,23 @@ private fun ProjectFieldContent(
     actions: List<ProjectHomeAction>,
     onOpenAttendance: () -> Unit,
     onOpenDailyReport: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier = modifier) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         item {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                Text("Field", style = MaterialTheme.typography.titleLarge)
-                Text("Fast site workflows for this project.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
-            }
-            HorizontalDivider()
+            CosSectionHeader(
+                title = "Field",
+                subtitle = "Fast, one-handed site actions. Swipe left or right to change space.",
+            )
         }
         items(actions, key = { it.key.name }) { action ->
-            ProjectActionRow(action = action, onClick = actionClick(action, onOpenAttendance, onOpenDailyReport))
+            ProjectActionCard(
+                action = action,
+                onClick = actionClick(action, onOpenAttendance, onOpenDailyReport),
+            )
         }
     }
 }
@@ -597,25 +783,23 @@ private fun actionClick(
 }
 
 @Composable
-private fun ProjectActionRow(action: ProjectHomeAction, onClick: (() -> Unit)?) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(action.title, style = MaterialTheme.typography.titleMedium)
-            Text(
-                when (action.mode) {
-                    ProjectActionMode.WORK -> "Work"
-                    ProjectActionMode.REVIEW -> "Review"
-                    ProjectActionMode.VIEW -> "View"
-                },
-                style = MaterialTheme.typography.labelMedium,
-            )
-        }
-        Text(action.subtitle, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 3.dp))
-        if (onClick != null) {
-            TextButton(onClick = onClick, modifier = Modifier.padding(top = 2.dp)) { Text("Open") }
-        }
-    }
-    HorizontalDivider()
+private fun ProjectActionCard(action: ProjectHomeAction, onClick: (() -> Unit)?) {
+    CosActionCard(
+        title = action.title,
+        subtitle = action.subtitle,
+        icon = when (action.key) {
+            ProjectHomeActionKey.ATTENDANCE -> Icons.Rounded.Groups
+            ProjectHomeActionKey.DAILY_REPORT -> Icons.Rounded.Assignment
+        },
+        onClick = onClick,
+        badge = when (action.mode) {
+            ProjectActionMode.WORK -> "Work"
+            ProjectActionMode.REVIEW -> "Review"
+            ProjectActionMode.VIEW -> "View"
+        },
+        emphasized = action.mode == ProjectActionMode.WORK,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
@@ -635,88 +819,103 @@ private fun ProjectMoreContent(
     onOpenAccessManagement: () -> Unit,
     onChooseProject: () -> Unit,
     onLogout: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier = modifier) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         item {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                Text("More", style = MaterialTheme.typography.titleLarge)
-                Text("Project information and account actions.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
-            }
-            HorizontalDivider()
+            CosSectionHeader(
+                title = "More",
+                subtitle = "Project references, commercial lookups and account controls.",
+            )
         }
         item {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                Text("Project", style = MaterialTheme.typography.titleMedium)
-                Text(project.name, modifier = Modifier.padding(top = 3.dp))
-                Text(project.number, style = MaterialTheme.typography.bodySmall)
-                project.locality?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            }
-            HorizontalDivider()
+            CosActionCard(
+                title = project.name,
+                subtitle = listOfNotNull(project.number, project.locality).joinToString(" • "),
+                icon = Icons.Rounded.Business,
+                onClick = onChooseProject,
+                badge = "Change",
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
         if (canViewPartyDirectory) {
-            item {
-                MoreLink("Party directory", "Clients, vendors, suppliers and subcontractors with project relationships.", onOpenPartyDirectory)
-            }
+            item { MoreCard("Party directory", "Clients, vendors, suppliers and subcontractors.", Icons.Rounded.Business, onOpenPartyDirectory) }
         }
         if (canViewWbs) {
-            item {
-                MoreLink("WBS / Cost Codes", "Search the project hierarchy from the local field cache.", onOpenWbs)
-            }
+            item { MoreCard("WBS / Cost Codes", "Search the project hierarchy from the field cache.", Icons.Rounded.AccountTree, onOpenWbs) }
         }
         if (canViewBoq) {
-            item {
-                MoreLink("Approved BOQ", "Search approved field-safe BOQ items from the local cache.", onOpenBoq)
-            }
+            item { MoreCard("Approved BOQ", "Field-safe approved quantities without exposing commercial values.", Icons.Rounded.ReceiptLong, onOpenBoq) }
         }
         if (canViewEstimating) {
-            item {
-                MoreLink("Estimating & Budget", "Review governed estimate and budget status and approve when permitted.", onOpenEstimating)
-            }
+            item { MoreCard("Estimating & Budget", "Review governed estimate and budget state.", Icons.Rounded.Calculate, onOpenEstimating) }
         }
         if (canViewProjectAccess) {
-            item {
-                MoreLink("Project access", "Project members and project-scoped roles. Online company-server access only.", onOpenProjectAccess)
-            }
+            item { MoreCard("Project access", "Project members and project-scoped roles.", Icons.Rounded.People, onOpenProjectAccess) }
         }
         if (canViewAccessManagement) {
-            item {
-                MoreLink("People & access", "Company roles, permissions and memberships. Online company-server access only.", onOpenAccessManagement)
+            item { MoreCard("People & access", "Company roles, permissions and memberships.", Icons.Rounded.AdminPanelSettings, onOpenAccessManagement) }
+        }
+        item {
+            TextButton(
+                onClick = onLogout,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            ) {
+                Text("Sign out")
             }
-        }
-        item {
-            OutlinedButton(onClick = onChooseProject, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) { Text("Change project") }
-        }
-        item {
-            TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { Text("Sign out") }
         }
     }
 }
 
 @Composable
-private fun MoreLink(title: String, subtitle: String, onOpen: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(subtitle, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
-        TextButton(onClick = onOpen, modifier = Modifier.padding(top = 2.dp)) { Text("Open") }
-    }
-    HorizontalDivider()
+private fun MoreCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onOpen: () -> Unit,
+) {
+    CosActionCard(
+        title = title,
+        subtitle = subtitle,
+        icon = icon,
+        onClick = onOpen,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
 private fun MissingProjectScreen(onChooseProject: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Text("Project is no longer available", style = MaterialTheme.typography.titleLarge)
-        Text("Your cached access changed. Choose another project.", modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
+        Text(
+            "Your cached access changed. Choose another project.",
+            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Button(onClick = onChooseProject) { Text("Choose project") }
     }
 }
 
 @Composable
 private fun MissingPermissionScreen(message: String, onBack: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Text("Access unavailable", style = MaterialTheme.typography.titleLarge)
-        Text(message, modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
+        Text(
+            message,
+            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Button(onClick = onBack) { Text("Back") }
     }
 }
