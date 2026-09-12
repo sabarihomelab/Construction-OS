@@ -59,7 +59,7 @@ fun ProjectAccessManagementScreen(
                     next.access.firstOrNull { it.id == current.id }
                 }
             }
-            .onFailure { error = accessAdminError(it) }
+            .onFailure { error = projectAccessError(it) }
         loading = false
     }
 
@@ -79,7 +79,7 @@ fun ProjectAccessManagementScreen(
 
     val data = snapshot
     if (data == null) {
-        AccessAdminFailure(
+        ProjectAccessFailure(
             message = error ?: "Unable to load project access.",
             onRetry = { scope.launch { reload() } },
             onBack = onBack,
@@ -106,7 +106,6 @@ fun ProjectAccessManagementScreen(
                 scope.launch {
                     busy = true
                     error = null
-                    message = null
                     runCatching {
                         repository.replaceRoles(
                             projectId = project.id,
@@ -114,11 +113,11 @@ fun ProjectAccessManagementScreen(
                             roleIds = roleDraft,
                         )
                     }.onSuccess { updated ->
-                        selectedMember = updated
-                        roleDraft = updated.roleIds.toSet()
                         message = "Project roles updated for ${updated.displayName}."
+                        selectedMember = null
+                        roleDraft = emptySet()
                         reload()
-                    }.onFailure { error = accessAdminError(it) }
+                    }.onFailure { error = projectAccessError(it) }
                     busy = false
                 }
             },
@@ -130,9 +129,10 @@ fun ProjectAccessManagementScreen(
                         repository.updateStatus(project.id, currentMember.id, status)
                     }.onSuccess {
                         message = "${currentMember.displayName}'s project access is now $status."
+                        selectedMember = null
+                        roleDraft = emptySet()
                         reload()
-                        selectedMember = snapshot?.access?.firstOrNull { it.id == currentMember.id }
-                    }.onFailure { error = accessAdminError(it) }
+                    }.onFailure { error = projectAccessError(it) }
                     busy = false
                 }
             },
@@ -152,14 +152,14 @@ fun ProjectAccessManagementScreen(
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item {
-            AccessAdminHeader(
+            ProjectAccessHeader(
                 title = "Project access",
                 subtitle = "${project.number} · ${project.name}",
                 onBack = onBack,
             )
         }
-        if (error != null) item { AccessAdminMessage(error!!, true) }
-        if (message != null) item { AccessAdminMessage(message!!, false) }
+        if (error != null) item { ProjectAccessMessage(error!!, true) }
+        if (message != null) item { ProjectAccessMessage(message!!, false) }
         item {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Online authorization", style = MaterialTheme.typography.titleMedium)
@@ -181,7 +181,7 @@ fun ProjectAccessManagementScreen(
 
         if (canManage) {
             item {
-                AccessSectionTitle(
+                ProjectAccessSectionTitle(
                     title = "Add company member",
                     subtitle = if (availablePeople.isEmpty()) {
                         "No additional active company members are available"
@@ -220,7 +220,7 @@ fun ProjectAccessManagementScreen(
                                 }.onSuccess {
                                     message = "${membership.displayName} added to ${project.name}."
                                     reload()
-                                }.onFailure { error = accessAdminError(it) }
+                                }.onFailure { error = projectAccessError(it) }
                                 busy = false
                             }
                         },
@@ -234,7 +234,7 @@ fun ProjectAccessManagementScreen(
         }
 
         item {
-            AccessSectionTitle("Project team", "${data.access.size} members")
+            ProjectAccessSectionTitle("Project team", "${data.access.size} members")
         }
         if (data.access.isEmpty()) {
             item {
@@ -297,13 +297,13 @@ private fun ProjectMemberRoleEditor(
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item {
-            AccessAdminHeader(
+            ProjectAccessHeader(
                 title = member.displayName,
                 subtitle = "Project roles · ${member.status}",
                 onBack = onBack,
             )
         }
-        if (error != null) item { AccessAdminMessage(error, true) }
+        if (error != null) item { ProjectAccessMessage(error, true) }
         if (canManage) {
             item {
                 Row(
@@ -331,7 +331,7 @@ private fun ProjectMemberRoleEditor(
             }
         }
         item {
-            AccessSectionTitle(
+            ProjectAccessSectionTitle(
                 title = "Project roles",
                 subtitle = "Only project-scoped roles are assignable here",
             )
@@ -373,3 +373,60 @@ private fun ProjectMemberRoleEditor(
         }
     }
 }
+
+@Composable
+private fun ProjectAccessHeader(
+    title: String,
+    subtitle: String,
+    onBack: () -> Unit,
+) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        TextButton(onClick = onBack) { Text("Back") }
+        Text(title, style = MaterialTheme.typography.headlineSmall)
+        Text(subtitle, style = MaterialTheme.typography.bodyMedium)
+    }
+    HorizontalDivider()
+}
+
+@Composable
+private fun ProjectAccessSectionTitle(title: String, subtitle: String) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall)
+    }
+    HorizontalDivider()
+}
+
+@Composable
+private fun ProjectAccessMessage(message: String, isError: Boolean) {
+    Text(
+        text = message,
+        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(16.dp),
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    HorizontalDivider()
+}
+
+@Composable
+private fun ProjectAccessFailure(
+    message: String,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(message, color = MaterialTheme.colorScheme.error)
+        Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) { Text("Retry") }
+        TextButton(onClick = onBack) { Text("Back") }
+    }
+}
+
+private fun projectAccessError(error: Throwable): String =
+    error.message?.takeIf { it.isNotBlank() } ?: "The project access request failed."
