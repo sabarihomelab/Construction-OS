@@ -18,6 +18,10 @@ This document lists the real configuration needed to make Construction OS run. V
   - One of `development`, `test`, `staging`, `production`.
 - `WEB_ORIGIN`
   - Allowed browser origin for CORS.
+- `DEPLOYMENT_ID`
+  - Stable, non-secret identifier for this Construction OS deployment.
+  - Local development uses `local-development`.
+  - A customer production deployment must use its own stable value and must not be reused for another customer deployment.
 
 ### Security
 
@@ -47,8 +51,43 @@ The bootstrap command:
 - creates a protected company-administrator role and grants the migrated active permission catalog
 - initializes organization authorization state
 - records the bootstrap as a critical audit event
+- prints the created `organization_id`; keep this value for deployment binding
 
 The bootstrap command does **not** create a public first-run API and does not invent or store an identity-provider password. The administrator identity must later be bound to the configured authentication provider before production login is possible.
+
+## Bind a production deployment to its company
+
+Construction OS production uses a dedicated-company deployment boundary. After the company bootstrap succeeds:
+
+1. Set `DEPLOYMENT_ID` to a stable identifier for that customer deployment, for example `acme-prod-01`.
+2. Set `DEPLOYMENT_ORGANIZATION_ID` to the `organization_id` printed by `bootstrap-company.ps1`.
+3. Start the production API only after both values are configured.
+
+`DEPLOYMENT_ORGANIZATION_ID` is intentionally allowed to be empty while the operator-only bootstrap command creates the first company. The production API itself refuses to start until the binding is present.
+
+The binding is enforced in addition to normal organization, membership, role, project and permission checks. Session creation and session validation reject memberships outside the configured company.
+
+The unauthenticated mobile bootstrap endpoint is:
+
+```text
+GET /api/v1/deployment/bootstrap
+```
+
+It exposes only safe connection/display metadata such as deployment ID, company ID/name/slug, environment label and API path. It must never expose database URLs, passwords, signing secrets, storage credentials, KMS keys or other private deployment configuration.
+
+## Android company connection
+
+The Android APK is shared across customers, but each installation connects to a selected customer deployment before sign-in.
+
+- The first-run screen asks for the company Construction OS server address.
+- Production requires HTTPS.
+- The app validates the server through `/api/v1/deployment/bootstrap` before creating the normal API client.
+- Authentication then occurs only against that selected deployment.
+- The selected deployment ID namespaces the encrypted bearer session, Room database, project selection and WorkManager sync jobs.
+- Switching company does not make another company's cached/offline data visible or send its queued mutations to the newly selected server.
+- Database credentials are never stored in or sent to the Android client.
+
+A short company code, QR code or invitation-link resolver may be added later as a separate onboarding/control-plane service. It should resolve to the same verified deployment bootstrap contract rather than bypass it.
 
 ## Required before authentication is production-ready
 
