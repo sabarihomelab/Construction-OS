@@ -23,21 +23,22 @@ class AppContainer(
     connection: WorkspaceConnection,
 ) {
     private val applicationContext = context.applicationContext
-    private val sessionStore = SecureSessionStore(applicationContext, connection.deploymentId)
+    private val localNamespace = connection.localNamespace
+    private val sessionStore = SecureSessionStore(applicationContext, localNamespace)
     private val api = NetworkFactory.createApi(connection.apiBaseUrl, sessionStore)
     private val database = ConstructionOsDatabase.getInstance(
         applicationContext,
-        connection.deploymentId,
+        localNamespace,
     )
     private val projectRepository = ProjectRepository(api, database.projectDao())
     private val projectSelectionStore = ProjectSelectionStore(
         applicationContext,
-        connection.deploymentId,
+        localNamespace,
     )
     private val deviceRegistrar = DeviceRegistrar(applicationContext, api)
     private val syncScheduler = WorkspaceSyncScheduler(
         applicationContext,
-        connection.deploymentId,
+        localNamespace,
     )
 
     val attendanceRepository = AttendanceRepository(
