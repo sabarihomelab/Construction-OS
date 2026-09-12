@@ -22,7 +22,7 @@ PHOTO_ROUTE_PREFIX = "/api/v1/projects/{project_id}/daily-reports/{report_id}/ph
 
 
 def test_dpr_photo_routes_are_mounted() -> None:
-    paths = {route.path for route in create_app().routes}
+    paths = {path for route in create_app().routes if (path := getattr(route, "path", None)) is not None}
     assert PHOTO_ROUTE_PREFIX in paths
     assert f"{PHOTO_ROUTE_PREFIX}/uploads" in paths
     assert f"{PHOTO_ROUTE_PREFIX}/uploads/{{upload_id}}/content" in paths
