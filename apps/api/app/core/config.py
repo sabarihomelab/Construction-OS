@@ -76,10 +76,6 @@ class Settings(BaseSettings):
             raise ValueError("Secure session cookies are required in production")
         if not self.deployment_id.strip():
             raise ValueError("DEPLOYMENT_ID cannot be empty")
-        if self.environment.lower() == "production" and self.deployment_organization_id is None:
-            raise ValueError(
-                "DEPLOYMENT_ORGANIZATION_ID is required in production so a deployment is bound to one company"
-            )
         if self.native_dev_auth_enabled:
             if self.environment.lower() == "production":
                 raise ValueError("Development native authentication cannot be enabled in production")
@@ -105,6 +101,13 @@ class Settings(BaseSettings):
             if not self.ai_base_url.strip():
                 raise ValueError("AI_BASE_URL is required when the assistant is enabled")
         return self
+
+
+def validate_runtime_deployment(settings: Settings) -> None:
+    if settings.environment.lower() == "production" and settings.deployment_organization_id is None:
+        raise ValueError(
+            "DEPLOYMENT_ORGANIZATION_ID is required before the production API can start"
+        )
 
 
 @lru_cache
