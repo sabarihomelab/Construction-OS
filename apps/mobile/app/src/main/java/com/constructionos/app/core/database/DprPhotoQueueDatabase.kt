@@ -4,11 +4,13 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import java.security.MessageDigest
 
 @Database(
     entities = [DprPhotoEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class DprPhotoQueueDatabase : RoomDatabase() {
@@ -16,6 +18,17 @@ abstract class DprPhotoQueueDatabase : RoomDatabase() {
 
     companion object {
         private val instances = mutableMapOf<String, DprPhotoQueueDatabase>()
+
+        private val migration1To2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE dpr_photos ADD COLUMN uploaded_bytes INTEGER NOT NULL DEFAULT 0",
+                )
+                db.execSQL(
+                    "ALTER TABLE dpr_photos ADD COLUMN chunk_size_bytes INTEGER NOT NULL DEFAULT 5242880",
+                )
+            }
+        }
 
         fun getInstance(
             context: Context,
@@ -26,6 +39,7 @@ abstract class DprPhotoQueueDatabase : RoomDatabase() {
                 DprPhotoQueueDatabase::class.java,
                 databaseName(connectionNamespace),
             )
+                .addMigrations(migration1To2)
                 .build()
                 .also { instances[connectionNamespace] = it }
         }
