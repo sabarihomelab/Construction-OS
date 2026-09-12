@@ -158,16 +158,15 @@ fun PartyDirectoryScreen(
             ) {
                 Text(if (search.isBlank()) "No parties available" else "No matching parties")
             }
-            return
-        }
-
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(visibleParties, key = PartyEntity::id) { party ->
-                PartyDirectoryRow(
-                    party = party,
-                    projectRoles = rolesByParty[party.id].orEmpty(),
-                )
-                HorizontalDivider()
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(visibleParties, key = PartyEntity::id) { party ->
+                    PartyDirectoryRow(
+                        party = party,
+                        projectRoles = rolesByParty[party.id].orEmpty(),
+                    )
+                    HorizontalDivider()
+                }
             }
         }
     }
