@@ -157,6 +157,7 @@ private fun ConnectedConstructionOsApp(
                     workspace = container.workspaceCoordinator,
                     attendanceRepository = container.attendanceRepository,
                     dprRepository = container.dprRepository,
+                    dprLifecycleRepository = container.dprLifecycleRepository,
                     partyRepository = container.partyRepository,
                     wbsRepository = container.wbsRepository,
                     boqFieldRepository = container.boqFieldRepository,
