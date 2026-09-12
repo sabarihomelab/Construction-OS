@@ -98,6 +98,11 @@ interface ConstructionOsApi {
         @Body request: DailyReportCreateRequest,
     ): Response<DailyReportResponse>
 
+    @GET("projects/{projectId}/daily-reports/work-progress/references")
+    suspend fun dprWorkProgressReferences(
+        @Path("projectId") projectId: String,
+    ): DprWorkProgressReferenceResponse
+
     @POST("projects/{projectId}/daily-reports/offline/mutations")
     suspend fun submitDailyReportMutation(
         @Path("projectId") projectId: String,
