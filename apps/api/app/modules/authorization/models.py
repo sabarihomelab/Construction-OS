@@ -8,11 +8,13 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    Uuid,
     func,
     text,
 )
@@ -112,6 +114,29 @@ class MembershipRole(Base):
     role_id: Mapped[UUID] = mapped_column(
         ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
     )
+
+
+class MembershipPartyAffiliation(Base):
+    __tablename__ = "membership_party_affiliations"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["membership_id", "organization_id"],
+            ["organization_memberships.id", "organization_memberships.organization_id"],
+            name="fk_membership_party_affiliation_membership_org",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["party_id", "organization_id"],
+            ["commercial_parties.id", "commercial_parties.organization_id"],
+            name="fk_membership_party_affiliation_party_org",
+            ondelete="RESTRICT",
+        ),
+        Index("ix_membership_party_affiliations_org_party", "organization_id", "party_id"),
+    )
+
+    membership_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    organization_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    party_id: Mapped[UUID] = mapped_column(Uuid, index=True)
 
 
 class OrganizationAuthorizationState(Base):
