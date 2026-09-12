@@ -1,6 +1,7 @@
 package com.constructionos.app.core.dpr
 
 import com.constructionos.app.core.database.DprDao
+import com.constructionos.app.core.database.DprDelayEntity
 import com.constructionos.app.core.database.DprMutationEntity
 import com.constructionos.app.core.database.DprMutationState
 import com.constructionos.app.core.database.DprWorkProgressEntity
@@ -10,6 +11,8 @@ import com.constructionos.app.core.network.DailyReportOfflineMutationRequest
 import com.constructionos.app.core.network.DailyReportOfflineMutationResponse
 import com.constructionos.app.core.network.DailyReportResponse
 import com.constructionos.app.core.network.DailyReportUpdateRequest
+import com.constructionos.app.core.network.DprDelayReplaceRequest
+import com.constructionos.app.core.network.DprDelayResponse
 import com.constructionos.app.core.network.DprWorkProgressReplaceRequest
 import com.constructionos.app.core.network.DprWorkProgressResponse
 import com.constructionos.app.core.offline.DeviceRegistrar
@@ -38,6 +41,7 @@ class DprMutationSyncService(
             DprRepository.OP_CREATE -> buildCreateRequest(mutation, deviceId)
             DprRepository.OP_UPDATE_HEADER -> buildUpdateRequest(mutation, deviceId)
             DprRepository.OP_REPLACE_WORK_PROGRESS -> buildWorkProgressRequest(mutation, deviceId)
+            DprRepository.OP_REPLACE_DELAYS -> buildDelaysRequest(mutation, deviceId)
             else -> null
         }
         if (request == null) {
@@ -118,10 +122,16 @@ class DprMutationSyncService(
         } else {
             null
         }
+        val delays = if (mutation.operation == DprRepository.OP_REPLACE_DELAYS) {
+            response.delaysResult().mapIndexed { index, row -> row.toEntity(mutation.reportId, remote.projectId, index) }
+        } else {
+            null
+        }
         dao.applyServerResult(
             mutation = mutation,
             serverReport = remote.toEntity(localId = mutation.reportId),
             serverWorkProgress = workProgress,
+            serverDelays = delays,
             updatedAt = System.currentTimeMillis(),
         )
         return true
@@ -172,6 +182,25 @@ class DprMutationSyncService(
         )
     }
 
+    private suspend fun buildDelaysRequest(mutation: DprMutationEntity, deviceId: String): DailyReportOfflineMutationRequest? {
+        val report = dao.reportById(mutation.reportId) ?: return null
+        val serverId = report.serverId ?: return null
+        if (report.revision < 1) return null
+        val pending = runCatching { gson.fromJson(mutation.payloadJson, DprPendingDelaysPayload::class.java) }.getOrNull() ?: return null
+        return DailyReportOfflineMutationRequest(
+            deviceId = deviceId,
+            clientMutationId = mutation.clientMutationId,
+            entityId = serverId,
+            operation = DprRepository.OP_REPLACE_DELAYS,
+            baseRevision = report.revision,
+            delays = DprDelayReplaceRequest(
+                expectedRevision = report.revision,
+                rows = pending.rows,
+                reason = pending.reason,
+            ),
+        )
+    }
+
     private suspend fun rejectTransport(mutation: DprMutationEntity, errorCode: String) {
         dao.markNeedsAttention(
             mutation = mutation,
@@ -195,6 +224,15 @@ class DprMutationSyncService(
         }
     }
 
+    private fun DailyReportOfflineMutationResponse.delaysResult(): List<DprDelayResponse> {
+        val raw = result["delays"] ?: return emptyList()
+        val array = gson.toJsonTree(raw)
+        if (!array.isJsonArray) return emptyList()
+        return array.asJsonArray.mapNotNull { element ->
+            runCatching { gson.fromJson(element, DprDelayResponse::class.java) }.getOrNull()
+        }
+    }
+
     private fun DprWorkProgressResponse.toEntity(localReportId: String, position: Int): DprWorkProgressEntity =
         DprWorkProgressEntity(
             id = id,
@@ -211,6 +249,22 @@ class DprMutationSyncService(
             remarks = remarks,
         )
 
+    private fun DprDelayResponse.toEntity(localReportId: String, projectId: String, position: Int): DprDelayEntity =
+        DprDelayEntity(
+            id = id,
+            reportId = localReportId,
+            projectId = projectId,
+            position = position,
+            category = category,
+            description = description,
+            startedAt = startedAt,
+            endedAt = endedAt,
+            lostHours = lostHours,
+            responsibleParty = responsibleParty,
+            scheduleImpact = scheduleImpact,
+            notes = notes,
+        )
+
     private fun Response<DailyReportOfflineMutationResponse>.typedBodyOrNull(): DailyReportOfflineMutationResponse? {
         if (isSuccessful) return body()
         val raw = errorBody()?.string()?.takeIf { it.isNotBlank() } ?: return null
@@ -222,6 +276,7 @@ class DprMutationSyncService(
             DprRepository.OP_CREATE,
             DprRepository.OP_UPDATE_HEADER,
             DprRepository.OP_REPLACE_WORK_PROGRESS,
+            DprRepository.OP_REPLACE_DELAYS,
         )
         private const val STATUS_APPLIED = "applied"
         private const val STATUS_CONFLICT = "conflict"
