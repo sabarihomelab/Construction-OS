@@ -1,5 +1,8 @@
 package com.constructionos.app.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,13 +28,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.constructionos.app.core.database.DprReportEntity
 import com.constructionos.app.core.database.DprSyncState
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.dpr.DprLifecycleRepository
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.network.DprGenerationStatusResponse
+import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
@@ -138,8 +144,10 @@ private fun DprReviewRow(
     onActionFinished: () -> Unit,
     onMessage: (String?) -> Unit,
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var actionBusy by remember(report.id) { mutableStateOf(false) }
+    var downloadBusy by remember(report.id) { mutableStateOf(false) }
     var confirmAction by remember(report.id) { mutableStateOf<String?>(null) }
     var reason by remember(report.id) { mutableStateOf("") }
     var generation by remember(report.id, report.revision) { mutableStateOf<DprGenerationStatusResponse?>(null) }
@@ -179,6 +187,26 @@ private fun DprReviewRow(
         }
     }
 
+    fun downloadIssued(current: DprGenerationStatusResponse) {
+        scope.launch {
+            downloadBusy = true
+            onMessage(null)
+            runCatching {
+                val file = lifecycleRepository.downloadIssuedReport(report.id, current)
+                openIssuedDpr(context, file, current.outputFormat)
+            }.onFailure { error ->
+                onMessage(
+                    if (error is ActivityNotFoundException) {
+                        "The issued report was downloaded, but no installed app can open this file type."
+                    } else {
+                        dprLifecycleErrorMessage(error)
+                    },
+                )
+            }
+            downloadBusy = false
+        }
+    }
+
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -213,7 +241,12 @@ private fun DprReviewRow(
         )
 
         if (report.status == DprLifecycleRepository.STATUS_APPROVED) {
-            DprGenerationSummary(generation, generationError)
+            DprGenerationSummary(
+                generation = generation,
+                failedToLoad = generationError,
+                downloadBusy = downloadBusy,
+                onDownload = ::downloadIssued,
+            )
         }
 
         if (report.syncState == DprSyncState.NEEDS_ATTENTION) {
@@ -341,6 +374,8 @@ private fun DprReviewRow(
 private fun DprGenerationSummary(
     generation: DprGenerationStatusResponse?,
     failedToLoad: Boolean,
+    downloadBusy: Boolean,
+    onDownload: (DprGenerationStatusResponse) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
         Text("Official report", style = MaterialTheme.typography.labelLarge)
@@ -365,6 +400,13 @@ private fun DprGenerationSummary(
                 generation.filename?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 2.dp))
                 }
+                Button(
+                    onClick = { onDownload(generation) },
+                    enabled = !downloadBusy && generation.renderId != null,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                ) {
+                    Text(if (downloadBusy) "Downloading…" else "Download & open")
+                }
             }
             generation.generationState == "failed" -> Text(
                 "Generation failed${generation.failureCode?.let { " • $it" }.orEmpty()}",
@@ -379,6 +421,25 @@ private fun DprGenerationSummary(
             )
         }
     }
+}
+
+private fun openIssuedDpr(context: Context, file: File, outputFormat: String) {
+    val uri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        file,
+    )
+    val mimeType = when (outputFormat.lowercase()) {
+        "pdf" -> "application/pdf"
+        "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        else -> "application/octet-stream"
+    }
+    val viewIntent = Intent(Intent.ACTION_VIEW)
+        .setDataAndType(uri, mimeType)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    val chooser = Intent.createChooser(viewIntent, "Open issued DPR")
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    context.startActivity(chooser)
 }
 
 private fun dprReviewSyncLabel(state: String): String = when (state) {
