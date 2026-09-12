@@ -26,6 +26,7 @@ class WorkspaceSyncWorker(
         } catch (error: HttpException) {
             when {
                 error.code() == 401 -> Result.success()
+                error.code() == 408 || error.code() == 429 -> Result.retry()
                 error.code() in 500..599 -> Result.retry()
                 else -> Result.failure()
             }
