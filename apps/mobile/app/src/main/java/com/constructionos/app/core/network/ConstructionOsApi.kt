@@ -4,7 +4,9 @@ import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -17,6 +19,36 @@ interface ConstructionOsApi {
     @POST("session/logout") suspend fun logout(): Response<Unit>
     @GET("projects") suspend fun projects(): List<ProjectResponse>
     @POST("offline/devices") suspend fun registerDevice(@Body request: DeviceRegistrationRequest): ClientDeviceResponse
+
+    @GET("security/permissions") suspend fun securityPermissions(): List<SecurityPermissionResponse>
+    @GET("security/role-templates") suspend fun roleTemplates(): List<SecurityRoleTemplateResponse>
+    @GET("security/roles") suspend fun securityRoles(): List<SecurityRoleResponse>
+    @POST("security/roles") suspend fun createSecurityRole(@Body request: SecurityRoleCreateRequest): SecurityRoleResponse
+    @POST("security/roles/install-defaults") suspend fun installDefaultSecurityRoles(): List<SecurityRoleResponse>
+    @POST("security/roles/from-template/{templateKey}")
+    suspend fun createRoleFromTemplate(
+        @Path("templateKey") templateKey: String,
+        @Body request: SecurityRoleFromTemplateRequest,
+    ): SecurityRoleResponse
+    @GET("security/roles/{roleId}/permissions")
+    suspend fun securityRolePermissions(@Path("roleId") roleId: String): SecurityRolePermissionSetResponse
+    @PUT("security/roles/{roleId}/permissions")
+    suspend fun replaceSecurityRolePermissions(
+        @Path("roleId") roleId: String,
+        @Body request: SecurityRolePermissionSetRequest,
+    ): SecurityRoleResponse
+    @GET("security/memberships") suspend fun securityMemberships(): List<SecurityMembershipResponse>
+    @POST("security/memberships") suspend fun createSecurityMembership(@Body request: SecurityMembershipCreateRequest): SecurityMembershipResponse
+    @PUT("security/memberships/{membershipId}/roles")
+    suspend fun replaceSecurityMembershipRoles(
+        @Path("membershipId") membershipId: String,
+        @Body request: SecurityMembershipRoleSetRequest,
+    ): SecurityMembershipResponse
+    @PATCH("security/memberships/{membershipId}/status")
+    suspend fun updateSecurityMembershipStatus(
+        @Path("membershipId") membershipId: String,
+        @Body request: SecurityMembershipStatusRequest,
+    ): SecurityMembershipResponse
 
     @GET("configuration/projects/{projectId}/modules/{moduleKey}")
     suspend fun effectiveProjectConfiguration(
@@ -130,6 +162,91 @@ data class ProjectResponse(
     @SerializedName("postal_code") val postalCode: String? = null,
     @SerializedName("country_code") val countryCode: String? = null,
 )
+
+data class SecurityPermissionResponse(
+    val key: String,
+    val module: String,
+    val resource: String,
+    val action: String,
+    val description: String,
+    val risk: String,
+)
+
+data class SecurityRoleTemplateResponse(
+    val key: String,
+    val name: String,
+    val description: String,
+    @SerializedName("scope_hint") val scopeHint: String,
+    @SerializedName("membership_kind_hint") val membershipKindHint: String,
+    @SerializedName("permission_keys") val permissionKeys: List<String> = emptyList(),
+)
+
+data class SecurityRoleResponse(
+    val id: String,
+    @SerializedName("organization_id") val organizationId: String?,
+    val key: String,
+    val name: String,
+    val description: String? = null,
+    @SerializedName("is_template") val isTemplate: Boolean,
+    @SerializedName("is_protected") val isProtected: Boolean,
+    @SerializedName("is_active") val isActive: Boolean,
+    val version: Int,
+)
+
+data class SecurityRoleCreateRequest(
+    val key: String,
+    val name: String,
+    val description: String? = null,
+    @SerializedName("permission_keys") val permissionKeys: List<String> = emptyList(),
+)
+
+data class SecurityRoleFromTemplateRequest(
+    val key: String? = null,
+    val name: String? = null,
+)
+
+data class SecurityRolePermissionSetResponse(
+    @SerializedName("expected_version") val expectedVersion: Int?,
+    @SerializedName("permission_keys") val permissionKeys: List<String> = emptyList(),
+)
+
+data class SecurityRolePermissionSetRequest(
+    @SerializedName("expected_version") val expectedVersion: Int?,
+    @SerializedName("permission_keys") val permissionKeys: List<String>,
+)
+
+data class SecurityAssignedRoleResponse(
+    val id: String,
+    val key: String,
+    val name: String,
+    @SerializedName("is_template") val isTemplate: Boolean,
+    @SerializedName("is_protected") val isProtected: Boolean,
+)
+
+data class SecurityMembershipResponse(
+    val id: String,
+    @SerializedName("user_id") val userId: String,
+    @SerializedName("primary_email") val primaryEmail: String,
+    @SerializedName("display_name") val displayName: String,
+    val kind: String,
+    val status: String,
+    @SerializedName("role_ids") val roleIds: List<String> = emptyList(),
+    val roles: List<SecurityAssignedRoleResponse> = emptyList(),
+)
+
+data class SecurityMembershipCreateRequest(
+    @SerializedName("primary_email") val primaryEmail: String,
+    @SerializedName("display_name") val displayName: String,
+    val kind: String = "internal",
+    val status: String = "invited",
+    @SerializedName("role_ids") val roleIds: List<String> = emptyList(),
+)
+
+data class SecurityMembershipRoleSetRequest(
+    @SerializedName("role_ids") val roleIds: List<String>,
+)
+
+data class SecurityMembershipStatusRequest(val status: String)
 
 data class DeviceRegistrationRequest(@SerializedName("installation_id") val installationId: String, val platform: String = "android", @SerializedName("device_label") val deviceLabel: String? = null, @SerializedName("app_version") val appVersion: String? = null)
 data class ClientDeviceResponse(val id: String, @SerializedName("organization_id") val organizationId: String, @SerializedName("user_id") val userId: String, @SerializedName("installation_id") val installationId: String, val platform: String, @SerializedName("device_label") val deviceLabel: String? = null, @SerializedName("app_version") val appVersion: String? = null, @SerializedName("last_seen_at") val lastSeenAt: String? = null, @SerializedName("revoked_at") val revokedAt: String? = null)
