@@ -12,13 +12,14 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     Uuid,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base, UUIDTimestampMixin
+from app.db.base import Base
 
 
-class ResumableUploadState(UUIDTimestampMixin, Base):
+class ResumableUploadState(Base):
     __tablename__ = "resumable_upload_states"
     __table_args__ = (
         ForeignKeyConstraint(
@@ -78,3 +79,9 @@ class ResumableUploadState(UUIDTimestampMixin, Base):
     finalized_asset_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
     finalized_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
