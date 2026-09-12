@@ -159,6 +159,7 @@ private fun ConnectedConstructionOsApp(
                     dprRepository = container.dprRepository,
                     partyRepository = container.partyRepository,
                     accessAdminRepository = container.accessAdminRepository,
+                    projectAccessAdminRepository = container.projectAccessAdminRepository,
                     modifier = modifier,
                     onLogout = {
                         scope.launch {
