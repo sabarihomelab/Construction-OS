@@ -3,6 +3,7 @@ package com.constructionos.app.core.offline
 import com.constructionos.app.core.attendance.AttendanceMutationSyncService
 import com.constructionos.app.core.attendance.AttendanceRepository
 import com.constructionos.app.core.database.ProjectEntity
+import com.constructionos.app.core.dpr.DprCustomFieldRepository
 import com.constructionos.app.core.dpr.DprMutationSyncService
 import com.constructionos.app.core.dpr.DprPhotoSyncService
 import com.constructionos.app.core.dpr.DprRepository
@@ -19,6 +20,7 @@ class WorkspaceSyncService(
     private val attendanceRepository: AttendanceRepository,
     private val attendanceMutationSyncService: AttendanceMutationSyncService,
     private val dprRepository: DprRepository,
+    private val dprCustomFieldRepository: DprCustomFieldRepository,
     private val dprMutationSyncService: DprMutationSyncService,
     private val dprPhotoSyncService: DprPhotoSyncService,
 ) {
@@ -47,6 +49,7 @@ class WorkspaceSyncService(
             }
             if (context.canViewDpr(project.id)) {
                 dprRepository.refreshProject(project.id)
+                dprCustomFieldRepository.refreshDefinitions(project.id)
             }
         }
 
