@@ -34,6 +34,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.constructionos.app.core.attendance.AttendanceRepository
+import com.constructionos.app.core.authorization.AccessAdminRepository
 import com.constructionos.app.core.authorization.ProjectActionMode
 import com.constructionos.app.core.authorization.ProjectHomeAction
 import com.constructionos.app.core.authorization.ProjectHomeActionKey
@@ -49,6 +50,7 @@ private const val PROJECT_HOME_ROUTE = "project-home/{projectId}"
 private const val ATTENDANCE_ROUTE = "attendance/{projectId}"
 private const val DAILY_REPORT_ROUTE = "daily-report/{projectId}"
 private const val PARTY_DIRECTORY_ROUTE = "party-directory/{projectId}"
+private const val ACCESS_MANAGEMENT_ROUTE = "access-management"
 
 private enum class ProjectTab(val label: String) {
     HOME("Home"),
@@ -63,6 +65,7 @@ fun WorkspaceNavigation(
     attendanceRepository: AttendanceRepository,
     dprRepository: DprRepository,
     partyRepository: PartyRepository,
+    accessAdminRepository: AccessAdminRepository,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -154,6 +157,9 @@ fun WorkspaceNavigation(
                     onOpenPartyDirectory = {
                         navController.navigate(partyDirectoryRoute(project.id))
                     },
+                    onOpenAccessManagement = {
+                        navController.navigate(ACCESS_MANAGEMENT_ROUTE)
+                    },
                     onLogout = onLogout,
                 )
             }
@@ -204,12 +210,30 @@ fun WorkspaceNavigation(
             if (project == null) {
                 MissingProjectScreen(onChooseProject = { navController.popBackStack() })
             } else if ("commercial.party.view" !in context.permissions) {
-                MissingPermissionScreen(onBack = { navController.popBackStack() })
+                MissingPermissionScreen(
+                    message = "The server no longer allows Party Directory access for this session.",
+                    onBack = { navController.popBackStack() },
+                )
             } else {
                 PartyDirectoryScreen(
                     organizationId = context.organizationId,
                     project = project,
                     repository = partyRepository,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+        }
+
+        composable(ACCESS_MANAGEMENT_ROUTE) {
+            if ("security.role.view" !in context.permissions) {
+                MissingPermissionScreen(
+                    message = "The server no longer allows role and membership access for this session.",
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                AccessManagementScreen(
+                    repository = accessAdminRepository,
+                    canManage = "security.role.manage" in context.permissions,
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -323,6 +347,7 @@ private fun ProjectWorkspaceScreen(
     onOpenAttendance: () -> Unit,
     onOpenDailyReport: () -> Unit,
     onOpenPartyDirectory: () -> Unit,
+    onOpenAccessManagement: () -> Unit,
     onLogout: () -> Unit,
 ) {
     var selectedTab by rememberSaveable(project.id) { mutableStateOf(ProjectTab.HOME.name) }
@@ -332,6 +357,7 @@ private fun ProjectWorkspaceScreen(
     val pending by pendingFlow.collectAsState(initial = 0)
     val attention by attentionFlow.collectAsState(initial = 0)
     val canViewPartyDirectory = "commercial.party.view" in context.permissions
+    val canViewAccessManagement = "security.role.view" in context.permissions
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -367,7 +393,9 @@ private fun ProjectWorkspaceScreen(
             ProjectTab.MORE -> ProjectMoreContent(
                 project = project,
                 canViewPartyDirectory = canViewPartyDirectory,
+                canViewAccessManagement = canViewAccessManagement,
                 onOpenPartyDirectory = onOpenPartyDirectory,
+                onOpenAccessManagement = onOpenAccessManagement,
                 onChooseProject = onChooseProject,
                 onLogout = onLogout,
                 modifier = Modifier.weight(1f),
@@ -560,7 +588,9 @@ private fun ProjectActionRow(
 private fun ProjectMoreContent(
     project: ProjectEntity,
     canViewPartyDirectory: Boolean,
+    canViewAccessManagement: Boolean,
     onOpenPartyDirectory: () -> Unit,
+    onOpenAccessManagement: () -> Unit,
     onChooseProject: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
@@ -609,6 +639,29 @@ private fun ProjectMoreContent(
                 HorizontalDivider()
             }
         }
+        if (canViewAccessManagement) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Text("People & access", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Company roles, permissions and memberships. Online company-server access only.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                    TextButton(
+                        onClick = onOpenAccessManagement,
+                        modifier = Modifier.padding(top = 2.dp),
+                    ) {
+                        Text("Open")
+                    }
+                }
+                HorizontalDivider()
+            }
+        }
         item {
             OutlinedButton(
                 onClick = onChooseProject,
@@ -647,7 +700,10 @@ private fun MissingProjectScreen(onChooseProject: () -> Unit) {
 }
 
 @Composable
-private fun MissingPermissionScreen(onBack: () -> Unit) {
+private fun MissingPermissionScreen(
+    message: String,
+    onBack: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -657,7 +713,7 @@ private fun MissingPermissionScreen(onBack: () -> Unit) {
     ) {
         Text("Access unavailable", style = MaterialTheme.typography.titleLarge)
         Text(
-            "The server no longer allows Party Directory access for this session.",
+            message,
             modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
         )
         Button(onClick = onBack) { Text("Back") }
