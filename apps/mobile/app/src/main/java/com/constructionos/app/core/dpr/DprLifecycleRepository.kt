@@ -11,6 +11,7 @@ import com.constructionos.app.core.network.DprGenerationStatusResponse
 import com.constructionos.app.core.network.DprLifecycleApi
 import com.constructionos.app.core.offline.WorkspaceSyncScheduler
 import com.google.gson.Gson
+import java.io.File
 import java.util.UUID
 import retrofit2.HttpException
 
@@ -18,6 +19,7 @@ class DprLifecycleRepository(
     private val api: DprLifecycleApi,
     private val dao: DprDao,
     private val syncScheduler: WorkspaceSyncScheduler,
+    private val cacheDir: File,
     private val gson: Gson = Gson(),
 ) {
     suspend fun submit(reportId: String, reason: String? = null) {
@@ -106,6 +108,39 @@ class DprLifecycleRepository(
             projectId = report.projectId,
             reportId = requireNotNull(report.serverId),
         )
+    }
+
+    suspend fun downloadIssuedReport(
+        reportId: String,
+        generation: DprGenerationStatusResponse,
+    ): File {
+        require(generation.generationState == "issued") { "The official report is not issued yet." }
+        val renderId = requireNotNull(generation.renderId) { "Issued report reference is missing." }
+        val report = requireCleanServerReport(reportId)
+        require(generation.sourceRevision == report.revision) {
+            "The issued file does not match the current daily report revision. Refresh the report first."
+        }
+        val response = api.downloadIssuedReport(
+            projectId = report.projectId,
+            reportId = requireNotNull(report.serverId),
+            renderId = renderId,
+        )
+        if (!response.isSuccessful) throw HttpException(response)
+        val body = requireNotNull(response.body()) { "The issued report download was empty." }
+        val directory = File(cacheDir, "issued-dpr").apply { mkdirs() }
+        val safeName = generation.filename
+            ?.substringAfterLast('/')
+            ?.substringAfterLast('\\')
+            ?.replace(Regex("[^A-Za-z0-9._-]"), "_")
+            ?.takeIf { it.isNotBlank() }
+            ?: "daily-report-${renderId.take(8)}.${generation.outputFormat.lowercase()}"
+        val target = File(directory, "${renderId.take(8)}-$safeName")
+        body.use { responseBody ->
+            responseBody.byteStream().use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            }
+        }
+        return target
     }
 
     private suspend fun runOnlineAction(
