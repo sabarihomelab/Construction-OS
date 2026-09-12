@@ -183,32 +183,50 @@ class DprPhotoSyncService(
     ): DprPhotoResumableSessionResponse {
         val existingId = photo.uploadSessionId
         if (existingId != null) {
-            runCatching {
-                api.resumableStatus(projectId, reportServerId, existingId)
-            }.getOrNull()?.let { return it }
+            try {
+                return validateSession(
+                    photo,
+                    api.resumableStatus(projectId, reportServerId, existingId),
+                )
+            } catch (error: HttpException) {
+                if (error.code() != 404) throw error
+                photoDao.resetUploadSession(photo.clientPhotoId, now())
+            }
         }
-        return api.startResumableUpload(
-            projectId = projectId,
-            reportId = reportServerId,
-            request = DprPhotoUploadStartRequest(
-                expectedRevision = revision,
-                clientPhotoId = photo.clientPhotoId,
-                originalFilename = photo.filename,
-                contentType = requireNotNull(photo.contentType),
-                sizeBytes = photo.sizeBytes,
-                sha256 = requireNotNull(photo.sha256),
+        return validateSession(
+            photo,
+            api.startResumableUpload(
+                projectId = projectId,
+                reportId = reportServerId,
+                request = DprPhotoUploadStartRequest(
+                    expectedRevision = revision,
+                    clientPhotoId = photo.clientPhotoId,
+                    originalFilename = photo.filename,
+                    contentType = requireNotNull(photo.contentType),
+                    sizeBytes = photo.sizeBytes,
+                    sha256 = requireNotNull(photo.sha256),
+                ),
             ),
-        ).also { session ->
-            require(session.clientPhotoId == photo.clientPhotoId) {
-                "Company server returned the wrong photo identity."
-            }
-            require(session.sizeBytes == photo.sizeBytes) {
-                "Company server returned the wrong photo size."
-            }
-            require(session.chunkSizeBytes > 0) {
-                "Company server returned an invalid chunk size."
-            }
+        )
+    }
+
+    private fun validateSession(
+        photo: DprPhotoEntity,
+        session: DprPhotoResumableSessionResponse,
+    ): DprPhotoResumableSessionResponse {
+        require(session.clientPhotoId == photo.clientPhotoId) {
+            "Company server returned the wrong photo identity."
         }
+        require(session.sizeBytes == photo.sizeBytes) {
+            "Company server returned the wrong photo size."
+        }
+        require(session.uploadedBytes in 0..photo.sizeBytes) {
+            "Company server returned an invalid upload offset."
+        }
+        require(session.chunkSizeBytes > 0) {
+            "Company server returned an invalid chunk size."
+        }
+        return session
     }
 
     private suspend fun uploadMissingChunks(
@@ -246,10 +264,13 @@ class DprPhotoSyncService(
                 current = requireNotNull(photoDao.photo(current.clientPhotoId))
             } catch (error: HttpException) {
                 if (error.code() != 409) throw error
-                val status = api.resumableStatus(
-                    current.projectId,
-                    reportServerId,
-                    requireNotNull(current.uploadSessionId),
+                val status = validateSession(
+                    current,
+                    api.resumableStatus(
+                        current.projectId,
+                        reportServerId,
+                        requireNotNull(current.uploadSessionId),
+                    ),
                 )
                 offset = status.uploadedBytes
                 photoDao.updateResumableState(
