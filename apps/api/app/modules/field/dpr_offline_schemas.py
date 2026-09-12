@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.modules.field.dpr_custom_field_schemas import DPRCustomFieldReplace
 from app.modules.field.dpr_schemas import DPRWorkProgressReplace
 from app.modules.field.schemas import (
     DailyReportCreate,
@@ -18,6 +19,7 @@ class DailyReportOfflineOperation(StrEnum):
     UPDATE_HEADER = "update_header"
     REPLACE_WORK_PROGRESS = "replace_work_progress"
     REPLACE_DELAYS = "replace_delays"
+    REPLACE_CUSTOM_FIELDS = "replace_custom_fields"
     SUBMIT = "submit"
 
 
@@ -37,13 +39,21 @@ class DailyReportOfflineMutationRequest(BaseModel):
     update: DailyReportUpdate | None = None
     work_progress: DPRWorkProgressReplace | None = None
     delays: DailyReportDelayReplace | None = None
+    custom_fields: DPRCustomFieldReplace | None = None
     action: DailyReportVersionAction | None = None
 
     @model_validator(mode="after")
     def validate_operation_payload(self) -> "DailyReportOfflineMutationRequest":
         supplied = sum(
             item is not None
-            for item in (self.create, self.update, self.work_progress, self.delays, self.action)
+            for item in (
+                self.create,
+                self.update,
+                self.work_progress,
+                self.delays,
+                self.custom_fields,
+                self.action,
+            )
         )
         if supplied != 1:
             raise ValueError("Exactly one Daily Report operation payload is required")
@@ -66,6 +76,11 @@ class DailyReportOfflineMutationRequest(BaseModel):
                 raise ValueError("Delay replacement requires payload and base_revision")
             if self.delays.expected_revision != self.base_revision:
                 raise ValueError("delays.expected_revision must match base_revision")
+        elif self.operation == DailyReportOfflineOperation.REPLACE_CUSTOM_FIELDS:
+            if self.custom_fields is None or self.base_revision is None:
+                raise ValueError("Custom field replacement requires payload and base_revision")
+            if self.custom_fields.expected_revision != self.base_revision:
+                raise ValueError("custom_fields.expected_revision must match base_revision")
         elif self.operation == DailyReportOfflineOperation.SUBMIT:
             if self.action is None or self.base_revision is None:
                 raise ValueError("Submit requires action payload and base_revision")
