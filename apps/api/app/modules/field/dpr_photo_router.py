@@ -385,10 +385,10 @@ async def delete_dpr_photo(
     project_id: UUID,
     report_id: UUID,
     asset_id: UUID,
+    db: DbSession,
+    session: CurrentSession,
+    _csrf: CsrfProtected,
     expected_revision: int = Query(ge=1),
-    db: DbSession = None,
-    session: CurrentSession = None,
-    _csrf: CsrfProtected = None,
 ) -> DPRPhotoChangeRead:
     context = await build_access_context(db, session.membership_id)
     _require_permission(context, project_id, "field.daily_report.update")
