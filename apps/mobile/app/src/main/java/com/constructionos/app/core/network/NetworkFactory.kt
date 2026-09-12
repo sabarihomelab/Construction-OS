@@ -18,6 +18,12 @@ object NetworkFactory {
     ): WbsApi = authenticatedRetrofit(baseUrl, tokenProvider)
         .create(WbsApi::class.java)
 
+    fun createBoqFieldApi(
+        baseUrl: String,
+        tokenProvider: SessionTokenProvider,
+    ): BoqFieldApi = authenticatedRetrofit(baseUrl, tokenProvider)
+        .create(BoqFieldApi::class.java)
+
     fun createBootstrapApi(baseUrl: String): ConstructionOsApi {
         val client = OkHttpClient.Builder().build()
         return createRetrofit(baseUrl, client).create(ConstructionOsApi::class.java)
