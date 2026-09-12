@@ -87,6 +87,7 @@ export default function CompanySettingsWorkspace() {
   }, []);
 
   const canManage = context?.permissions.includes("admin.configuration.manage") ?? false;
+  const canViewAccess = context?.permissions.includes("security.role.view") ?? false;
 
   const updateProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -143,6 +144,7 @@ export default function CompanySettingsWorkspace() {
       <section className="page-frame">
         <div className="page-heading">
           <div><p className="eyebrow">ADMINISTRATION</p><h1>Company Settings</h1><p>Stable company identity and India localization defaults.</p></div>
+          {canViewAccess && <a href="/admin/access">People, roles & permissions</a>}
         </div>
         {error && <div className="error-banner"><strong>Action not completed</strong><span>{error}</span></div>}
         {!profile ? <div className="empty-state"><strong>Loading company…</strong></div> : (
