@@ -51,6 +51,50 @@ data class DailyReportVersionActionRequest(
     val reason: String? = null,
 )
 
+data class DprWorkProgressWriteRequest(
+    @SerializedName("wbs_code_id") val wbsCodeId: String? = null,
+    @SerializedName("boq_item_id") val boqItemId: String? = null,
+    val description: String,
+    val location: String? = null,
+    val quantity: String? = null,
+    @SerializedName("unit_code") val unitCode: String? = null,
+    @SerializedName("progress_percent") val progressPercent: String? = null,
+    @SerializedName("source_type") val sourceType: String = "manual",
+    @SerializedName("source_id") val sourceId: String? = null,
+    @SerializedName("source_revision") val sourceRevision: Int? = null,
+    val remarks: String? = null,
+)
+
+data class DprWorkProgressReplaceRequest(
+    @SerializedName("expected_revision") val expectedRevision: Int,
+    val rows: List<DprWorkProgressWriteRequest>,
+    val reason: String? = null,
+)
+
+data class DprWorkProgressWbsReferenceResponse(
+    val id: String,
+    val code: String,
+    val name: String,
+    val kind: String,
+    @SerializedName("parent_id") val parentId: String? = null,
+)
+
+data class DprWorkProgressBoqReferenceResponse(
+    val id: String,
+    @SerializedName("boq_id") val boqId: String,
+    @SerializedName("boq_code") val boqCode: String,
+    @SerializedName("boq_name") val boqName: String,
+    @SerializedName("wbs_code_id") val wbsCodeId: String? = null,
+    @SerializedName("item_code") val itemCode: String,
+    val description: String,
+    @SerializedName("unit_code") val unitCode: String,
+)
+
+data class DprWorkProgressReferenceResponse(
+    @SerializedName("wbs_codes") val wbsCodes: List<DprWorkProgressWbsReferenceResponse> = emptyList(),
+    @SerializedName("boq_items") val boqItems: List<DprWorkProgressBoqReferenceResponse> = emptyList(),
+)
+
 data class DailyReportOfflineMutationRequest(
     @SerializedName("device_id") val deviceId: String,
     @SerializedName("client_mutation_id") val clientMutationId: String,
@@ -59,6 +103,7 @@ data class DailyReportOfflineMutationRequest(
     @SerializedName("base_revision") val baseRevision: Int? = null,
     val create: DailyReportCreateRequest? = null,
     val update: DailyReportUpdateRequest? = null,
+    @SerializedName("work_progress") val workProgress: DprWorkProgressReplaceRequest? = null,
     val action: DailyReportVersionActionRequest? = null,
 )
 
