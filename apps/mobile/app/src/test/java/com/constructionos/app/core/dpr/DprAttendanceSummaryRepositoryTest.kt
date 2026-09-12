@@ -4,21 +4,23 @@ import com.constructionos.app.core.database.DprAttendanceSummaryDao
 import com.constructionos.app.core.database.DprAttendanceSummaryEntity
 import com.constructionos.app.core.network.AttendanceDprSummaryResponse
 import com.constructionos.app.core.network.AttendanceDprSummaryRowResponse
-import com.constructionos.app.core.network.AttendanceRegisterResponse
 import com.constructionos.app.core.network.DprAttendanceApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import retrofit2.HttpException
+import retrofit2.Response
 
 class DprAttendanceSummaryRepositoryTest {
     @Test
     fun `approved attendance summary is cached exactly`() = runBlocking {
         val dao = FakeSummaryDao()
         val api = FakeSummaryApi(
-            registers = listOf(approvedRegister()),
             summary = AttendanceDprSummaryResponse(
                 registerId = "register-1",
                 projectId = "project-1",
@@ -52,6 +54,8 @@ class DprAttendanceSummaryRepositoryTest {
         assertEquals(1, row.absentCount)
         assertEquals("80.0", row.regularHours)
         assertEquals("6.5", row.overtimeHours)
+        assertEquals("2026-09-12", api.lastAttendanceDate)
+        assertEquals("day", api.lastShiftCode)
     }
 
     @Test
@@ -77,7 +81,7 @@ class DprAttendanceSummaryRepositoryTest {
                 ),
             )
         }
-        val api = FakeSummaryApi(registers = emptyList(), summary = null)
+        val api = FakeSummaryApi(httpCode = 404)
         val repository = DprAttendanceSummaryRepository(api, dao)
 
         val result = repository.refresh("project-1", "2026-09-12", "day")
@@ -85,39 +89,28 @@ class DprAttendanceSummaryRepositoryTest {
         assertEquals(DprAttendanceRefreshResult.NO_APPROVED_ATTENDANCE, result)
         assertTrue(dao.rows.isEmpty())
     }
-
-    private fun approvedRegister() = AttendanceRegisterResponse(
-        id = "register-1",
-        organizationId = "org-1",
-        projectId = "project-1",
-        attendanceDate = "2026-09-12",
-        shiftCode = "day",
-        status = "approved",
-        revision = 3,
-        preparedByMembershipId = "member-1",
-        approvedByMembershipId = "member-2",
-        workflowInstanceId = null,
-        configurationContext = emptyMap(),
-        notes = null,
-        submittedAt = "2026-09-12T12:00:00Z",
-        approvedAt = "2026-09-12T12:05:00Z",
-        rejectedAt = null,
-        voidedAt = null,
-        createdAt = "2026-09-12T08:00:00Z",
-        updatedAt = "2026-09-12T12:05:00Z",
-    )
 }
 
 private class FakeSummaryApi(
-    private val registers: List<AttendanceRegisterResponse>,
-    private val summary: AttendanceDprSummaryResponse?,
+    private val summary: AttendanceDprSummaryResponse? = null,
+    private val httpCode: Int? = null,
 ) : DprAttendanceApi {
-    override suspend fun attendanceRegisters(projectId: String): List<AttendanceRegisterResponse> = registers
+    var lastAttendanceDate: String? = null
+    var lastShiftCode: String? = null
 
     override suspend fun dprSummary(
         projectId: String,
-        registerId: String,
-    ): AttendanceDprSummaryResponse = requireNotNull(summary)
+        attendanceDate: String,
+        shiftCode: String,
+    ): AttendanceDprSummaryResponse {
+        lastAttendanceDate = attendanceDate
+        lastShiftCode = shiftCode
+        httpCode?.let { code ->
+            val body = "{}".toResponseBody("application/json".toMediaType())
+            throw HttpException(Response.error<AttendanceDprSummaryResponse>(code, body))
+        }
+        return requireNotNull(summary)
+    }
 }
 
 private class FakeSummaryDao : DprAttendanceSummaryDao {
