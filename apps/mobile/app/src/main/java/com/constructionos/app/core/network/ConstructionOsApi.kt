@@ -17,6 +17,12 @@ interface ConstructionOsApi {
     @GET("projects") suspend fun projects(): List<ProjectResponse>
     @POST("offline/devices") suspend fun registerDevice(@Body request: DeviceRegistrationRequest): ClientDeviceResponse
 
+    @GET("configuration/projects/{projectId}/modules/{moduleKey}")
+    suspend fun effectiveProjectConfiguration(
+        @Path("projectId") projectId: String,
+        @Path("moduleKey") moduleKey: String,
+    ): EffectiveConfigurationResponse
+
     @GET("projects/{projectId}/workforce/attendance/roster")
     suspend fun attendanceRoster(@Path("projectId") projectId: String, @Query("attendance_date") attendanceDate: String): List<AttendanceRosterResponse>
     @GET("projects/{projectId}/workforce/attendance") suspend fun attendanceRegisters(@Path("projectId") projectId: String): List<AttendanceRegisterResponse>
@@ -34,6 +40,15 @@ interface ConstructionOsApi {
     @GET("projects/{projectId}/daily-reports/work-progress/references") suspend fun dprWorkProgressReferences(@Path("projectId") projectId: String): DprWorkProgressReferenceResponse
     @POST("projects/{projectId}/daily-reports/offline/mutations") suspend fun submitDailyReportMutation(@Path("projectId") projectId: String, @Body request: DailyReportOfflineMutationRequest): Response<DailyReportOfflineMutationResponse>
 }
+
+data class EffectiveConfigurationResponse(
+    val settings: List<ResolvedConfigurationSettingResponse> = emptyList(),
+)
+
+data class ResolvedConfigurationSettingResponse(
+    val key: String,
+    val value: Any? = null,
+)
 
 data class NativeProviderListResponse(val providers: List<String> = emptyList())
 data class NativeAuthenticationRequest(@SerializedName("provider_key") val providerKey: String, val payload: Map<String, String>)
