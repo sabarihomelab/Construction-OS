@@ -23,6 +23,10 @@ interface ConstructionOsApi {
         @Path("moduleKey") moduleKey: String,
     ): EffectiveConfigurationResponse
 
+    @GET("commercial/parties") suspend fun parties(): List<PartyResponse>
+    @GET("projects/{projectId}/commercial/party-assignments")
+    suspend fun projectPartyAssignments(@Path("projectId") projectId: String): List<ProjectPartyAssignmentResponse>
+
     @GET("projects/{projectId}/workforce/attendance/roster")
     suspend fun attendanceRoster(@Path("projectId") projectId: String, @Query("attendance_date") attendanceDate: String): List<AttendanceRosterResponse>
     @GET("projects/{projectId}/workforce/attendance") suspend fun attendanceRegisters(@Path("projectId") projectId: String): List<AttendanceRegisterResponse>
