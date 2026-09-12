@@ -9,15 +9,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.constructionos.app.core.database.ProjectEntity
+import com.constructionos.app.core.dpr.DprAttendanceSummaryRepository
 import com.constructionos.app.core.dpr.DprLifecycleRepository
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.dpr.requirePhotoRepository
@@ -25,6 +26,7 @@ import com.constructionos.app.core.network.SessionContextResponse
 
 enum class DailyReportHubTab(val label: String) {
     ENTRY("Entry"),
+    CREW("Crew"),
     PHOTOS("Photos"),
     REVIEW("Review"),
 }
@@ -35,20 +37,23 @@ fun DailyReportHubScreen(
     context: SessionContextResponse,
     repository: DprRepository,
     lifecycleRepository: DprLifecycleRepository,
+    attendanceSummaryRepository: DprAttendanceSummaryRepository,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val permissions = context.permissions.toSet() + context.projectPermissions[project.id].orEmpty()
+    val canViewAttendance = "workforce.attendance.view" in permissions
     val canSubmit = "field.daily_report.submit" in permissions
     val canApprove = "field.daily_report.approve" in permissions
     val canReopen = "field.daily_report.update" in permissions
     val canManage = "field.daily_report.manage" in permissions
     val showReview = canSubmit || canApprove || canReopen || canManage
-    val tabs = remember(showReview) {
-        if (showReview) {
-            DailyReportHubTab.entries
-        } else {
-            DailyReportHubTab.entries.filterNot { it == DailyReportHubTab.REVIEW }
+    val tabs = remember(canViewAttendance, showReview) {
+        buildList {
+            add(DailyReportHubTab.ENTRY)
+            if (canViewAttendance) add(DailyReportHubTab.CREW)
+            add(DailyReportHubTab.PHOTOS)
+            if (showReview) add(DailyReportHubTab.REVIEW)
         }
     }
     val photoRepository = remember(repository) { repository.requirePhotoRepository() }
@@ -88,6 +93,12 @@ fun DailyReportHubScreen(
                 project = project,
                 context = context,
                 repository = repository,
+                onBack = onBack,
+                modifier = Modifier.weight(1f),
+            )
+            DailyReportHubTab.CREW -> DprAttendanceSummaryScreen(
+                project = project,
+                repository = attendanceSummaryRepository,
                 onBack = onBack,
                 modifier = Modifier.weight(1f),
             )
