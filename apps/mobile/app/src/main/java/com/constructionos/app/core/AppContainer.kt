@@ -8,9 +8,12 @@ import com.constructionos.app.core.authorization.AccessAdminRepository
 import com.constructionos.app.core.authorization.ProjectAccessAdminRepository
 import com.constructionos.app.core.boq.BoqFieldRepository
 import com.constructionos.app.core.database.ConstructionOsDatabase
+import com.constructionos.app.core.database.DprPhotoQueueDatabase
 import com.constructionos.app.core.deployment.WorkspaceConnection
 import com.constructionos.app.core.dpr.DprLifecycleRepository
 import com.constructionos.app.core.dpr.DprMutationSyncService
+import com.constructionos.app.core.dpr.DprPhotoRepository
+import com.constructionos.app.core.dpr.DprPhotoSyncService
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.estimating.EstimatingReviewRepository
 import com.constructionos.app.core.network.NetworkFactory
@@ -38,7 +41,12 @@ class AppContainer(
     private val estimatingApi = NetworkFactory.createEstimatingApi(connection.apiBaseUrl, sessionStore)
     private val workforceApi = NetworkFactory.createWorkforceApi(connection.apiBaseUrl, sessionStore)
     private val dprLifecycleApi = NetworkFactory.createDprLifecycleApi(connection.apiBaseUrl, sessionStore)
+    private val dprPhotoApi = NetworkFactory.createDprPhotoApi(connection.apiBaseUrl, sessionStore)
     private val database = ConstructionOsDatabase.getInstance(
+        applicationContext,
+        localNamespace,
+    )
+    private val dprPhotoDatabase = DprPhotoQueueDatabase.getInstance(
         applicationContext,
         localNamespace,
     )
@@ -82,10 +90,26 @@ class AppContainer(
         cacheDir = applicationContext.cacheDir,
     )
 
+    val dprPhotoRepository = DprPhotoRepository(
+        context = applicationContext,
+        connectionNamespace = localNamespace,
+        api = dprPhotoApi,
+        photoDao = dprPhotoDatabase.dprPhotoDao(),
+        dprDao = database.dprDao(),
+        syncScheduler = syncScheduler,
+    )
+
     private val dprMutationSyncService = DprMutationSyncService(
         api = api,
         dao = database.dprDao(),
         deviceRegistrar = deviceRegistrar,
+    )
+
+    private val dprPhotoSyncService = DprPhotoSyncService(
+        api = dprPhotoApi,
+        photoDao = dprPhotoDatabase.dprPhotoDao(),
+        dprDao = database.dprDao(),
+        dprRepository = dprRepository,
     )
 
     val partyRepository = PartyRepository(
@@ -125,6 +149,8 @@ class AppContainer(
         attendanceMutationSyncService = attendanceMutationSyncService,
         dprRepository = dprRepository,
         dprMutationSyncService = dprMutationSyncService,
+        dprPhotoRepository = dprPhotoRepository,
+        dprPhotoSyncService = dprPhotoSyncService,
     )
 
     val workspaceCoordinator = WorkspaceCoordinator(
