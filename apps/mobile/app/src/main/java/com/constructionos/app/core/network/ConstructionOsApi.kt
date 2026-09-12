@@ -29,6 +29,7 @@ interface ConstructionOsApi {
 
     @GET("projects/{projectId}/daily-reports") suspend fun dailyReports(@Path("projectId") projectId: String): List<DailyReportResponse>
     @POST("projects/{projectId}/daily-reports") suspend fun createDailyReport(@Path("projectId") projectId: String, @Body request: DailyReportCreateRequest): Response<DailyReportResponse>
+    @GET("projects/{projectId}/daily-reports/{reportId}") suspend fun dailyReportDetail(@Path("projectId") projectId: String, @Path("reportId") reportId: String): DailyReportDetailResponse
     @GET("projects/{projectId}/daily-reports/{reportId}/work-progress") suspend fun dprWorkProgress(@Path("projectId") projectId: String, @Path("reportId") reportId: String): List<DprWorkProgressResponse>
     @GET("projects/{projectId}/daily-reports/work-progress/references") suspend fun dprWorkProgressReferences(@Path("projectId") projectId: String): DprWorkProgressReferenceResponse
     @POST("projects/{projectId}/daily-reports/offline/mutations") suspend fun submitDailyReportMutation(@Path("projectId") projectId: String, @Body request: DailyReportOfflineMutationRequest): Response<DailyReportOfflineMutationResponse>
