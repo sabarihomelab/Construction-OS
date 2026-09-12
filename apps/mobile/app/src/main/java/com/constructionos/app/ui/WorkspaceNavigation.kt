@@ -42,6 +42,7 @@ import com.constructionos.app.core.authorization.ProjectHomeActionKey
 import com.constructionos.app.core.authorization.projectHomeActions
 import com.constructionos.app.core.boq.BoqFieldRepository
 import com.constructionos.app.core.database.ProjectEntity
+import com.constructionos.app.core.dpr.DprLifecycleRepository
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.estimating.EstimatingReviewRepository
 import com.constructionos.app.core.network.SessionContextResponse
@@ -74,6 +75,7 @@ fun WorkspaceNavigation(
     workspace: WorkspaceCoordinator,
     attendanceRepository: AttendanceRepository,
     dprRepository: DprRepository,
+    dprLifecycleRepository: DprLifecycleRepository,
     partyRepository: PartyRepository,
     wbsRepository: WbsRepository,
     boqFieldRepository: BoqFieldRepository,
@@ -204,10 +206,11 @@ fun WorkspaceNavigation(
             if (project == null) {
                 MissingProjectScreen(onChooseProject = { navController.popBackStack() })
             } else {
-                DailyReportScreen(
+                DailyReportHubScreen(
                     project = project,
                     context = context,
                     repository = dprRepository,
+                    lifecycleRepository = dprLifecycleRepository,
                     onBack = { navController.popBackStack() },
                 )
             }
