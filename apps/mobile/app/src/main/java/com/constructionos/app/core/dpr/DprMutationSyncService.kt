@@ -1,5 +1,7 @@
 package com.constructionos.app.core.dpr
 
+import com.constructionos.app.core.database.DprCustomFieldDao
+import com.constructionos.app.core.database.DprCustomFieldValueEntity
 import com.constructionos.app.core.database.DprDao
 import com.constructionos.app.core.database.DprDelayEntity
 import com.constructionos.app.core.database.DprMutationEntity
@@ -12,6 +14,8 @@ import com.constructionos.app.core.network.DailyReportOfflineMutationResponse
 import com.constructionos.app.core.network.DailyReportResponse
 import com.constructionos.app.core.network.DailyReportUpdateRequest
 import com.constructionos.app.core.network.DailyReportVersionActionRequest
+import com.constructionos.app.core.network.DprCustomFieldReplaceRequest
+import com.constructionos.app.core.network.DprCustomFieldValuesResponse
 import com.constructionos.app.core.network.DprDelayReplaceRequest
 import com.constructionos.app.core.network.DprDelayResponse
 import com.constructionos.app.core.network.DprWorkProgressReplaceRequest
@@ -25,6 +29,7 @@ import retrofit2.Response
 class DprMutationSyncService(
     private val api: ConstructionOsApi,
     private val dao: DprDao,
+    private val customFieldDao: DprCustomFieldDao,
     private val deviceRegistrar: DeviceRegistrar,
     private val gson: Gson = Gson(),
 ) {
@@ -43,6 +48,7 @@ class DprMutationSyncService(
             DprRepository.OP_UPDATE_HEADER -> buildUpdateRequest(mutation, deviceId)
             DprRepository.OP_REPLACE_WORK_PROGRESS -> buildWorkProgressRequest(mutation, deviceId)
             DprRepository.OP_REPLACE_DELAYS -> buildDelaysRequest(mutation, deviceId)
+            DprCustomFieldRepository.OP_REPLACE_CUSTOM_FIELDS -> buildCustomFieldsRequest(mutation, deviceId)
             DprLifecycleRepository.OP_SUBMIT -> buildSubmitRequest(mutation, deviceId)
             else -> null
         }
@@ -129,18 +135,46 @@ class DprMutationSyncService(
         } else {
             null
         }
+        val customFields = if (mutation.operation == DprCustomFieldRepository.OP_REPLACE_CUSTOM_FIELDS) {
+            response.customFieldResult()
+        } else {
+            null
+        }
+        val updatedAt = System.currentTimeMillis()
         dao.applyServerResult(
             mutation = mutation,
             serverReport = remote.toEntity(localId = mutation.reportId),
             serverWorkProgress = workProgress,
             serverDelays = delays,
-            updatedAt = System.currentTimeMillis(),
+            updatedAt = updatedAt,
         )
+        if (customFields != null) {
+            require(customFields.reportRevision == remote.revision) {
+                "Company server returned custom fields for the wrong DPR revision."
+            }
+            customFieldDao.replaceValues(
+                reportId = mutation.reportId,
+                rows = customFields.values.map { row ->
+                    DprCustomFieldValueEntity(
+                        reportId = mutation.reportId,
+                        projectId = remote.projectId,
+                        definitionId = row.definitionId,
+                        valueJson = row.value?.takeUnless { it.isJsonNull }?.toString(),
+                        refreshedAt = updatedAt,
+                    )
+                },
+            )
+        }
         return true
     }
 
-    private suspend fun buildCreateRequest(mutation: DprMutationEntity, deviceId: String): DailyReportOfflineMutationRequest? {
-        val create = runCatching { gson.fromJson(mutation.payloadJson, DailyReportCreateRequest::class.java) }.getOrNull() ?: return null
+    private suspend fun buildCreateRequest(
+        mutation: DprMutationEntity,
+        deviceId: String,
+    ): DailyReportOfflineMutationRequest? {
+        val create = runCatching {
+            gson.fromJson(mutation.payloadJson, DailyReportCreateRequest::class.java)
+        }.getOrNull() ?: return null
         return DailyReportOfflineMutationRequest(
             deviceId = deviceId,
             clientMutationId = mutation.clientMutationId,
@@ -150,10 +184,15 @@ class DprMutationSyncService(
         )
     }
 
-    private suspend fun buildUpdateRequest(mutation: DprMutationEntity, deviceId: String): DailyReportOfflineMutationRequest? {
+    private suspend fun buildUpdateRequest(
+        mutation: DprMutationEntity,
+        deviceId: String,
+    ): DailyReportOfflineMutationRequest? {
         val report = dao.reportById(mutation.reportId) ?: return null
         val serverId = report.serverId ?: return null
-        val update = runCatching { gson.fromJson(mutation.payloadJson, DailyReportUpdateRequest::class.java) }.getOrNull() ?: return null
+        val update = runCatching {
+            gson.fromJson(mutation.payloadJson, DailyReportUpdateRequest::class.java)
+        }.getOrNull() ?: return null
         if (update.expectedRevision < 1) return null
         return DailyReportOfflineMutationRequest(
             deviceId = deviceId,
@@ -165,11 +204,16 @@ class DprMutationSyncService(
         )
     }
 
-    private suspend fun buildWorkProgressRequest(mutation: DprMutationEntity, deviceId: String): DailyReportOfflineMutationRequest? {
+    private suspend fun buildWorkProgressRequest(
+        mutation: DprMutationEntity,
+        deviceId: String,
+    ): DailyReportOfflineMutationRequest? {
         val report = dao.reportById(mutation.reportId) ?: return null
         val serverId = report.serverId ?: return null
         if (report.revision < 1) return null
-        val pending = runCatching { gson.fromJson(mutation.payloadJson, DprPendingWorkProgressPayload::class.java) }.getOrNull() ?: return null
+        val pending = runCatching {
+            gson.fromJson(mutation.payloadJson, DprPendingWorkProgressPayload::class.java)
+        }.getOrNull() ?: return null
         return DailyReportOfflineMutationRequest(
             deviceId = deviceId,
             clientMutationId = mutation.clientMutationId,
@@ -184,11 +228,16 @@ class DprMutationSyncService(
         )
     }
 
-    private suspend fun buildDelaysRequest(mutation: DprMutationEntity, deviceId: String): DailyReportOfflineMutationRequest? {
+    private suspend fun buildDelaysRequest(
+        mutation: DprMutationEntity,
+        deviceId: String,
+    ): DailyReportOfflineMutationRequest? {
         val report = dao.reportById(mutation.reportId) ?: return null
         val serverId = report.serverId ?: return null
         if (report.revision < 1) return null
-        val pending = runCatching { gson.fromJson(mutation.payloadJson, DprPendingDelaysPayload::class.java) }.getOrNull() ?: return null
+        val pending = runCatching {
+            gson.fromJson(mutation.payloadJson, DprPendingDelaysPayload::class.java)
+        }.getOrNull() ?: return null
         return DailyReportOfflineMutationRequest(
             deviceId = deviceId,
             clientMutationId = mutation.clientMutationId,
@@ -203,7 +252,34 @@ class DprMutationSyncService(
         )
     }
 
-    private suspend fun buildSubmitRequest(mutation: DprMutationEntity, deviceId: String): DailyReportOfflineMutationRequest? {
+    private suspend fun buildCustomFieldsRequest(
+        mutation: DprMutationEntity,
+        deviceId: String,
+    ): DailyReportOfflineMutationRequest? {
+        val report = dao.reportById(mutation.reportId) ?: return null
+        val serverId = report.serverId ?: return null
+        if (report.revision < 1) return null
+        val pending = runCatching {
+            gson.fromJson(mutation.payloadJson, DprPendingCustomFieldsPayload::class.java)
+        }.getOrNull() ?: return null
+        return DailyReportOfflineMutationRequest(
+            deviceId = deviceId,
+            clientMutationId = mutation.clientMutationId,
+            entityId = serverId,
+            operation = DprCustomFieldRepository.OP_REPLACE_CUSTOM_FIELDS,
+            baseRevision = report.revision,
+            customFields = DprCustomFieldReplaceRequest(
+                expectedRevision = report.revision,
+                values = pending.values,
+                reason = pending.reason,
+            ),
+        )
+    }
+
+    private suspend fun buildSubmitRequest(
+        mutation: DprMutationEntity,
+        deviceId: String,
+    ): DailyReportOfflineMutationRequest? {
         val report = dao.reportById(mutation.reportId) ?: return null
         val serverId = report.serverId ?: return null
         val action = runCatching {
@@ -252,37 +328,49 @@ class DprMutationSyncService(
         }
     }
 
-    private fun DprWorkProgressResponse.toEntity(localReportId: String, position: Int): DprWorkProgressEntity =
-        DprWorkProgressEntity(
-            id = id,
-            reportId = localReportId,
-            projectId = projectId,
-            position = position,
-            wbsCodeId = wbsCodeId,
-            boqItemId = boqItemId,
-            description = description,
-            location = location,
-            quantity = quantity,
-            unitCode = unitCode,
-            progressPercent = progressPercent,
-            remarks = remarks,
-        )
+    private fun DailyReportOfflineMutationResponse.customFieldResult(): DprCustomFieldValuesResponse? {
+        val raw = result["custom_fields"] ?: return null
+        return runCatching {
+            gson.fromJson(gson.toJson(raw), DprCustomFieldValuesResponse::class.java)
+        }.getOrNull()
+    }
 
-    private fun DprDelayResponse.toEntity(localReportId: String, projectId: String, position: Int): DprDelayEntity =
-        DprDelayEntity(
-            id = id,
-            reportId = localReportId,
-            projectId = projectId,
-            position = position,
-            category = category,
-            description = description,
-            startedAt = startedAt,
-            endedAt = endedAt,
-            lostHours = lostHours,
-            responsibleParty = responsibleParty,
-            scheduleImpact = scheduleImpact,
-            notes = notes,
-        )
+    private fun DprWorkProgressResponse.toEntity(
+        localReportId: String,
+        position: Int,
+    ): DprWorkProgressEntity = DprWorkProgressEntity(
+        id = id,
+        reportId = localReportId,
+        projectId = projectId,
+        position = position,
+        wbsCodeId = wbsCodeId,
+        boqItemId = boqItemId,
+        description = description,
+        location = location,
+        quantity = quantity,
+        unitCode = unitCode,
+        progressPercent = progressPercent,
+        remarks = remarks,
+    )
+
+    private fun DprDelayResponse.toEntity(
+        localReportId: String,
+        projectId: String,
+        position: Int,
+    ): DprDelayEntity = DprDelayEntity(
+        id = id,
+        reportId = localReportId,
+        projectId = projectId,
+        position = position,
+        category = category,
+        description = description,
+        startedAt = startedAt,
+        endedAt = endedAt,
+        lostHours = lostHours,
+        responsibleParty = responsibleParty,
+        scheduleImpact = scheduleImpact,
+        notes = notes,
+    )
 
     private fun Response<DailyReportOfflineMutationResponse>.typedBodyOrNull(): DailyReportOfflineMutationResponse? {
         if (isSuccessful) return body()
@@ -296,6 +384,7 @@ class DprMutationSyncService(
             DprRepository.OP_UPDATE_HEADER,
             DprRepository.OP_REPLACE_WORK_PROGRESS,
             DprRepository.OP_REPLACE_DELAYS,
+            DprCustomFieldRepository.OP_REPLACE_CUSTOM_FIELDS,
             DprLifecycleRepository.OP_SUBMIT,
         )
         private const val STATUS_APPLIED = "applied"
