@@ -23,30 +23,17 @@ class DprAttendanceSummaryRepository(
         attendanceDate: String,
         shiftCode: String,
     ): DprAttendanceRefreshResult {
-        val register = api.attendanceRegisters(projectId)
-            .firstOrNull { row ->
-                row.projectId == projectId &&
-                    row.attendanceDate == attendanceDate &&
-                    row.shiftCode == shiftCode &&
-                    row.status == STATUS_APPROVED
-            }
-
-        if (register == null) {
-            dao.clearSummary(projectId, attendanceDate, shiftCode)
-            return DprAttendanceRefreshResult.NO_APPROVED_ATTENDANCE
-        }
-
         val response = try {
-            api.dprSummary(projectId, register.id)
+            api.dprSummary(projectId, attendanceDate, shiftCode)
         } catch (error: HttpException) {
-            if (error.code() == 422) {
+            if (error.code() == 404 || error.code() == 422) {
                 dao.clearSummary(projectId, attendanceDate, shiftCode)
                 return DprAttendanceRefreshResult.NO_APPROVED_ATTENDANCE
             }
             throw error
         }
 
-        require(response.registerId == register.id) { "Attendance summary register mismatch." }
+        require(response.registerId.isNotBlank()) { "Attendance summary register is missing." }
         require(response.projectId == projectId) { "Attendance summary project mismatch." }
         require(response.attendanceDate == attendanceDate) { "Attendance summary date mismatch." }
         require(response.shiftCode == shiftCode) { "Attendance summary shift mismatch." }
@@ -64,10 +51,6 @@ class DprAttendanceSummaryRepository(
         }
         dao.replaceSummary(projectId, attendanceDate, shiftCode, rows)
         return DprAttendanceRefreshResult.UPDATED
-    }
-
-    companion object {
-        private const val STATUS_APPROVED = "approved"
     }
 }
 
