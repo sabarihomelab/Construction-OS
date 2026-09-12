@@ -4,6 +4,7 @@ import android.content.Context
 import com.constructionos.app.core.attendance.AttendanceMutationSyncService
 import com.constructionos.app.core.attendance.AttendanceRepository
 import com.constructionos.app.core.auth.AuthController
+import com.constructionos.app.core.authorization.AccessAdminRepository
 import com.constructionos.app.core.database.ConstructionOsDatabase
 import com.constructionos.app.core.deployment.WorkspaceConnection
 import com.constructionos.app.core.dpr.DprMutationSyncService
@@ -40,6 +41,8 @@ class AppContainer(
         applicationContext,
         localNamespace,
     )
+
+    val accessAdminRepository = AccessAdminRepository(api)
 
     val attendanceRepository = AttendanceRepository(
         api = api,
