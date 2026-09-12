@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from app.modules.field.dpr_offline_router import _permission_for
 from app.modules.field.dpr_offline_router import router as dpr_offline_router
 from app.modules.field.dpr_offline_schemas import (
+    DailyReportDelayReplace,
     DailyReportOfflineMutationRequest,
     DailyReportOfflineOperation,
 )
@@ -15,6 +16,7 @@ from app.modules.field.schemas import (
     DailyReportCreate,
     DailyReportUpdate,
     DailyReportVersionAction,
+    DelayEntryWrite,
 )
 
 
@@ -102,6 +104,54 @@ def test_daily_report_offline_work_progress_uses_update_permission() -> None:
 
     assert payload.work_progress is not None
     assert payload.work_progress.expected_revision == 5
+    assert _permission_for(payload.operation) == "field.daily_report.update"
+
+
+def test_daily_report_offline_delays_require_matching_revision() -> None:
+    device_id, mutation_id, report_id = _ids()
+    with pytest.raises(ValidationError, match="delays.expected_revision must match"):
+        DailyReportOfflineMutationRequest(
+            device_id=device_id,
+            client_mutation_id=mutation_id,
+            entity_id=report_id,
+            operation=DailyReportOfflineOperation.REPLACE_DELAYS,
+            base_revision=4,
+            delays=DailyReportDelayReplace(
+                expected_revision=3,
+                rows=[
+                    DelayEntryWrite(
+                        category="Material",
+                        description="Rebar delivery delayed",
+                        lost_hours=2,
+                        schedule_impact=True,
+                    )
+                ],
+            ),
+        )
+
+
+def test_daily_report_offline_delays_use_update_permission() -> None:
+    device_id, mutation_id, report_id = _ids()
+    payload = DailyReportOfflineMutationRequest(
+        device_id=device_id,
+        client_mutation_id=mutation_id,
+        entity_id=report_id,
+        operation=DailyReportOfflineOperation.REPLACE_DELAYS,
+        base_revision=4,
+        delays=DailyReportDelayReplace(
+            expected_revision=4,
+            rows=[
+                DelayEntryWrite(
+                    category="RFI",
+                    description="Awaiting structural clarification",
+                    responsible_party="Design team",
+                )
+            ],
+        ),
+    )
+
+    assert payload.delays is not None
+    assert payload.delays.rows[0].description == "Awaiting structural clarification"
     assert _permission_for(payload.operation) == "field.daily_report.update"
 
 
