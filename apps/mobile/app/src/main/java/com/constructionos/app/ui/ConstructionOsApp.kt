@@ -158,6 +158,7 @@ private fun ConnectedConstructionOsApp(
                     attendanceRepository = container.attendanceRepository,
                     dprRepository = container.dprRepository,
                     partyRepository = container.partyRepository,
+                    wbsRepository = container.wbsRepository,
                     accessAdminRepository = container.accessAdminRepository,
                     projectAccessAdminRepository = container.projectAccessAdminRepository,
                     modifier = modifier,
