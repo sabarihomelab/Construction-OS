@@ -1,6 +1,9 @@
 package com.constructionos.app.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -36,7 +39,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import com.constructionos.app.core.authorization.hasProjectPermission
 import com.constructionos.app.core.database.DprPhotoEntity
 import com.constructionos.app.core.database.DprPhotoState
@@ -49,6 +55,7 @@ import com.constructionos.app.core.network.SessionContextResponse
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -63,6 +70,7 @@ fun DprPhotosScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val appContext = LocalContext.current
     val reports by remember(project.id) {
         dprRepository.observeProjectReports(project.id)
     }.collectAsState(initial = emptyList())
@@ -71,6 +79,8 @@ fun DprPhotosScreen(
     var photosEnabled by remember(project.id) { mutableStateOf(true) }
     var message by remember(project.id) { mutableStateOf<String?>(null) }
     var refreshing by remember(project.id) { mutableStateOf(false) }
+    var pendingCaptureUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingCapturePath by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(project.id, context.configurationRevision) {
@@ -111,6 +121,29 @@ fun DprPhotosScreen(
         }
     }
 
+    fun stagePhoto(uri: Uri, captureFile: File? = null) {
+        val report = selectedReport
+        if (report == null) {
+            captureFile?.delete()
+            return
+        }
+        scope.launch {
+            message = null
+            runCatching {
+                photoRepository.stageGalleryPhoto(
+                    reportId = report.id,
+                    sourceUri = uri,
+                    caption = caption,
+                )
+            }.onSuccess {
+                caption = ""
+            }.onFailure { error ->
+                message = error.message ?: "The photo could not be saved on this device."
+            }
+            captureFile?.delete()
+        }
+    }
+
     LaunchedEffect(selectedReport?.id, selectedReport?.revision, selectedReport?.serverId) {
         if (selectedReport?.serverId != null) {
             runCatching { photoRepository.refreshReport(selectedReport.id) }
@@ -118,22 +151,63 @@ fun DprPhotosScreen(
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        val report = selectedReport
-        if (uri != null && report != null) {
-            scope.launch {
-                message = null
-                runCatching {
-                    photoRepository.stageGalleryPhoto(
-                        reportId = report.id,
-                        sourceUri = uri,
-                        caption = caption,
-                    )
-                }.onSuccess {
-                    caption = ""
-                }.onFailure { error ->
-                    message = error.message ?: "The photo could not be saved on this device."
-                }
-            }
+        if (uri != null) stagePhoto(uri)
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val uri = pendingCaptureUri
+        val file = pendingCapturePath?.let(::File)
+        pendingCaptureUri = null
+        pendingCapturePath = null
+        if (success && uri != null && file?.isFile == true && file.length() > 0) {
+            stagePhoto(uri, file)
+        } else {
+            file?.delete()
+            if (success) message = "The camera did not return a usable photo."
+        }
+    }
+
+    fun launchCameraCapture() {
+        runCatching {
+            val directory = File(appContext.cacheDir, "dpr-capture")
+            check(directory.mkdirs() || directory.isDirectory) { "Could not prepare the camera." }
+            val file = File(directory, "dpr-${UUID.randomUUID()}.jpg")
+            val uri = FileProvider.getUriForFile(
+                appContext,
+                "${appContext.packageName}.fileprovider",
+                file,
+            )
+            pendingCaptureUri = uri
+            pendingCapturePath = file.absolutePath
+            cameraLauncher.launch(uri)
+        }.onFailure { error ->
+            pendingCapturePath?.let(::File)?.delete()
+            pendingCaptureUri = null
+            pendingCapturePath = null
+            message = error.message ?: "No camera app is available on this device."
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            launchCameraCapture()
+        } else {
+            message = "Camera permission is needed only when you choose Take photo. You can still choose an existing image."
+        }
+    }
+
+    fun requestCameraCapture() {
+        if (
+            ContextCompat.checkSelfPermission(
+                appContext,
+                Manifest.permission.CAMERA,
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            launchCameraCapture()
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
@@ -213,14 +287,25 @@ fun DprPhotosScreen(
                 maxLines = 3,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             )
-            Button(
-                onClick = { picker.launch("image/*") },
+            Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("Choose photo")
+                Button(
+                    onClick = { requestCameraCapture() },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Take photo")
+                }
+                OutlinedButton(
+                    onClick = { picker.launch("image/*") },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Choose photo")
+                }
             }
             Text(
-                "The selected image is copied into private app storage first. Upload resumes from the last server-confirmed byte if connectivity is interrupted.",
+                "Photos are copied into private app storage first. Camera permission is requested only when Take photo is used, and interrupted uploads resume from the last server-confirmed byte.",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
             )
