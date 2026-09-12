@@ -9,6 +9,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,12 +23,14 @@ import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.dpr.DprLifecycleRepository
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.dpr.requireAttendanceSummaryRepository
+import com.constructionos.app.core.dpr.requireCustomFieldRepository
 import com.constructionos.app.core.dpr.requirePhotoRepository
 import com.constructionos.app.core.network.SessionContextResponse
 
 enum class DailyReportHubTab(val label: String) {
     ENTRY("Entry"),
     CREW("Crew"),
+    FIELDS("Fields"),
     PHOTOS("Photos"),
     REVIEW("Review"),
 }
@@ -47,18 +51,31 @@ fun DailyReportHubScreen(
     val canReopen = "field.daily_report.update" in permissions
     val canManage = "field.daily_report.manage" in permissions
     val showReview = canSubmit || canApprove || canReopen || canManage
-    val tabs = remember(canViewAttendance, showReview) {
+    val attendanceSummaryRepository = remember(repository) {
+        repository.requireAttendanceSummaryRepository()
+    }
+    val customFieldRepository = remember(repository) {
+        repository.requireCustomFieldRepository()
+    }
+    val photoRepository = remember(repository) { repository.requirePhotoRepository() }
+    val customDefinitions by remember(project.id) {
+        customFieldRepository.observeDefinitions(project.id)
+    }.collectAsState(initial = emptyList())
+    val hasCustomFields = customDefinitions.isNotEmpty()
+
+    LaunchedEffect(project.id, context.configurationRevision) {
+        runCatching { customFieldRepository.refreshDefinitions(project.id) }
+    }
+
+    val tabs = remember(canViewAttendance, hasCustomFields, showReview) {
         buildList {
             add(DailyReportHubTab.ENTRY)
             if (canViewAttendance) add(DailyReportHubTab.CREW)
+            if (hasCustomFields) add(DailyReportHubTab.FIELDS)
             add(DailyReportHubTab.PHOTOS)
             if (showReview) add(DailyReportHubTab.REVIEW)
         }
     }
-    val attendanceSummaryRepository = remember(repository) {
-        repository.requireAttendanceSummaryRepository()
-    }
-    val photoRepository = remember(repository) { repository.requirePhotoRepository() }
     var selected by rememberSaveable(project.id) { mutableStateOf(DailyReportHubTab.ENTRY.name) }
     val selectedTab = DailyReportHubTab.valueOf(selected).let { tab ->
         if (tab in tabs) tab else DailyReportHubTab.ENTRY
@@ -101,6 +118,14 @@ fun DailyReportHubScreen(
             DailyReportHubTab.CREW -> DprAttendanceSummaryScreen(
                 project = project,
                 repository = attendanceSummaryRepository,
+                onBack = onBack,
+                modifier = Modifier.weight(1f),
+            )
+            DailyReportHubTab.FIELDS -> DprCustomFieldsScreen(
+                project = project,
+                context = context,
+                dprRepository = repository,
+                customFieldRepository = customFieldRepository,
                 onBack = onBack,
                 modifier = Modifier.weight(1f),
             )
