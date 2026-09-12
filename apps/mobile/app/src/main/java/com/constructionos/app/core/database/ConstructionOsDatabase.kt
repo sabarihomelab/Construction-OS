@@ -24,8 +24,9 @@ import java.security.MessageDigest
         PartyEntity::class,
         ProjectPartyAssignmentEntity::class,
         WbsEntity::class,
+        BoqFieldEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class ConstructionOsDatabase : RoomDatabase() {
@@ -34,6 +35,7 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
     abstract fun dprDao(): DprDao
     abstract fun partyDao(): PartyDao
     abstract fun wbsDao(): WbsDao
+    abstract fun boqFieldDao(): BoqFieldDao
 
     companion object {
         private val instances = mutableMapOf<String, ConstructionOsDatabase>()
@@ -373,6 +375,43 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
             }
         }
 
+        private val migration7To8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS boq_field_items (
+                        item_id TEXT NOT NULL PRIMARY KEY,
+                        project_id TEXT NOT NULL,
+                        boq_id TEXT NOT NULL,
+                        boq_code TEXT NOT NULL,
+                        boq_name TEXT NOT NULL,
+                        boq_revision INTEGER NOT NULL,
+                        wbs_code_id TEXT,
+                        line_number INTEGER NOT NULL,
+                        item_code TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        unit_code TEXT NOT NULL,
+                        quantity TEXT NOT NULL,
+                        item_revision INTEGER NOT NULL,
+                        sort_order INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_boq_field_items_project_id_sort_order ON boq_field_items(project_id, sort_order)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_boq_field_items_project_id_boq_id ON boq_field_items(project_id, boq_id)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_boq_field_items_project_id_item_code ON boq_field_items(project_id, item_code)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_boq_field_items_project_id_wbs_code_id ON boq_field_items(project_id, wbs_code_id)",
+                )
+            }
+        }
+
         fun getInstance(
             context: Context,
             deploymentId: String,
@@ -389,6 +428,7 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
                     migration4To5,
                     migration5To6,
                     migration6To7,
+                    migration7To8,
                 )
                 .build()
                 .also { instances[deploymentId] = it }
