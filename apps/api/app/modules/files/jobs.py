@@ -18,7 +18,7 @@ async def process_file_version(
 ) -> dict[str, object]:
     raw_version_id = job.payload.get("file_version_id")
     if not isinstance(raw_version_id, str):
-        raise ValueError("files.process_version requires file_version_id")
+        raise TypeError("files.process_version requires file_version_id")
     file_version_id = UUID(raw_version_id)
 
     row = await db.execute(
