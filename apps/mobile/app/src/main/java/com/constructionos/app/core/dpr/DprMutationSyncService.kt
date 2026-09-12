@@ -11,6 +11,7 @@ import com.constructionos.app.core.network.DailyReportOfflineMutationRequest
 import com.constructionos.app.core.network.DailyReportOfflineMutationResponse
 import com.constructionos.app.core.network.DailyReportResponse
 import com.constructionos.app.core.network.DailyReportUpdateRequest
+import com.constructionos.app.core.network.DailyReportVersionActionRequest
 import com.constructionos.app.core.network.DprDelayReplaceRequest
 import com.constructionos.app.core.network.DprDelayResponse
 import com.constructionos.app.core.network.DprWorkProgressReplaceRequest
@@ -42,6 +43,7 @@ class DprMutationSyncService(
             DprRepository.OP_UPDATE_HEADER -> buildUpdateRequest(mutation, deviceId)
             DprRepository.OP_REPLACE_WORK_PROGRESS -> buildWorkProgressRequest(mutation, deviceId)
             DprRepository.OP_REPLACE_DELAYS -> buildDelaysRequest(mutation, deviceId)
+            DprLifecycleRepository.OP_SUBMIT -> buildSubmitRequest(mutation, deviceId)
             else -> null
         }
         if (request == null) {
@@ -201,6 +203,23 @@ class DprMutationSyncService(
         )
     }
 
+    private suspend fun buildSubmitRequest(mutation: DprMutationEntity, deviceId: String): DailyReportOfflineMutationRequest? {
+        val report = dao.reportById(mutation.reportId) ?: return null
+        val serverId = report.serverId ?: return null
+        val action = runCatching {
+            gson.fromJson(mutation.payloadJson, DailyReportVersionActionRequest::class.java)
+        }.getOrNull() ?: return null
+        if (action.expectedRevision < 1 || action.expectedRevision != report.revision) return null
+        return DailyReportOfflineMutationRequest(
+            deviceId = deviceId,
+            clientMutationId = mutation.clientMutationId,
+            entityId = serverId,
+            operation = DprLifecycleRepository.OP_SUBMIT,
+            baseRevision = action.expectedRevision,
+            action = action,
+        )
+    }
+
     private suspend fun rejectTransport(mutation: DprMutationEntity, errorCode: String) {
         dao.markNeedsAttention(
             mutation = mutation,
@@ -277,6 +296,7 @@ class DprMutationSyncService(
             DprRepository.OP_UPDATE_HEADER,
             DprRepository.OP_REPLACE_WORK_PROGRESS,
             DprRepository.OP_REPLACE_DELAYS,
+            DprLifecycleRepository.OP_SUBMIT,
         )
         private const val STATUS_APPLIED = "applied"
         private const val STATUS_CONFLICT = "conflict"
