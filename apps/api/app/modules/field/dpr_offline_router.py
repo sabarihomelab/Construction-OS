@@ -19,13 +19,14 @@ from app.modules.field.dpr_service import (
     list_work_progress,
     replace_work_progress,
 )
-from app.modules.field.models import DailyReport
+from app.modules.field.models import DailyReport, DailyReportDelayEntry
 from app.modules.field.router import _require_permission
-from app.modules.field.schemas import DailyReportRead
+from app.modules.field.schemas import DailyReportRead, DelayEntryRead
 from app.modules.field.service import (
     DailyReportConflictError,
     DailyReportValidationError,
     create_daily_report,
+    replace_daily_report_sections,
     submit_daily_report,
     update_daily_report,
 )
@@ -55,6 +56,7 @@ def _permission_for(operation: DailyReportOfflineOperation) -> str:
     if operation in {
         DailyReportOfflineOperation.UPDATE_HEADER,
         DailyReportOfflineOperation.REPLACE_WORK_PROGRESS,
+        DailyReportOfflineOperation.REPLACE_DELAYS,
     }:
         return "field.daily_report.update"
     return "field.daily_report.submit"
@@ -66,6 +68,7 @@ def _sync_operation(operation: DailyReportOfflineOperation) -> SyncMutationOpera
     if operation in {
         DailyReportOfflineOperation.UPDATE_HEADER,
         DailyReportOfflineOperation.REPLACE_WORK_PROGRESS,
+        DailyReportOfflineOperation.REPLACE_DELAYS,
     }:
         return SyncMutationOperation.UPDATE
     return SyncMutationOperation.ACTION
@@ -154,18 +157,28 @@ async def _operation_result(
     project_id: UUID,
 ) -> dict[str, object]:
     result = _report_result(report)
-    if operation != DailyReportOfflineOperation.REPLACE_WORK_PROGRESS:
-        return result
-
-    rows = await list_work_progress(
-        db,
-        organization_id=organization_id,
-        project_id=project_id,
-        report_id=report.id,
-    )
-    result["work_progress"] = [
-        DPRWorkProgressRead.model_validate(row).model_dump(mode="json") for row in rows
-    ]
+    if operation == DailyReportOfflineOperation.REPLACE_WORK_PROGRESS:
+        rows = await list_work_progress(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            report_id=report.id,
+        )
+        result["work_progress"] = [
+            DPRWorkProgressRead.model_validate(row).model_dump(mode="json") for row in rows
+        ]
+    elif operation == DailyReportOfflineOperation.REPLACE_DELAYS:
+        rows = await db.scalars(
+            select(DailyReportDelayEntry)
+            .where(
+                DailyReportDelayEntry.organization_id == organization_id,
+                DailyReportDelayEntry.daily_report_id == report.id,
+            )
+            .order_by(DailyReportDelayEntry.created_at, DailyReportDelayEntry.id)
+        )
+        result["delays"] = [
+            DelayEntryRead.model_validate(row).model_dump(mode="json") for row in rows.all()
+        ]
     return result
 
 
@@ -226,6 +239,23 @@ async def _apply_operation(
             actor_user_id=user_id,
             session_id=session_id,
             reason=work_progress.reason,
+        )
+
+    if payload.operation == DailyReportOfflineOperation.REPLACE_DELAYS:
+        delays = payload.delays
+        if delays is None:
+            raise DailyReportValidationError("DPR delays payload is required")
+        return await replace_daily_report_sections(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            membership_id=membership_id,
+            report_id=payload.entity_id,
+            expected_revision=delays.expected_revision,
+            sections={"delays": [row.model_dump() for row in delays.rows]},
+            actor_user_id=user_id,
+            session_id=session_id,
+            reason=delays.reason,
         )
 
     action = payload.action
