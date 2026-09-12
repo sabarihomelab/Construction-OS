@@ -158,6 +158,7 @@ private fun ConnectedConstructionOsApp(
                     attendanceRepository = container.attendanceRepository,
                     dprRepository = container.dprRepository,
                     partyRepository = container.partyRepository,
+                    accessAdminRepository = container.accessAdminRepository,
                     modifier = modifier,
                     onLogout = {
                         scope.launch {
@@ -324,31 +325,28 @@ private fun MembershipSelectionScreen(
 private fun ErrorScreen(
     message: String,
     onRetry: () -> Unit,
-    onChangeCompany: (() -> Unit)? = null,
+    onChangeCompany: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Unable to continue", style = MaterialTheme.typography.headlineSmall)
-        Text(
-            text = message,
-            modifier = Modifier.padding(top = 12.dp, bottom = 20.dp),
-        )
-        Button(onClick = onRetry) {
+        Text(message, color = MaterialTheme.colorScheme.error)
+        Button(
+            onClick = onRetry,
+            modifier = Modifier.padding(top = 16.dp),
+        ) {
             Text("Retry")
         }
-        if (onChangeCompany != null) {
-            OutlinedButton(
-                onClick = onChangeCompany,
-                modifier = Modifier.padding(top = 12.dp),
-            ) {
-                Text("Change company")
-            }
+        OutlinedButton(
+            onClick = onChangeCompany,
+            modifier = Modifier.padding(top = 12.dp),
+        ) {
+            Text("Change company")
         }
     }
 }
