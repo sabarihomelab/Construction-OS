@@ -25,8 +25,11 @@ import java.security.MessageDigest
         ProjectPartyAssignmentEntity::class,
         WbsEntity::class,
         BoqFieldEntity::class,
+        WorkforceWorkerEntity::class,
+        WorkforceCrewEntity::class,
+        WorkforceAssignmentEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 abstract class ConstructionOsDatabase : RoomDatabase() {
@@ -36,6 +39,7 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
     abstract fun partyDao(): PartyDao
     abstract fun wbsDao(): WbsDao
     abstract fun boqFieldDao(): BoqFieldDao
+    abstract fun workforceDao(): WorkforceDao
 
     companion object {
         private val instances = mutableMapOf<String, ConstructionOsDatabase>()
@@ -412,6 +416,80 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
             }
         }
 
+        private val migration8To9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS workforce_workers (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        organization_id TEXT NOT NULL,
+                        worker_number TEXT NOT NULL,
+                        display_name TEXT NOT NULL,
+                        job_title TEXT,
+                        trade TEXT,
+                        status TEXT NOT NULL,
+                        revision INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_workforce_workers_organization_id_worker_number ON workforce_workers(organization_id, worker_number)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_workforce_workers_organization_id_status ON workforce_workers(organization_id, status)",
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS workforce_crews (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        organization_id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        supervisor_worker_id TEXT,
+                        status TEXT NOT NULL,
+                        revision INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_workforce_crews_organization_id_name ON workforce_crews(organization_id, name)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_workforce_crews_organization_id_status ON workforce_crews(organization_id, status)",
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS workforce_assignments (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        organization_id TEXT NOT NULL,
+                        project_id TEXT NOT NULL,
+                        worker_id TEXT NOT NULL,
+                        crew_id TEXT,
+                        employer_party_id TEXT,
+                        engagement_type TEXT,
+                        status TEXT NOT NULL,
+                        project_role TEXT,
+                        trade TEXT,
+                        default_cost_code TEXT,
+                        start_date TEXT,
+                        end_date TEXT,
+                        revision INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_workforce_assignments_project_id_worker_id ON workforce_assignments(project_id, worker_id)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_workforce_assignments_project_id_crew_id ON workforce_assignments(project_id, crew_id)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_workforce_assignments_project_id_status ON workforce_assignments(project_id, status)",
+                )
+            }
+        }
+
         fun getInstance(
             context: Context,
             deploymentId: String,
@@ -429,6 +507,7 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
                     migration5To6,
                     migration6To7,
                     migration7To8,
+                    migration8To9,
                 )
                 .build()
                 .also { instances[deploymentId] = it }
