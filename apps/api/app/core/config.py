@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -36,6 +37,8 @@ class Settings(BaseSettings):
     default_unit_system: Literal["metric", "mixed", "imperial"] = "metric"
 
     deployment_profile: Literal["development", "single_server", "split"] = "development"
+    deployment_id: str = "local-development"
+    deployment_organization_id: UUID | None = None
     database_mode: Literal["local", "external"] = "local"
     storage_provider: str = "local"
     storage_local_root: str = "./data/storage"
@@ -71,6 +74,12 @@ class Settings(BaseSettings):
             raise ValueError("Session touch interval must be shorter than the idle timeout")
         if self.environment.lower() == "production" and not self.session_cookie_secure:
             raise ValueError("Secure session cookies are required in production")
+        if not self.deployment_id.strip():
+            raise ValueError("DEPLOYMENT_ID cannot be empty")
+        if self.environment.lower() == "production" and self.deployment_organization_id is None:
+            raise ValueError(
+                "DEPLOYMENT_ORGANIZATION_ID is required in production so a deployment is bound to one company"
+            )
         if self.native_dev_auth_enabled:
             if self.environment.lower() == "production":
                 raise ValueError("Development native authentication cannot be enabled in production")
