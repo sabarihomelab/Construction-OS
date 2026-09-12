@@ -41,6 +41,14 @@ def validate_csrf_token(session: Session, raw_csrf_token: str) -> bool:
     return hmac.compare_digest(session.csrf_token_hash, hash_secret(raw_csrf_token))
 
 
+def _membership_matches_deployment(membership: OrganizationMembership) -> bool:
+    deployment_organization_id = get_settings().deployment_organization_id
+    return (
+        deployment_organization_id is None
+        or membership.organization_id == deployment_organization_id
+    )
+
+
 async def create_session(
     db: AsyncSession,
     *,
@@ -61,6 +69,8 @@ async def create_session(
         or membership.status != MembershipStatus.ACTIVE
     ):
         raise SessionValidationError("An active membership is required to create a session")
+    if not _membership_matches_deployment(membership):
+        raise SessionValidationError("Membership does not belong to this deployment")
 
     user = await db.get(User, user_id)
     if user is None or not user.is_active or user.status != UserStatus.ACTIVE:
@@ -122,6 +132,10 @@ async def load_active_session(
         await revoke_session(db, session, "membership_inactive", now=now)
         await db.commit()
         raise SessionValidationError("Session membership is no longer active")
+    if not _membership_matches_deployment(membership):
+        await revoke_session(db, session, "deployment_mismatch", now=now)
+        await db.commit()
+        raise SessionValidationError("Session does not belong to this deployment")
 
     user = await db.get(User, session.user_id)
     if user is None or not user.is_active or user.status != UserStatus.ACTIVE:
