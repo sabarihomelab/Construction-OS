@@ -160,6 +160,7 @@ data class DailyReportOfflineMutationRequest(
     val update: DailyReportUpdateRequest? = null,
     @SerializedName("work_progress") val workProgress: DprWorkProgressReplaceRequest? = null,
     val delays: DprDelayReplaceRequest? = null,
+    @SerializedName("custom_fields") val customFields: DprCustomFieldReplaceRequest? = null,
     val action: DailyReportVersionActionRequest? = null,
 )
 
