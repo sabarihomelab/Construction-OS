@@ -83,7 +83,7 @@ The Android APK is shared across customers, but each installation connects to a 
 - Production requires HTTPS.
 - The app validates the server through `/api/v1/deployment/bootstrap` before creating the normal API client.
 - Authentication then occurs only against that selected deployment.
-- The selected deployment ID namespaces the encrypted bearer session, Room database, project selection and WorkManager sync jobs.
+- A local connection namespace derived from both the verified API origin and deployment ID isolates the encrypted bearer session, Room database, project selection and WorkManager sync jobs. A different server cannot gain access to an existing cache merely by claiming the same deployment ID.
 - Switching company does not make another company's cached/offline data visible or send its queued mutations to the newly selected server.
 - Database credentials are never stored in or sent to the Android client.
 
