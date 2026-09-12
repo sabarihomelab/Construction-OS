@@ -17,6 +17,7 @@ import com.constructionos.app.core.dpr.DprMutationSyncService
 import com.constructionos.app.core.dpr.DprPhotoRepository
 import com.constructionos.app.core.dpr.DprPhotoSyncService
 import com.constructionos.app.core.dpr.DprRepository
+import com.constructionos.app.core.dpr.bindAttendanceSummaryRepository
 import com.constructionos.app.core.dpr.bindPhotoRepository
 import com.constructionos.app.core.estimating.EstimatingReviewRepository
 import com.constructionos.app.core.network.NetworkFactory
@@ -101,7 +102,7 @@ class AppContainer(
     val dprAttendanceSummaryRepository = DprAttendanceSummaryRepository(
         api = dprAttendanceApi,
         dao = dprAttendanceSummaryDatabase.dprAttendanceSummaryDao(),
-    )
+    ).also(dprRepository::bindAttendanceSummaryRepository)
 
     val dprPhotoRepository = DprPhotoRepository(
         context = applicationContext,
