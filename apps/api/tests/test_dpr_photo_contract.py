@@ -9,10 +9,7 @@ from app.core.config import Settings
 from app.main import create_app
 from app.modules.field.dpr_photo_schemas import DPRPhotoUploadStart
 from app.modules.files.jobs import FILE_PROCESS_JOB_TYPE
-from app.modules.files.local_provider import (
-    LocalStorageProvider,
-    LocalStorageProviderError,
-)
+from app.modules.files.local_provider import LocalStorageProvider, LocalStorageProviderError
 from app.modules.files.resumable_service import request_hash
 from app.modules.jobs.handlers import JobHandlerRegistry
 from app.runtime.deployment import build_runtime_plan
