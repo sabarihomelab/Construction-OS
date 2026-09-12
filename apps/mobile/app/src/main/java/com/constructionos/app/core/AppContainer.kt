@@ -9,9 +9,11 @@ import com.constructionos.app.core.authorization.ProjectAccessAdminRepository
 import com.constructionos.app.core.boq.BoqFieldRepository
 import com.constructionos.app.core.database.ConstructionOsDatabase
 import com.constructionos.app.core.database.DprAttendanceSummaryDatabase
+import com.constructionos.app.core.database.DprCustomFieldDatabase
 import com.constructionos.app.core.database.DprPhotoQueueDatabase
 import com.constructionos.app.core.deployment.WorkspaceConnection
 import com.constructionos.app.core.dpr.DprAttendanceSummaryRepository
+import com.constructionos.app.core.dpr.DprCustomFieldRepository
 import com.constructionos.app.core.dpr.DprLifecycleRepository
 import com.constructionos.app.core.dpr.DprMutationSyncService
 import com.constructionos.app.core.dpr.DprPhotoRepository
@@ -47,6 +49,7 @@ class AppContainer(
     private val dprLifecycleApi = NetworkFactory.createDprLifecycleApi(connection.apiBaseUrl, sessionStore)
     private val dprPhotoApi = NetworkFactory.createDprPhotoApi(connection.apiBaseUrl, sessionStore)
     private val dprAttendanceApi = NetworkFactory.createDprAttendanceApi(connection.apiBaseUrl, sessionStore)
+    private val dprCustomFieldApi = NetworkFactory.createDprCustomFieldApi(connection.apiBaseUrl, sessionStore)
     private val database = ConstructionOsDatabase.getInstance(
         applicationContext,
         localNamespace,
@@ -56,6 +59,10 @@ class AppContainer(
         localNamespace,
     )
     private val dprAttendanceSummaryDatabase = DprAttendanceSummaryDatabase.getInstance(
+        applicationContext,
+        localNamespace,
+    )
+    private val dprCustomFieldDatabase = DprCustomFieldDatabase.getInstance(
         applicationContext,
         localNamespace,
     )
@@ -104,6 +111,13 @@ class AppContainer(
         dao = dprAttendanceSummaryDatabase.dprAttendanceSummaryDao(),
     ).also(dprRepository::bindAttendanceSummaryRepository)
 
+    val dprCustomFieldRepository = DprCustomFieldRepository(
+        api = dprCustomFieldApi,
+        customFieldDao = dprCustomFieldDatabase.dprCustomFieldDao(),
+        dprDao = database.dprDao(),
+        syncScheduler = syncScheduler,
+    )
+
     val dprPhotoRepository = DprPhotoRepository(
         context = applicationContext,
         connectionNamespace = localNamespace,
@@ -116,6 +130,7 @@ class AppContainer(
     private val dprMutationSyncService = DprMutationSyncService(
         api = api,
         dao = database.dprDao(),
+        customFieldDao = dprCustomFieldDatabase.dprCustomFieldDao(),
         deviceRegistrar = deviceRegistrar,
     )
 
@@ -162,6 +177,7 @@ class AppContainer(
         attendanceRepository = attendanceRepository,
         attendanceMutationSyncService = attendanceMutationSyncService,
         dprRepository = dprRepository,
+        dprCustomFieldRepository = dprCustomFieldRepository,
         dprMutationSyncService = dprMutationSyncService,
         dprPhotoSyncService = dprPhotoSyncService,
     )
