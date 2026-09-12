@@ -220,7 +220,7 @@ fun DprPhotosScreen(
                 Text("Choose photo")
             }
             Text(
-                "The selected image is copied into private app storage first. Upload continues in the background when the report and network are ready.",
+                "The selected image is copied into private app storage first. Upload resumes from the last server-confirmed byte if connectivity is interrupted.",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
             )
@@ -270,7 +270,7 @@ fun DprPhotosScreen(
                             scope.launch {
                                 message = null
                                 runCatching { photoRepository.discardLocalPhoto(photo.clientPhotoId) }
-                                    .onFailure { message = it.message ?: "Photo could not be discarded." }
+                                    .onFailure { message = it.message ?: "Photo could not be cancelled." }
                             }
                         },
                     )
@@ -309,6 +309,25 @@ private fun DprPhotoRow(
                 },
                 modifier = Modifier.padding(top = 4.dp),
             )
+            if (
+                photo.sizeBytes > 0 &&
+                photo.uploadedBytes > 0 &&
+                photo.state in setOf(DprPhotoState.UPLOADING, DprPhotoState.WAITING_FOR_NETWORK)
+            ) {
+                val percent = ((photo.uploadedBytes.coerceAtMost(photo.sizeBytes) * 100) / photo.sizeBytes).toInt()
+                Text(
+                    "$percent% • ${formatBytes(photo.uploadedBytes)} of ${formatBytes(photo.sizeBytes)} uploaded",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            if (photo.state == DprPhotoState.CANCEL_REQUESTED) {
+                Text(
+                    "Cancellation is saved on this device and will be confirmed with the server when connectivity is available.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
             if (photo.state == DprPhotoState.NEEDS_ATTENTION) {
                 Text(
                     if (report.syncState == DprSyncState.NEEDS_ATTENTION) {
@@ -326,10 +345,11 @@ private fun DprPhotoRow(
                 ) { Text("Retry") }
             }
             val canDiscard = photo.serverAssetId == null &&
-                photo.uploadSessionId == null &&
-                photo.state != DprPhotoState.UPLOADING
+                photo.state != DprPhotoState.CANCEL_REQUESTED
             if (canDiscard) {
-                TextButton(onClick = onDiscard) { Text("Discard local photo") }
+                TextButton(onClick = onDiscard) {
+                    Text(if (photo.uploadSessionId == null) "Discard local photo" else "Cancel upload")
+                }
             }
         }
     }
@@ -370,9 +390,16 @@ private fun dprPhotoStateLabel(state: String): String = when (state) {
     DprPhotoState.SAVED_ON_DEVICE -> "Saved on device"
     DprPhotoState.WAITING_FOR_NETWORK -> "Waiting for network"
     DprPhotoState.UPLOADING -> "Uploading"
+    DprPhotoState.CANCEL_REQUESTED -> "Cancelling upload"
     DprPhotoState.SYNCED -> "Synced"
     DprPhotoState.NEEDS_ATTENTION -> "Needs attention"
     else -> state.replace('_', ' ')
+}
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1024L * 1024L -> "%.1f MB".format(bytes.toDouble() / (1024.0 * 1024.0))
+    bytes >= 1024L -> "%.1f KB".format(bytes.toDouble() / 1024.0)
+    else -> "$bytes B"
 }
 
 private const val MAX_REPORT_CHOICES = 8
