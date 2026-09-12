@@ -1,23 +1,36 @@
 package com.constructionos.app.ui
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.EditNote
+import androidx.compose.material.icons.rounded.FactCheck
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.dpr.DprLifecycleRepository
@@ -26,13 +39,17 @@ import com.constructionos.app.core.dpr.requireAttendanceSummaryRepository
 import com.constructionos.app.core.dpr.requireCustomFieldRepository
 import com.constructionos.app.core.dpr.requirePhotoRepository
 import com.constructionos.app.core.network.SessionContextResponse
+import kotlinx.coroutines.launch
 
-enum class DailyReportHubTab(val label: String) {
-    ENTRY("Entry"),
-    CREW("Crew"),
-    FIELDS("Fields"),
-    PHOTOS("Photos"),
-    REVIEW("Review"),
+enum class DailyReportHubTab(
+    val label: String,
+    val icon: ImageVector,
+) {
+    ENTRY("Entry", Icons.Rounded.EditNote),
+    CREW("Crew", Icons.Rounded.Groups),
+    FIELDS("Fields", Icons.Rounded.Tune),
+    PHOTOS("Photos", Icons.Rounded.PhotoLibrary),
+    REVIEW("Review", Icons.Rounded.FactCheck),
 }
 
 @Composable
@@ -76,77 +93,89 @@ fun DailyReportHubScreen(
             if (showReview) add(DailyReportHubTab.REVIEW)
         }
     }
-    var selected by rememberSaveable(project.id) { mutableStateOf(DailyReportHubTab.ENTRY.name) }
-    val selectedTab = DailyReportHubTab.valueOf(selected).let { tab ->
-        if (tab in tabs) tab else DailyReportHubTab.ENTRY
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { tabs.size })
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(tabs.size) {
+        if (pagerState.currentPage >= tabs.size) pagerState.scrollToPage(0)
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            tabs.forEach { tab ->
-                Column(modifier = Modifier.weight(1f)) {
-                    TextButton(
-                        onClick = { selected = tab.name },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            tab.label,
-                            fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal,
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                    }
-                    HorizontalDivider(
-                        thickness = if (selectedTab == tab) 3.dp else 1.dp,
-                        color = if (selectedTab == tab) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outlineVariant
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                tabs.forEachIndexed { index, tab ->
+                    FilterChip(
+                        selected = pagerState.currentPage == index,
+                        onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
+                        label = { Text(tab.label) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
                         },
                     )
                 }
             }
-        }
 
-        when (selectedTab) {
-            DailyReportHubTab.ENTRY -> DailyReportScreen(
-                project = project,
-                context = context,
-                repository = repository,
-                onBack = onBack,
+            HorizontalPager(
+                state = pagerState,
                 modifier = Modifier.weight(1f),
-            )
-            DailyReportHubTab.CREW -> DprAttendanceSummaryScreen(
-                project = project,
-                repository = attendanceSummaryRepository,
-                onBack = onBack,
-                modifier = Modifier.weight(1f),
-            )
-            DailyReportHubTab.FIELDS -> DprCustomFieldsScreen(
-                project = project,
-                context = context,
-                dprRepository = repository,
-                customFieldRepository = customFieldRepository,
-                onBack = onBack,
-                modifier = Modifier.weight(1f),
-            )
-            DailyReportHubTab.PHOTOS -> DprPhotosScreen(
-                project = project,
-                context = context,
-                dprRepository = repository,
-                photoRepository = photoRepository,
-                onBack = onBack,
-                modifier = Modifier.weight(1f),
-            )
-            DailyReportHubTab.REVIEW -> DprReviewScreen(
-                project = project,
-                dprRepository = repository,
-                lifecycleRepository = lifecycleRepository,
-                canSubmit = canSubmit,
-                canApprove = canApprove,
-                canReopen = canReopen,
-                canManage = canManage,
-                onBack = onBack,
-            )
+                beyondViewportPageCount = 1,
+            ) { page ->
+                when (tabs[page]) {
+                    DailyReportHubTab.ENTRY -> DailyReportScreen(
+                        project = project,
+                        context = context,
+                        repository = repository,
+                        onBack = onBack,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    DailyReportHubTab.CREW -> DprAttendanceSummaryScreen(
+                        project = project,
+                        repository = attendanceSummaryRepository,
+                        onBack = onBack,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    DailyReportHubTab.FIELDS -> DprCustomFieldsScreen(
+                        project = project,
+                        context = context,
+                        dprRepository = repository,
+                        customFieldRepository = customFieldRepository,
+                        onBack = onBack,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    DailyReportHubTab.PHOTOS -> DprPhotosScreen(
+                        project = project,
+                        context = context,
+                        dprRepository = repository,
+                        photoRepository = photoRepository,
+                        onBack = onBack,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    DailyReportHubTab.REVIEW -> DprReviewScreen(
+                        project = project,
+                        dprRepository = repository,
+                        lifecycleRepository = lifecycleRepository,
+                        canSubmit = canSubmit,
+                        canApprove = canApprove,
+                        canReopen = canReopen,
+                        canManage = canManage,
+                        onBack = onBack,
+                    )
+                }
+            }
         }
     }
 }
