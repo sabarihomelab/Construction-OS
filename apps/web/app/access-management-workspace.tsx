@@ -11,12 +11,14 @@ type Permission = {
   description: string;
   risk: "low" | "medium" | "high" | "critical";
 };
+type RoleScope = "company" | "project" | "both";
 type Role = {
   id: string;
   organization_id: string | null;
   key: string;
   name: string;
   description: string | null;
+  assignment_scope: RoleScope;
   is_template: boolean;
   is_protected: boolean;
   is_active: boolean;
@@ -38,6 +40,7 @@ type AssignedRole = {
   id: string;
   key: string;
   name: string;
+  assignment_scope: RoleScope;
   is_template: boolean;
   is_protected: boolean;
 };
@@ -102,6 +105,12 @@ function riskLabel(value: Permission["risk"]): string {
   return value === "critical" ? "Critical" : value === "high" ? "High" : value === "medium" ? "Medium" : "Low";
 }
 
+function scopeLabel(value: RoleScope): string {
+  if (value === "company") return "Company";
+  if (value === "project") return "Project";
+  return "Company + project";
+}
+
 export default function AccessManagementWorkspace() {
   const [context, setContext] = useState<AccessContext | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -120,6 +129,9 @@ export default function AccessManagementWorkspace() {
   const canManage = context?.permissions.includes("security.role.manage") ?? false;
   const selectedRole = roles.find((role) => role.id === selectedRoleId) || null;
   const selectedMembership = memberships.find((membership) => membership.id === selectedMembershipId) || null;
+  const companyAssignableRoles = roles.filter(
+    (role) => role.is_active && (role.assignment_scope === "company" || role.assignment_scope === "both"),
+  );
 
   const groupedPermissions = useMemo(() => {
     const groups = new Map<string, Permission[]>();
@@ -203,6 +215,7 @@ export default function AccessManagementWorkspace() {
     const key = roleKey(String(form.get("key") || name));
     const description = String(form.get("description") || "").trim() || null;
     const templateKey = String(form.get("template") || "");
+    const assignmentScope = String(form.get("assignment_scope") || "project") as RoleScope;
     if (!name || !key) return;
     setBusy(true);
     setError("");
@@ -216,7 +229,7 @@ export default function AccessManagementWorkspace() {
       } else {
         await api<Role>("/security/roles", {
           method: "POST",
-          body: JSON.stringify({ key, name, description, permission_keys: [] }),
+          body: JSON.stringify({ key, name, description, assignment_scope: assignmentScope, permission_keys: [] }),
         });
       }
       event.currentTarget.reset();
@@ -300,6 +313,24 @@ export default function AccessManagementWorkspace() {
     }
   };
 
+  const setMembershipStatus = async (membership: Membership, statusValue: Membership["status"]) => {
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const updated = await api<Membership>(`/security/memberships/${membership.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: statusValue }),
+      });
+      setMessage(`${updated.display_name} is now ${updated.status}.`);
+      await load();
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <main className="workspace">
       <section className="page-frame">
@@ -333,7 +364,7 @@ export default function AccessManagementWorkspace() {
         </section>
 
         <section className="workflow-card">
-          <div><p className="eyebrow">ROLES</p><h2>Create custom role</h2><p>Start blank or copy a recommended template.</p></div>
+          <div><p className="eyebrow">ROLES</p><h2>Create custom role</h2><p>Start blank or copy a recommended template. Project is the safest default scope.</p></div>
           {canManage && (
             <form className="quick-form" onSubmit={createRole}>
               <input name="name" placeholder="Role name" required />
@@ -342,17 +373,22 @@ export default function AccessManagementWorkspace() {
                 <option value="">Blank role</option>
                 {templates.map((template) => <option key={template.key} value={template.key}>Copy: {template.name}</option>)}
               </select>
+              <select name="assignment_scope" defaultValue="project">
+                <option value="project">Project only</option>
+                <option value="company">Company wide</option>
+                <option value="both">Company or project</option>
+              </select>
               <input name="description" placeholder="Description (blank role)" />
               <button disabled={busy}>Create role</button>
             </form>
           )}
 
           <div className="data-table">
-            <div className="table-head four-cols"><span>Role</span><span>Type</span><span>Status</span><span>Action</span></div>
+            <div className="table-head four-cols"><span>Role</span><span>Scope / type</span><span>Status</span><span>Action</span></div>
             {roles.map((role) => (
               <div className="table-row four-cols" key={role.id}>
                 <span><strong>{role.name}</strong><small style={{ display: "block" }}>{role.key}</small></span>
-                <span>{role.is_protected ? "Protected" : role.is_template ? "Default" : "Custom"}</span>
+                <span>{scopeLabel(role.assignment_scope)} · {role.is_protected ? "Protected" : role.is_template ? "Default" : "Custom"}</span>
                 <span>{role.is_active ? "Active" : "Inactive"}</span>
                 <button onClick={() => void openRole(role)}>Permissions</button>
               </div>
@@ -365,7 +401,7 @@ export default function AccessManagementWorkspace() {
             <div>
               <p className="eyebrow">PERMISSION EDITOR</p>
               <h2>{selectedRole.name}</h2>
-              <p>{selectedRole.is_protected ? "Protected administrator permissions cannot be edited." : "Changes are server-authoritative and audited."}</p>
+              <p>{scopeLabel(selectedRole.assignment_scope)} scope · {selectedRole.is_protected ? "Protected administrator permissions cannot be edited." : "Changes are server-authoritative and audited."}</p>
             </div>
             {groupedPermissions.map(([module, modulePermissions]) => (
               <details key={module} open={["field", "workforce", "commercial", "projects"].includes(module)}>
@@ -409,7 +445,7 @@ export default function AccessManagementWorkspace() {
               <input name="display_name" placeholder="Display name" required />
               <select name="kind" defaultValue="internal"><option value="internal">Internal employee</option><option value="external">External party person</option><option value="service">Service account</option></select>
               <select name="status" defaultValue="invited"><option value="invited">Invited</option><option value="active">Active</option></select>
-              <select name="role_id" defaultValue=""><option value="">No company role yet</option>{roles.filter((role) => role.is_active).map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select>
+              <select name="role_id" defaultValue=""><option value="">No company role yet</option>{companyAssignableRoles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select>
               <button disabled={busy}>Add person</button>
             </form>
           )}
@@ -421,7 +457,7 @@ export default function AccessManagementWorkspace() {
                 <span><strong>{membership.display_name}</strong><small style={{ display: "block" }}>{membership.primary_email}</small></span>
                 <span>{membership.kind} · {membership.status}</span>
                 <span>{membership.roles.length ? membership.roles.map((role) => role.name).join(", ") : "No company role"}</span>
-                <button onClick={() => openMembership(membership)}>Assign roles</button>
+                <button onClick={() => openMembership(membership)}>Manage</button>
               </div>
             ))}
           </div>
@@ -429,9 +465,14 @@ export default function AccessManagementWorkspace() {
 
         {selectedMembership && (
           <section className="workflow-card">
-            <div><p className="eyebrow">ROLE ASSIGNMENT</p><h2>{selectedMembership.display_name}</h2><p>Company roles apply across the company. Project-specific roles are assigned from each project team.</p></div>
+            <div><p className="eyebrow">MEMBERSHIP & ROLE ASSIGNMENT</p><h2>{selectedMembership.display_name}</h2><p>Company roles apply across the company. Project-scoped roles must be assigned through project membership.</p></div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              {canManage && selectedMembership.status !== "active" && <button disabled={busy} onClick={() => void setMembershipStatus(selectedMembership, "active")}>Activate</button>}
+              {canManage && selectedMembership.status === "active" && <button disabled={busy} onClick={() => void setMembershipStatus(selectedMembership, "suspended")}>Suspend</button>}
+              {canManage && selectedMembership.status !== "ended" && <button disabled={busy} onClick={() => void setMembershipStatus(selectedMembership, "ended")}>End membership</button>}
+            </div>
             <div style={{ display: "grid", gap: 8 }}>
-              {roles.filter((role) => role.is_active).map((role) => (
+              {companyAssignableRoles.map((role) => (
                 <label key={role.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input
                     type="checkbox"
@@ -445,11 +486,11 @@ export default function AccessManagementWorkspace() {
                       });
                     }}
                   />
-                  <span><strong>{role.name}</strong> <small>({role.is_protected ? "protected" : role.is_template ? "default" : "custom"})</small></span>
+                  <span><strong>{role.name}</strong> <small>({scopeLabel(role.assignment_scope)} · {role.is_protected ? "protected" : role.is_template ? "default" : "custom"})</small></span>
                 </label>
               ))}
             </div>
-            {canManage && <button disabled={busy} onClick={() => void saveMembershipRoles()}>Save role assignment</button>}
+            {canManage && <button disabled={busy} onClick={() => void saveMembershipRoles()}>Save company role assignment</button>}
           </section>
         )}
       </section>
