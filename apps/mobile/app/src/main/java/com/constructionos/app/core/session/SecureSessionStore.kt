@@ -10,11 +10,15 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-class SecureSessionStore(context: Context) : SessionTokenProvider {
+class SecureSessionStore(
+    context: Context,
+    deploymentId: String,
+) : SessionTokenProvider {
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+    private val tokenKey = "$KEY_TOKEN_PREFIX:$deploymentId"
 
     override fun currentToken(): String? {
-        val encrypted = preferences.getString(KEY_TOKEN, null) ?: return null
+        val encrypted = preferences.getString(tokenKey, null) ?: return null
         val separator = encrypted.indexOf(':')
         if (separator <= 0 || separator == encrypted.lastIndex) {
             clear()
@@ -43,11 +47,11 @@ class SecureSessionStore(context: Context) : SessionTokenProvider {
             append(':')
             append(Base64.encodeToString(encrypted, Base64.NO_WRAP))
         }
-        preferences.edit().putString(KEY_TOKEN, value).apply()
+        preferences.edit().putString(tokenKey, value).apply()
     }
 
     fun clear() {
-        preferences.edit().remove(KEY_TOKEN).apply()
+        preferences.edit().remove(tokenKey).apply()
     }
 
     private fun encryptionKey(): SecretKey {
@@ -71,7 +75,7 @@ class SecureSessionStore(context: Context) : SessionTokenProvider {
 
     private companion object {
         const val PREFERENCES_NAME = "construction_os_secure_session"
-        const val KEY_TOKEN = "bearer_token"
+        const val KEY_TOKEN_PREFIX = "bearer_token"
         const val KEY_ALIAS = "construction_os_session_key"
         const val KEYSTORE = "AndroidKeyStore"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
