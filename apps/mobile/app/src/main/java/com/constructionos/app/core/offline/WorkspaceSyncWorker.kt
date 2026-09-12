@@ -13,12 +13,12 @@ class WorkspaceSyncWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
-        val requestedDeploymentId = inputData.getString(
-            WorkspaceConnectionStore.WORKER_DEPLOYMENT_ID,
+        val requestedNamespace = inputData.getString(
+            WorkspaceConnectionStore.WORKER_CONNECTION_NAMESPACE,
         ) ?: return Result.success()
         val connection = WorkspaceConnectionStore(applicationContext).current()
             ?: return Result.success()
-        if (connection.deploymentId != requestedDeploymentId) return Result.success()
+        if (connection.localNamespace != requestedNamespace) return Result.success()
 
         return try {
             AppContainer(applicationContext, connection).workspaceSyncService.syncNow()
