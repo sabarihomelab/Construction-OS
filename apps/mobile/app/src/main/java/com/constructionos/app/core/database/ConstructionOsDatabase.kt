@@ -19,8 +19,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         DprWorkProgressEntity::class,
         DprWbsReferenceEntity::class,
         DprBoqReferenceEntity::class,
+        DprDelayEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class ConstructionOsDatabase : RoomDatabase() {
@@ -256,6 +257,32 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
             }
         }
 
+        private val migration4To5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS dpr_delays (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        report_id TEXT NOT NULL,
+                        project_id TEXT NOT NULL,
+                        position INTEGER NOT NULL,
+                        category TEXT,
+                        description TEXT NOT NULL,
+                        started_at TEXT,
+                        ended_at TEXT,
+                        lost_hours TEXT,
+                        responsible_party TEXT,
+                        schedule_impact INTEGER NOT NULL,
+                        notes TEXT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_dpr_delays_report_id_position ON dpr_delays(report_id, position)",
+                )
+            }
+        }
+
         fun getInstance(context: Context): ConstructionOsDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -263,7 +290,7 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
                     ConstructionOsDatabase::class.java,
                     "construction-os.db",
                 )
-                    .addMigrations(migration1To2, migration2To3, migration3To4)
+                    .addMigrations(migration1To2, migration2To3, migration3To4, migration4To5)
                     .build()
                     .also { instance = it }
             }
