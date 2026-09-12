@@ -18,9 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.constructionos.app.core.database.ProjectEntity
-import com.constructionos.app.core.dpr.DprAttendanceSummaryRepository
 import com.constructionos.app.core.dpr.DprLifecycleRepository
 import com.constructionos.app.core.dpr.DprRepository
+import com.constructionos.app.core.dpr.requireAttendanceSummaryRepository
 import com.constructionos.app.core.dpr.requirePhotoRepository
 import com.constructionos.app.core.network.SessionContextResponse
 
@@ -37,7 +37,6 @@ fun DailyReportHubScreen(
     context: SessionContextResponse,
     repository: DprRepository,
     lifecycleRepository: DprLifecycleRepository,
-    attendanceSummaryRepository: DprAttendanceSummaryRepository,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -55,6 +54,9 @@ fun DailyReportHubScreen(
             add(DailyReportHubTab.PHOTOS)
             if (showReview) add(DailyReportHubTab.REVIEW)
         }
+    }
+    val attendanceSummaryRepository = remember(repository) {
+        repository.requireAttendanceSummaryRepository()
     }
     val photoRepository = remember(repository) { repository.requirePhotoRepository() }
     var selected by rememberSaveable(project.id) { mutableStateOf(DailyReportHubTab.ENTRY.name) }
