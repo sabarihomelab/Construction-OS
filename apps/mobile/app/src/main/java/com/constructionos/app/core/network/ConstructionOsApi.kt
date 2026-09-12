@@ -37,6 +37,7 @@ interface ConstructionOsApi {
         @Path("roleId") roleId: String,
         @Body request: SecurityRolePermissionSetRequest,
     ): SecurityRoleResponse
+    @GET("security/party-references") suspend fun securityPartyReferences(): List<SecurityPartyReferenceResponse>
     @GET("security/memberships") suspend fun securityMemberships(): List<SecurityMembershipResponse>
     @POST("security/memberships") suspend fun createSecurityMembership(@Body request: SecurityMembershipCreateRequest): SecurityMembershipResponse
     @PUT("security/memberships/{membershipId}/roles")
@@ -44,11 +45,36 @@ interface ConstructionOsApi {
         @Path("membershipId") membershipId: String,
         @Body request: SecurityMembershipRoleSetRequest,
     ): SecurityMembershipResponse
+    @PUT("security/memberships/{membershipId}/party-affiliation")
+    suspend fun updateSecurityMembershipParty(
+        @Path("membershipId") membershipId: String,
+        @Body request: SecurityMembershipPartyRequest,
+    ): SecurityMembershipResponse
     @PATCH("security/memberships/{membershipId}/status")
     suspend fun updateSecurityMembershipStatus(
         @Path("membershipId") membershipId: String,
         @Body request: SecurityMembershipStatusRequest,
     ): SecurityMembershipResponse
+
+    @GET("projects/{projectId}/access")
+    suspend fun projectAccess(@Path("projectId") projectId: String): List<ProjectAccessMembershipResponse>
+    @POST("projects/{projectId}/memberships")
+    suspend fun addProjectMembership(
+        @Path("projectId") projectId: String,
+        @Body request: ProjectMembershipCreateRequest,
+    ): ProjectMembershipResponse
+    @PUT("projects/{projectId}/memberships/{projectMembershipId}/roles")
+    suspend fun replaceProjectMembershipRoles(
+        @Path("projectId") projectId: String,
+        @Path("projectMembershipId") projectMembershipId: String,
+        @Body request: ProjectRoleSetRequest,
+    ): ProjectAccessMembershipResponse
+    @PATCH("projects/{projectId}/memberships/{projectMembershipId}")
+    suspend fun updateProjectMembershipStatus(
+        @Path("projectId") projectId: String,
+        @Path("projectMembershipId") projectMembershipId: String,
+        @Body request: ProjectMembershipStatusRequest,
+    ): ProjectMembershipResponse
 
     @GET("configuration/projects/{projectId}/modules/{moduleKey}")
     suspend fun effectiveProjectConfiguration(
@@ -226,6 +252,13 @@ data class SecurityAssignedRoleResponse(
     @SerializedName("is_protected") val isProtected: Boolean,
 )
 
+data class SecurityPartyReferenceResponse(
+    val id: String,
+    val code: String,
+    val name: String,
+    @SerializedName("party_type") val partyType: String,
+)
+
 data class SecurityMembershipResponse(
     val id: String,
     @SerializedName("user_id") val userId: String,
@@ -235,6 +268,9 @@ data class SecurityMembershipResponse(
     val status: String,
     @SerializedName("role_ids") val roleIds: List<String> = emptyList(),
     val roles: List<SecurityAssignedRoleResponse> = emptyList(),
+    @SerializedName("represented_party_id") val representedPartyId: String? = null,
+    @SerializedName("represented_party_name") val representedPartyName: String? = null,
+    @SerializedName("represented_party_type") val representedPartyType: String? = null,
 )
 
 data class SecurityMembershipCreateRequest(
@@ -243,13 +279,58 @@ data class SecurityMembershipCreateRequest(
     val kind: String = "internal",
     val status: String = "invited",
     @SerializedName("role_ids") val roleIds: List<String> = emptyList(),
+    @SerializedName("represented_party_id") val representedPartyId: String? = null,
 )
 
 data class SecurityMembershipRoleSetRequest(
     @SerializedName("role_ids") val roleIds: List<String>,
 )
 
+data class SecurityMembershipPartyRequest(@SerializedName("party_id") val partyId: String?)
 data class SecurityMembershipStatusRequest(val status: String)
+
+data class ProjectMembershipCreateRequest(
+    @SerializedName("organization_membership_id") val organizationMembershipId: String,
+    val title: String? = null,
+)
+
+data class ProjectMembershipStatusRequest(
+    val status: String,
+    val reason: String? = null,
+)
+
+data class ProjectMembershipResponse(
+    val id: String,
+    @SerializedName("organization_id") val organizationId: String,
+    @SerializedName("project_id") val projectId: String,
+    @SerializedName("organization_membership_id") val organizationMembershipId: String,
+    val status: String,
+    val title: String? = null,
+)
+
+data class ProjectRoleSetRequest(@SerializedName("role_ids") val roleIds: List<String>)
+
+data class ProjectAccessRoleResponse(
+    val id: String,
+    val key: String,
+    val name: String,
+    @SerializedName("assignment_scope") val assignmentScope: String,
+    @SerializedName("is_template") val isTemplate: Boolean,
+    @SerializedName("is_protected") val isProtected: Boolean,
+)
+
+data class ProjectAccessMembershipResponse(
+    val id: String,
+    @SerializedName("organization_membership_id") val organizationMembershipId: String,
+    @SerializedName("user_id") val userId: String,
+    @SerializedName("display_name") val displayName: String,
+    @SerializedName("primary_email") val primaryEmail: String,
+    @SerializedName("membership_kind") val membershipKind: String,
+    val status: String,
+    val title: String? = null,
+    @SerializedName("role_ids") val roleIds: List<String> = emptyList(),
+    val roles: List<ProjectAccessRoleResponse> = emptyList(),
+)
 
 data class DeviceRegistrationRequest(@SerializedName("installation_id") val installationId: String, val platform: String = "android", @SerializedName("device_label") val deviceLabel: String? = null, @SerializedName("app_version") val appVersion: String? = null)
 data class ClientDeviceResponse(val id: String, @SerializedName("organization_id") val organizationId: String, @SerializedName("user_id") val userId: String, @SerializedName("installation_id") val installationId: String, val platform: String, @SerializedName("device_label") val deviceLabel: String? = null, @SerializedName("app_version") val appVersion: String? = null, @SerializedName("last_seen_at") val lastSeenAt: String? = null, @SerializedName("revoked_at") val revokedAt: String? = null)
