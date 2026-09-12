@@ -91,6 +91,41 @@ data class DprWorkProgressResponse(
     @SerializedName("updated_at") val updatedAt: String,
 )
 
+data class DprDelayWriteRequest(
+    val category: String? = null,
+    val description: String,
+    @SerializedName("started_at") val startedAt: String? = null,
+    @SerializedName("ended_at") val endedAt: String? = null,
+    @SerializedName("lost_hours") val lostHours: String? = null,
+    @SerializedName("responsible_party") val responsibleParty: String? = null,
+    @SerializedName("schedule_impact") val scheduleImpact: Boolean = false,
+    val notes: String? = null,
+)
+
+data class DprDelayReplaceRequest(
+    @SerializedName("expected_revision") val expectedRevision: Int,
+    val rows: List<DprDelayWriteRequest>,
+    val reason: String? = null,
+)
+
+data class DprDelayResponse(
+    val id: String,
+    val category: String? = null,
+    val description: String,
+    @SerializedName("started_at") val startedAt: String? = null,
+    @SerializedName("ended_at") val endedAt: String? = null,
+    @SerializedName("lost_hours") val lostHours: String? = null,
+    @SerializedName("responsible_party") val responsibleParty: String? = null,
+    @SerializedName("schedule_impact") val scheduleImpact: Boolean = false,
+    val notes: String? = null,
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("updated_at") val updatedAt: String,
+)
+
+data class DailyReportDetailResponse(
+    val delays: List<DprDelayResponse> = emptyList(),
+)
+
 data class DprWorkProgressWbsReferenceResponse(
     val id: String,
     val code: String,
@@ -124,6 +159,7 @@ data class DailyReportOfflineMutationRequest(
     val create: DailyReportCreateRequest? = null,
     val update: DailyReportUpdateRequest? = null,
     @SerializedName("work_progress") val workProgress: DprWorkProgressReplaceRequest? = null,
+    val delays: DprDelayReplaceRequest? = null,
     val action: DailyReportVersionActionRequest? = null,
 )
 
