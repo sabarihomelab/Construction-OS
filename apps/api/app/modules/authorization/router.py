@@ -4,11 +4,18 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.core.deps import DbSession
+from app.modules.authorization.affiliations import (
+    PartyAffiliationValidationError,
+    get_membership_party,
+    list_party_references,
+    set_membership_party,
+)
 from app.modules.authorization.models import Role
 from app.modules.authorization.schemas import (
     AssignedRoleRead,
     MembershipAdminCreate,
     MembershipAdminRead,
+    MembershipPartyAffiliationSet,
     MembershipRoleSet,
     MembershipStatusSet,
     PermissionDefinition,
@@ -19,6 +26,7 @@ from app.modules.authorization.schemas import (
     RoleRead,
     RoleTemplateRead,
     RoleUpdate,
+    SecurityPartyReferenceRead,
 )
 from app.modules.authorization.service import (
     AuthorizationConflictError,
@@ -39,7 +47,7 @@ from app.modules.authorization.service import (
 )
 from app.modules.authorization.templates import INDIA_ROLE_TEMPLATES
 from app.modules.features.service import build_access_context
-from app.modules.identity.models import OrganizationMembership
+from app.modules.identity.models import MembershipKind, MembershipStatus, OrganizationMembership
 from app.modules.sessions.deps import CsrfProtected, CurrentSession
 
 router = APIRouter(prefix="/security", tags=["security"])
@@ -56,7 +64,13 @@ def _domain_error(exc: Exception) -> None:
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
 
-def _membership_read(membership, user, roles: list[Role]) -> MembershipAdminRead:
+async def _membership_read(
+    db: DbSession,
+    organization_id: UUID,
+    membership,
+    user,
+    roles: list[Role],
+) -> MembershipAdminRead:
     assigned = [
         AssignedRoleRead(
             id=role.id,
@@ -68,6 +82,11 @@ def _membership_read(membership, user, roles: list[Role]) -> MembershipAdminRead
         )
         for role in roles
     ]
+    party = await get_membership_party(
+        db,
+        organization_id=organization_id,
+        membership_id=membership.id,
+    )
     return MembershipAdminRead(
         id=membership.id,
         user_id=user.id,
@@ -77,6 +96,25 @@ def _membership_read(membership, user, roles: list[Role]) -> MembershipAdminRead
         status=membership.status,
         role_ids=[role.id for role in roles],
         roles=assigned,
+        represented_party_id=party.id if party else None,
+        represented_party_name=party.name if party else None,
+        represented_party_type=party.party_type if party else None,
+    )
+
+
+async def _membership_readback(
+    db: DbSession,
+    *,
+    organization_id: UUID,
+    membership_id: UUID,
+) -> MembershipAdminRead:
+    rows = await list_memberships(db, organization_id)
+    for membership, user, roles in rows:
+        if membership.id == membership_id:
+            return await _membership_read(db, organization_id, membership, user, roles)
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Membership readback failed",
     )
 
 
@@ -309,12 +347,34 @@ async def put_role_permissions(
         _domain_error(exc)
 
 
+@router.get("/party-references", response_model=list[SecurityPartyReferenceRead])
+async def get_party_references(
+    db: DbSession,
+    session: CurrentSession,
+) -> list[SecurityPartyReferenceRead]:
+    context = await build_access_context(db, session.membership_id)
+    _require_permission(context, "security.role.view")
+    parties = await list_party_references(db, context.organization_id)
+    return [
+        SecurityPartyReferenceRead(
+            id=party.id,
+            code=party.code,
+            name=party.name,
+            party_type=party.party_type,
+        )
+        for party in parties
+    ]
+
+
 @router.get("/memberships", response_model=list[MembershipAdminRead])
 async def get_memberships(db: DbSession, session: CurrentSession) -> list[MembershipAdminRead]:
     context = await build_access_context(db, session.membership_id)
     _require_permission(context, "security.role.view")
     rows = await list_memberships(db, context.organization_id)
-    return [_membership_read(membership, user, roles) for membership, user, roles in rows]
+    return [
+        await _membership_read(db, context.organization_id, membership, user, roles)
+        for membership, user, roles in rows
+    ]
 
 
 @router.post(
@@ -330,6 +390,20 @@ async def post_membership(
 ) -> MembershipAdminRead:
     context = await build_access_context(db, session.membership_id)
     _require_permission(context, "security.role.manage")
+    if payload.kind != MembershipKind.EXTERNAL and payload.represented_party_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Only external memberships can represent a party",
+        )
+    if (
+        payload.kind == MembershipKind.EXTERNAL
+        and payload.status == MembershipStatus.ACTIVE
+        and payload.represented_party_id is None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="An external membership must represent a party before activation",
+        )
     try:
         membership = await add_membership(
             db,
@@ -342,16 +416,26 @@ async def post_membership(
             actor_user_id=session.user_id,
             session_id=session.id,
         )
+        if payload.represented_party_id is not None:
+            await set_membership_party(
+                db,
+                organization_id=context.organization_id,
+                membership_id=membership.id,
+                party_id=payload.represented_party_id,
+                actor_user_id=session.user_id,
+                session_id=session.id,
+            )
         await db.commit()
-        rows = await list_memberships(db, context.organization_id)
-        for row_membership, user, roles in rows:
-            if row_membership.id == membership.id:
-                return _membership_read(row_membership, user, roles)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Membership readback failed",
+        return await _membership_readback(
+            db,
+            organization_id=context.organization_id,
+            membership_id=membership.id,
         )
-    except (AuthorizationConflictError, AuthorizationValidationError) as exc:
+    except (
+        AuthorizationConflictError,
+        AuthorizationValidationError,
+        PartyAffiliationValidationError,
+    ) as exc:
         await db.rollback()
         _domain_error(exc)
 
@@ -384,15 +468,45 @@ async def put_membership_roles(
             session_id=session.id,
         )
         await db.commit()
-        rows = await list_memberships(db, context.organization_id)
-        for row_membership, user, roles in rows:
-            if row_membership.id == membership.id:
-                return _membership_read(row_membership, user, roles)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Membership readback failed",
+        return await _membership_readback(
+            db,
+            organization_id=context.organization_id,
+            membership_id=membership.id,
         )
     except (AuthorizationConflictError, AuthorizationValidationError) as exc:
+        await db.rollback()
+        _domain_error(exc)
+
+
+@router.put(
+    "/memberships/{membership_id}/party-affiliation",
+    response_model=MembershipAdminRead,
+)
+async def put_membership_party_affiliation(
+    membership_id: UUID,
+    payload: MembershipPartyAffiliationSet,
+    db: DbSession,
+    session: CurrentSession,
+    _csrf: CsrfProtected,
+) -> MembershipAdminRead:
+    context = await build_access_context(db, session.membership_id)
+    _require_permission(context, "security.role.manage")
+    try:
+        await set_membership_party(
+            db,
+            organization_id=context.organization_id,
+            membership_id=membership_id,
+            party_id=payload.party_id,
+            actor_user_id=session.user_id,
+            session_id=session.id,
+        )
+        await db.commit()
+        return await _membership_readback(
+            db,
+            organization_id=context.organization_id,
+            membership_id=membership_id,
+        )
+    except PartyAffiliationValidationError as exc:
         await db.rollback()
         _domain_error(exc)
 
@@ -417,13 +531,10 @@ async def patch_membership_status(
             session_id=session.id,
         )
         await db.commit()
-        rows = await list_memberships(db, context.organization_id)
-        for row_membership, user, roles in rows:
-            if row_membership.id == membership.id:
-                return _membership_read(row_membership, user, roles)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Membership readback failed",
+        return await _membership_readback(
+            db,
+            organization_id=context.organization_id,
+            membership_id=membership.id,
         )
     except (AuthorizationConflictError, AuthorizationValidationError) as exc:
         await db.rollback()
