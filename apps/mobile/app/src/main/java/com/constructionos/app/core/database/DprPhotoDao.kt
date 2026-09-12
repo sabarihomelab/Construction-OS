@@ -25,7 +25,7 @@ interface DprPhotoDao {
     @Query(
         """
         SELECT * FROM dpr_photos
-        WHERE state IN ('saved_on_device', 'waiting_for_network', 'uploading')
+        WHERE state IN ('saved_on_device', 'waiting_for_network', 'uploading', 'cancel_requested')
         ORDER BY created_at, client_photo_id
         LIMIT :limit
         """,
@@ -83,6 +83,17 @@ interface DprPhotoDao {
         attemptCount: Int,
         updatedAt: Long,
     )
+
+    @Query(
+        """
+        UPDATE dpr_photos
+        SET state = 'cancel_requested',
+            error_code = NULL,
+            updated_at = :updatedAt
+        WHERE client_photo_id = :clientPhotoId
+        """,
+    )
+    suspend fun markCancelRequested(clientPhotoId: String, updatedAt: Long)
 
     @Query(
         """
