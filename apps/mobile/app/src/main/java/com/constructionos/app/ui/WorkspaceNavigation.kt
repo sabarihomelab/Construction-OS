@@ -35,6 +35,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.constructionos.app.core.attendance.AttendanceRepository
 import com.constructionos.app.core.authorization.AccessAdminRepository
+import com.constructionos.app.core.authorization.ProjectAccessAdminRepository
 import com.constructionos.app.core.authorization.ProjectActionMode
 import com.constructionos.app.core.authorization.ProjectHomeAction
 import com.constructionos.app.core.authorization.ProjectHomeActionKey
@@ -50,6 +51,7 @@ private const val PROJECT_HOME_ROUTE = "project-home/{projectId}"
 private const val ATTENDANCE_ROUTE = "attendance/{projectId}"
 private const val DAILY_REPORT_ROUTE = "daily-report/{projectId}"
 private const val PARTY_DIRECTORY_ROUTE = "party-directory/{projectId}"
+private const val PROJECT_ACCESS_ROUTE = "project-access/{projectId}"
 private const val ACCESS_MANAGEMENT_ROUTE = "access-management"
 
 private enum class ProjectTab(val label: String) {
@@ -66,6 +68,7 @@ fun WorkspaceNavigation(
     dprRepository: DprRepository,
     partyRepository: PartyRepository,
     accessAdminRepository: AccessAdminRepository,
+    projectAccessAdminRepository: ProjectAccessAdminRepository,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -148,18 +151,11 @@ fun WorkspaceNavigation(
                         restoreSavedSelection = false
                         navController.navigate(PROJECT_SELECTOR_ROUTE)
                     },
-                    onOpenAttendance = {
-                        navController.navigate(attendanceRoute(project.id))
-                    },
-                    onOpenDailyReport = {
-                        navController.navigate(dailyReportRoute(project.id))
-                    },
-                    onOpenPartyDirectory = {
-                        navController.navigate(partyDirectoryRoute(project.id))
-                    },
-                    onOpenAccessManagement = {
-                        navController.navigate(ACCESS_MANAGEMENT_ROUTE)
-                    },
+                    onOpenAttendance = { navController.navigate(attendanceRoute(project.id)) },
+                    onOpenDailyReport = { navController.navigate(dailyReportRoute(project.id)) },
+                    onOpenPartyDirectory = { navController.navigate(partyDirectoryRoute(project.id)) },
+                    onOpenProjectAccess = { navController.navigate(projectAccessRoute(project.id)) },
+                    onOpenAccessManagement = { navController.navigate(ACCESS_MANAGEMENT_ROUTE) },
                     onLogout = onLogout,
                 )
             }
@@ -224,6 +220,30 @@ fun WorkspaceNavigation(
             }
         }
 
+        composable(
+            route = PROJECT_ACCESS_ROUTE,
+            arguments = listOf(navArgument("projectId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId").orEmpty()
+            val project = projects.firstOrNull { it.id == projectId }
+            val permissions = context.projectPermissions(projectId)
+            if (project == null) {
+                MissingProjectScreen(onChooseProject = { navController.popBackStack() })
+            } else if ("projects.membership.view" !in permissions) {
+                MissingPermissionScreen(
+                    message = "The server no longer allows project membership access for this project.",
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                ProjectAccessManagementScreen(
+                    project = project,
+                    repository = projectAccessAdminRepository,
+                    canManage = "projects.membership.manage" in permissions,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+        }
+
         composable(ACCESS_MANAGEMENT_ROUTE) {
             if ("security.role.view" !in context.permissions) {
                 MissingPermissionScreen(
@@ -241,26 +261,19 @@ fun WorkspaceNavigation(
     }
 }
 
+private fun SessionContextResponse.projectPermissions(projectId: String): Set<String> =
+    permissions.toSet() + projectPermissions[projectId].orEmpty()
+
 @Composable
 private fun WorkspaceStartupScreen(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier = modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         CircularProgressIndicator()
-        Text(
-            "Syncing latest site data…",
-            modifier = Modifier.padding(top = 16.dp),
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        Text(
-            "If the site is offline, saved device data opens automatically.",
-            modifier = Modifier.padding(top = 6.dp),
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Text("Syncing latest site data…", modifier = Modifier.padding(top = 16.dp), style = MaterialTheme.typography.bodyLarge)
+        Text("If the site is offline, saved device data opens automatically.", modifier = Modifier.padding(top = 6.dp), style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -271,52 +284,21 @@ private fun ProjectSelectorScreen(
     onSelectProject: (ProjectEntity) -> Unit,
     onLogout: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text("Construction OS", style = MaterialTheme.typography.headlineMedium)
-        Text(
-            text = "Choose project",
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(top = 6.dp),
-        )
-        Text(
-            text = "Only projects authorized by the server are shown.",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(top = 3.dp, bottom = 12.dp),
-        )
-
+        Text(text = "Choose project", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 6.dp))
+        Text(text = "Only projects authorized by the server are shown.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 3.dp, bottom = 12.dp))
         if (projects.isEmpty()) {
-            Text(
-                text = "No saved projects yet. Connect once to load your authorized projects.",
-                modifier = Modifier.padding(top = 16.dp),
-            )
+            Text(text = "No saved projects yet. Connect once to load your authorized projects.", modifier = Modifier.padding(top = 16.dp))
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(projects, key = { it.id }) { project ->
-                    TextButton(
-                        onClick = { onSelectProject(project) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            horizontalAlignment = Alignment.Start,
-                        ) {
+                    TextButton(onClick = { onSelectProject(project) }, modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalAlignment = Alignment.Start) {
                             Text(project.name, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "${project.number} • ${project.status}",
-                                style = MaterialTheme.typography.bodySmall,
-                            )
+                            Text("${project.number} • ${project.status}", style = MaterialTheme.typography.bodySmall)
                             if (project.id == selectedProjectId) {
-                                Text(
-                                    "Last selected",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.padding(top = 3.dp),
-                                )
+                                Text("Last selected", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 3.dp))
                             }
                         }
                     }
@@ -324,14 +306,7 @@ private fun ProjectSelectorScreen(
                 }
             }
         }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Offline project cache active", style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = onLogout) { Text("Sign out") }
         }
@@ -347,6 +322,7 @@ private fun ProjectWorkspaceScreen(
     onOpenAttendance: () -> Unit,
     onOpenDailyReport: () -> Unit,
     onOpenPartyDirectory: () -> Unit,
+    onOpenProjectAccess: () -> Unit,
     onOpenAccessManagement: () -> Unit,
     onLogout: () -> Unit,
 ) {
@@ -358,75 +334,36 @@ private fun ProjectWorkspaceScreen(
     val attention by attentionFlow.collectAsState(initial = 0)
     val canViewPartyDirectory = "commercial.party.view" in context.permissions
     val canViewAccessManagement = "security.role.view" in context.permissions
+    val projectPermissions = context.projectPermissions(project.id)
+    val canViewProjectAccess = "projects.membership.view" in projectPermissions
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 9.dp),
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp)) {
             Text(project.name, style = MaterialTheme.typography.titleLarge)
-            Text(
-                "${project.number} • ${project.status}",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Text("${project.number} • ${project.status}", style = MaterialTheme.typography.bodySmall)
         }
         HorizontalDivider()
-
         when (ProjectTab.valueOf(selectedTab)) {
-            ProjectTab.HOME -> ProjectHomeContent(
-                actions = actions,
-                pending = pending,
-                attention = attention,
-                onOpenAttendance = onOpenAttendance,
-                onOpenDailyReport = onOpenDailyReport,
-                modifier = Modifier.weight(1f),
-            )
-
-            ProjectTab.FIELD -> ProjectFieldContent(
-                actions = actions,
-                onOpenAttendance = onOpenAttendance,
-                onOpenDailyReport = onOpenDailyReport,
-                modifier = Modifier.weight(1f),
-            )
-
+            ProjectTab.HOME -> ProjectHomeContent(actions, pending, attention, onOpenAttendance, onOpenDailyReport, Modifier.weight(1f))
+            ProjectTab.FIELD -> ProjectFieldContent(actions, onOpenAttendance, onOpenDailyReport, Modifier.weight(1f))
             ProjectTab.MORE -> ProjectMoreContent(
                 project = project,
                 canViewPartyDirectory = canViewPartyDirectory,
+                canViewProjectAccess = canViewProjectAccess,
                 canViewAccessManagement = canViewAccessManagement,
                 onOpenPartyDirectory = onOpenPartyDirectory,
+                onOpenProjectAccess = onOpenProjectAccess,
                 onOpenAccessManagement = onOpenAccessManagement,
                 onChooseProject = onChooseProject,
                 onLogout = onLogout,
                 modifier = Modifier.weight(1f),
             )
         }
-
         NavigationBar {
-            NavigationBarItem(
-                selected = selectedTab == ProjectTab.HOME.name,
-                onClick = { selectedTab = ProjectTab.HOME.name },
-                icon = {},
-                label = { Text("Home") },
-            )
-            NavigationBarItem(
-                selected = selectedTab == ProjectTab.FIELD.name,
-                onClick = { selectedTab = ProjectTab.FIELD.name },
-                icon = {},
-                label = { Text("Field") },
-            )
-            NavigationBarItem(
-                selected = false,
-                onClick = onChooseProject,
-                icon = {},
-                label = { Text("Projects") },
-            )
-            NavigationBarItem(
-                selected = selectedTab == ProjectTab.MORE.name,
-                onClick = { selectedTab = ProjectTab.MORE.name },
-                icon = {},
-                label = { Text("More") },
-            )
+            NavigationBarItem(selected = selectedTab == ProjectTab.HOME.name, onClick = { selectedTab = ProjectTab.HOME.name }, icon = {}, label = { Text("Home") })
+            NavigationBarItem(selected = selectedTab == ProjectTab.FIELD.name, onClick = { selectedTab = ProjectTab.FIELD.name }, icon = {}, label = { Text("Field") })
+            NavigationBarItem(selected = false, onClick = onChooseProject, icon = {}, label = { Text("Projects") })
+            NavigationBarItem(selected = selectedTab == ProjectTab.MORE.name, onClick = { selectedTab = ProjectTab.MORE.name }, icon = {}, label = { Text("More") })
         }
     }
 }
@@ -444,24 +381,15 @@ private fun ProjectHomeContent(
         item {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
                 Text("Today", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "Daily work and anything needing attention.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                Text("Daily work and anything needing attention.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
             }
             HorizontalDivider()
         }
-
         if (attention > 0) {
             item {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                     Text("Needs attention", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "$attention attendance sync issue${if (attention == 1) "" else "s"} need review.",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 3.dp),
-                    )
+                    Text("$attention attendance sync issue${if (attention == 1) "" else "s"} need review.", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 3.dp))
                 }
                 HorizontalDivider()
             }
@@ -469,33 +397,16 @@ private fun ProjectHomeContent(
             item {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                     Text("Saved on device", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "$pending attendance change${if (pending == 1) "" else "s"} will sync when network is available.",
-                        modifier = Modifier.padding(top = 3.dp),
-                    )
+                    Text("$pending attendance change${if (pending == 1) "" else "s"} will sync when network is available.", modifier = Modifier.padding(top = 3.dp))
                 }
                 HorizontalDivider()
             }
         }
-
         if (actions.isEmpty()) {
-            item {
-                Text(
-                    "No mobile workflows are available for your current project permissions.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
+            item { Text("No mobile workflows are available for your current project permissions.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp)) }
         } else {
             items(actions, key = { it.key.name }) { action ->
-                ProjectActionRow(
-                    action = action,
-                    onClick = actionClick(
-                        action = action,
-                        onOpenAttendance = onOpenAttendance,
-                        onOpenDailyReport = onOpenDailyReport,
-                    ),
-                )
+                ProjectActionRow(action = action, onClick = actionClick(action, onOpenAttendance, onOpenDailyReport))
             }
         }
     }
@@ -512,23 +423,12 @@ private fun ProjectFieldContent(
         item {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
                 Text("Field", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "Fast site workflows for this project.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                Text("Fast site workflows for this project.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
             }
             HorizontalDivider()
         }
         items(actions, key = { it.key.name }) { action ->
-            ProjectActionRow(
-                action = action,
-                onClick = actionClick(
-                    action = action,
-                    onOpenAttendance = onOpenAttendance,
-                    onOpenDailyReport = onOpenDailyReport,
-                ),
-            )
+            ProjectActionRow(action = action, onClick = actionClick(action, onOpenAttendance, onOpenDailyReport))
         }
     }
 }
@@ -543,20 +443,9 @@ private fun actionClick(
 }
 
 @Composable
-private fun ProjectActionRow(
-    action: ProjectHomeAction,
-    onClick: (() -> Unit)?,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+private fun ProjectActionRow(action: ProjectHomeAction, onClick: (() -> Unit)?) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(action.title, style = MaterialTheme.typography.titleMedium)
             Text(
                 when (action.mode) {
@@ -567,18 +456,9 @@ private fun ProjectActionRow(
                 style = MaterialTheme.typography.labelMedium,
             )
         }
-        Text(
-            action.subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(top = 3.dp),
-        )
+        Text(action.subtitle, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 3.dp))
         if (onClick != null) {
-            TextButton(
-                onClick = onClick,
-                modifier = Modifier.padding(top = 2.dp),
-            ) {
-                Text("Open")
-            }
+            TextButton(onClick = onClick, modifier = Modifier.padding(top = 2.dp)) { Text("Open") }
         }
     }
     HorizontalDivider()
@@ -588,8 +468,10 @@ private fun ProjectActionRow(
 private fun ProjectMoreContent(
     project: ProjectEntity,
     canViewPartyDirectory: Boolean,
+    canViewProjectAccess: Boolean,
     canViewAccessManagement: Boolean,
     onOpenPartyDirectory: () -> Unit,
+    onOpenProjectAccess: () -> Unit,
     onOpenAccessManagement: () -> Unit,
     onChooseProject: () -> Unit,
     onLogout: () -> Unit,
@@ -599,11 +481,7 @@ private fun ProjectMoreContent(
         item {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
                 Text("More", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "Project information and account actions.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                Text("Project information and account actions.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
             }
             HorizontalDivider()
         }
@@ -618,104 +496,52 @@ private fun ProjectMoreContent(
         }
         if (canViewPartyDirectory) {
             item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                ) {
-                    Text("Party directory", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Clients, vendors, suppliers and subcontractors with project relationships.",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 3.dp),
-                    )
-                    TextButton(
-                        onClick = onOpenPartyDirectory,
-                        modifier = Modifier.padding(top = 2.dp),
-                    ) {
-                        Text("Open")
-                    }
-                }
-                HorizontalDivider()
+                MoreLink("Party directory", "Clients, vendors, suppliers and subcontractors with project relationships.", onOpenPartyDirectory)
+            }
+        }
+        if (canViewProjectAccess) {
+            item {
+                MoreLink("Project access", "Project members and project-scoped roles. Online company-server access only.", onOpenProjectAccess)
             }
         }
         if (canViewAccessManagement) {
             item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                ) {
-                    Text("People & access", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Company roles, permissions and memberships. Online company-server access only.",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 3.dp),
-                    )
-                    TextButton(
-                        onClick = onOpenAccessManagement,
-                        modifier = Modifier.padding(top = 2.dp),
-                    ) {
-                        Text("Open")
-                    }
-                }
-                HorizontalDivider()
+                MoreLink("People & access", "Company roles, permissions and memberships. Online company-server access only.", onOpenAccessManagement)
             }
         }
         item {
-            OutlinedButton(
-                onClick = onChooseProject,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-            ) { Text("Change project") }
+            OutlinedButton(onClick = onChooseProject, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) { Text("Change project") }
         }
         item {
-            TextButton(
-                onClick = onLogout,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-            ) { Text("Sign out") }
+            TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { Text("Sign out") }
         }
     }
 }
 
 @Composable
+private fun MoreLink(title: String, subtitle: String, onOpen: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
+        TextButton(onClick = onOpen, modifier = Modifier.padding(top = 2.dp)) { Text("Open") }
+    }
+    HorizontalDivider()
+}
+
+@Composable
 private fun MissingProjectScreen(onChooseProject: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    Column(modifier = Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Project is no longer available", style = MaterialTheme.typography.titleLarge)
-        Text(
-            "Your cached access changed. Choose another project.",
-            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
-        )
+        Text("Your cached access changed. Choose another project.", modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
         Button(onClick = onChooseProject) { Text("Choose project") }
     }
 }
 
 @Composable
-private fun MissingPermissionScreen(
-    message: String,
-    onBack: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+private fun MissingPermissionScreen(message: String, onBack: () -> Unit) {
+    Column(modifier = Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Access unavailable", style = MaterialTheme.typography.titleLarge)
-        Text(
-            message,
-            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
-        )
+        Text(message, modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
         Button(onClick = onBack) { Text("Back") }
     }
 }
@@ -724,3 +550,4 @@ private fun projectHomeRoute(projectId: String): String = "project-home/$project
 private fun attendanceRoute(projectId: String): String = "attendance/$projectId"
 private fun dailyReportRoute(projectId: String): String = "daily-report/$projectId"
 private fun partyDirectoryRoute(projectId: String): String = "party-directory/$projectId"
+private fun projectAccessRoute(projectId: String): String = "project-access/$projectId"
