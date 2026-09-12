@@ -54,6 +54,12 @@ object NetworkFactory {
     ): DprAttendanceApi = authenticatedRetrofit(baseUrl, tokenProvider)
         .create(DprAttendanceApi::class.java)
 
+    fun createDprCustomFieldApi(
+        baseUrl: String,
+        tokenProvider: SessionTokenProvider,
+    ): DprCustomFieldApi = authenticatedRetrofit(baseUrl, tokenProvider)
+        .create(DprCustomFieldApi::class.java)
+
     fun createBootstrapApi(baseUrl: String): ConstructionOsApi {
         val client = OkHttpClient.Builder().build()
         return createRetrofit(baseUrl, client).create(ConstructionOsApi::class.java)
