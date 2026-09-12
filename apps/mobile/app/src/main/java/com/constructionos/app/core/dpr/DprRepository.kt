@@ -45,6 +45,18 @@ class DprRepository(
     fun observeBoqReferences(projectId: String): Flow<List<DprBoqReferenceEntity>> =
         dao.observeBoqReferences(projectId)
 
+    suspend fun enabledSections(projectId: String): Set<String> {
+        val setting = api.effectiveProjectConfiguration(projectId, "field")
+            .settings
+            .firstOrNull { it.key == "field.daily_reports.sections.enabled" }
+            ?.value
+        val sections = (setting as? List<*>)
+            ?.mapNotNull { it as? String }
+            ?.toSet()
+            .orEmpty()
+        return sections.ifEmpty { DEFAULT_ENABLED_SECTIONS }
+    }
+
     suspend fun refreshProject(projectId: String) {
         val remotes = api.dailyReports(projectId)
         remotes.forEach { remote ->
@@ -376,6 +388,7 @@ class DprRepository(
         const val OP_UPDATE_HEADER = "update_header"
         const val OP_REPLACE_WORK_PROGRESS = "replace_work_progress"
         const val OP_REPLACE_DELAYS = "replace_delays"
+        val DEFAULT_ENABLED_SECTIONS = setOf("crew", "work", "photos", "notes")
     }
 }
 
