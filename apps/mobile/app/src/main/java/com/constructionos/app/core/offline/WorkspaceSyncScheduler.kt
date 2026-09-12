@@ -3,6 +3,7 @@ package com.constructionos.app.core.offline
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -10,6 +11,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.constructionos.app.core.deployment.WorkspaceConnectionStore
+import java.util.concurrent.TimeUnit
 
 class WorkspaceSyncScheduler(
     context: Context,
@@ -33,6 +35,11 @@ class WorkspaceSyncScheduler(
         disableLegacySync()
         val request = OneTimeWorkRequestBuilder<WorkspaceSyncWorker>()
             .setConstraints(networkConstraints)
+            .setBackoffCriteria(
+                BackoffPolicy.EXPONENTIAL,
+                MIN_BACKOFF_SECONDS,
+                TimeUnit.SECONDS,
+            )
             .setInputData(
                 workDataOf(
                     WorkspaceConnectionStore.WORKER_CONNECTION_NAMESPACE to connectionNamespace,
@@ -41,7 +48,7 @@ class WorkspaceSyncScheduler(
             .build()
         workManager.enqueueUniqueWork(
             oneTimeWorkName(),
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
             request,
         )
     }
@@ -66,5 +73,6 @@ class WorkspaceSyncScheduler(
         private const val ONE_TIME_WORK_PREFIX = "workspace-sync-now"
         private const val LEGACY_ONE_TIME_WORK = "workspace-sync-now"
         private const val LEGACY_PERIODIC_WORK = "workspace-sync-periodic"
+        private const val MIN_BACKOFF_SECONDS = 10L
     }
 }
