@@ -9,6 +9,7 @@ import com.constructionos.app.core.authorization.ProjectAccessAdminRepository
 import com.constructionos.app.core.boq.BoqFieldRepository
 import com.constructionos.app.core.database.ConstructionOsDatabase
 import com.constructionos.app.core.deployment.WorkspaceConnection
+import com.constructionos.app.core.dpr.DprLifecycleRepository
 import com.constructionos.app.core.dpr.DprMutationSyncService
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.estimating.EstimatingReviewRepository
@@ -36,6 +37,7 @@ class AppContainer(
     private val boqFieldApi = NetworkFactory.createBoqFieldApi(connection.apiBaseUrl, sessionStore)
     private val estimatingApi = NetworkFactory.createEstimatingApi(connection.apiBaseUrl, sessionStore)
     private val workforceApi = NetworkFactory.createWorkforceApi(connection.apiBaseUrl, sessionStore)
+    private val dprLifecycleApi = NetworkFactory.createDprLifecycleApi(connection.apiBaseUrl, sessionStore)
     private val database = ConstructionOsDatabase.getInstance(
         applicationContext,
         localNamespace,
@@ -69,6 +71,12 @@ class AppContainer(
 
     val dprRepository = DprRepository(
         api = api,
+        dao = database.dprDao(),
+        syncScheduler = syncScheduler,
+    )
+
+    val dprLifecycleRepository = DprLifecycleRepository(
+        api = dprLifecycleApi,
         dao = database.dprDao(),
         syncScheduler = syncScheduler,
     )
