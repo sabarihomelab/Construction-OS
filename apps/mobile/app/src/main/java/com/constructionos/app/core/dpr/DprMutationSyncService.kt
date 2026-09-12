@@ -8,6 +8,7 @@ import com.constructionos.app.core.network.DailyReportCreateRequest
 import com.constructionos.app.core.network.DailyReportOfflineMutationRequest
 import com.constructionos.app.core.network.DailyReportOfflineMutationResponse
 import com.constructionos.app.core.network.DailyReportResponse
+import com.constructionos.app.core.network.DailyReportUpdateRequest
 import com.constructionos.app.core.offline.DeviceRegistrar
 import com.google.gson.Gson
 import java.io.IOException
@@ -29,38 +30,27 @@ class DprMutationSyncService(
     }
 
     private suspend fun applyMutation(mutation: DprMutationEntity): Boolean {
-        if (mutation.operation != DprRepository.OP_CREATE) {
-            dao.markNeedsAttention(
-                mutation = mutation,
-                mutationState = DprMutationState.REJECTED,
-                errorCode = "unsupported_operation",
-                updatedAt = System.currentTimeMillis(),
-            )
-            return false
-        }
-
-        val create = runCatching {
-            gson.fromJson(mutation.payloadJson, DailyReportCreateRequest::class.java)
-        }.getOrElse {
-            dao.markNeedsAttention(
-                mutation = mutation,
-                mutationState = DprMutationState.REJECTED,
-                errorCode = "invalid_payload",
-                updatedAt = System.currentTimeMillis(),
-            )
-            return false
-        }
-
         val deviceId = deviceRegistrar.registeredDeviceId() ?: deviceRegistrar.register()
-        val request = DailyReportOfflineMutationRequest(
-            deviceId = deviceId,
-            clientMutationId = mutation.clientMutationId,
-            entityId = mutation.reportId,
-            operation = DprRepository.OP_CREATE,
-            create = create,
-        )
-        dao.markInFlight(mutation, System.currentTimeMillis())
+        val request = when (mutation.operation) {
+            DprRepository.OP_CREATE -> buildCreateRequest(mutation, deviceId)
+            DprRepository.OP_UPDATE_HEADER -> buildUpdateRequest(mutation, deviceId)
+            else -> null
+        }
+        if (request == null) {
+            dao.markNeedsAttention(
+                mutation = mutation,
+                mutationState = DprMutationState.REJECTED,
+                errorCode = if (mutation.operation in SUPPORTED_OPERATIONS) {
+                    "invalid_payload"
+                } else {
+                    "unsupported_operation"
+                },
+                updatedAt = System.currentTimeMillis(),
+            )
+            return false
+        }
 
+        dao.markInFlight(mutation, System.currentTimeMillis())
         val httpResponse = try {
             api.submitDailyReportMutation(mutation.projectId, request)
         } catch (error: IOException) {
@@ -94,7 +84,7 @@ class DprMutationSyncService(
                     )
                     false
                 } else {
-                    dao.applyCreate(
+                    dao.applyServerResult(
                         mutation = mutation,
                         serverReport = remote.toEntity(localId = mutation.reportId),
                         updatedAt = System.currentTimeMillis(),
@@ -130,6 +120,42 @@ class DprMutationSyncService(
         }
     }
 
+    private suspend fun buildCreateRequest(
+        mutation: DprMutationEntity,
+        deviceId: String,
+    ): DailyReportOfflineMutationRequest? {
+        val create = runCatching {
+            gson.fromJson(mutation.payloadJson, DailyReportCreateRequest::class.java)
+        }.getOrNull() ?: return null
+        return DailyReportOfflineMutationRequest(
+            deviceId = deviceId,
+            clientMutationId = mutation.clientMutationId,
+            entityId = mutation.reportId,
+            operation = DprRepository.OP_CREATE,
+            create = create,
+        )
+    }
+
+    private suspend fun buildUpdateRequest(
+        mutation: DprMutationEntity,
+        deviceId: String,
+    ): DailyReportOfflineMutationRequest? {
+        val report = dao.reportById(mutation.reportId) ?: return null
+        val serverId = report.serverId ?: return null
+        val update = runCatching {
+            gson.fromJson(mutation.payloadJson, DailyReportUpdateRequest::class.java)
+        }.getOrNull() ?: return null
+        if (update.expectedRevision < 1) return null
+        return DailyReportOfflineMutationRequest(
+            deviceId = deviceId,
+            clientMutationId = mutation.clientMutationId,
+            entityId = serverId,
+            operation = DprRepository.OP_UPDATE_HEADER,
+            baseRevision = update.expectedRevision,
+            update = update,
+        )
+    }
+
     private suspend fun rejectTransport(mutation: DprMutationEntity, errorCode: String) {
         dao.markNeedsAttention(
             mutation = mutation,
@@ -153,6 +179,10 @@ class DprMutationSyncService(
     }
 
     companion object {
+        private val SUPPORTED_OPERATIONS = setOf(
+            DprRepository.OP_CREATE,
+            DprRepository.OP_UPDATE_HEADER,
+        )
         private const val STATUS_APPLIED = "applied"
         private const val STATUS_CONFLICT = "conflict"
         private const val STATUS_REJECTED = "rejected"

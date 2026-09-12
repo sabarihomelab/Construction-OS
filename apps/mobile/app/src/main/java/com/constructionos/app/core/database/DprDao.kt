@@ -59,6 +59,28 @@ interface DprDao {
         limit: Int = 50,
     ): List<DprMutationEntity>
 
+    @Query(
+        """
+        SELECT * FROM dpr_mutations
+        WHERE report_id = :reportId AND operation = :operation AND state = :state
+        ORDER BY created_at
+        LIMIT 1
+        """,
+    )
+    suspend fun mutation(
+        reportId: String,
+        operation: String,
+        state: String = DprMutationState.PENDING,
+    ): DprMutationEntity?
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM dpr_mutations
+        WHERE report_id = :reportId AND state IN ('pending', 'in_flight')
+        """,
+    )
+    suspend fun activeMutationCount(reportId: String): Int
+
     @Query("UPDATE dpr_mutations SET state = 'pending' WHERE state = 'in_flight'")
     suspend fun recoverInterruptedMutations()
 
@@ -82,6 +104,38 @@ interface DprDao {
 
     @Query(
         """
+        UPDATE dpr_mutations
+        SET payload_json = :payloadJson,
+            updated_at = :updatedAt
+        WHERE client_mutation_id = :mutationId AND state = 'pending'
+        """,
+    )
+    suspend fun updatePendingMutationPayload(
+        mutationId: String,
+        payloadJson: String,
+        updatedAt: Long,
+    )
+
+    @Query(
+        """
+        UPDATE dpr_reports
+        SET weather_condition = :weatherCondition,
+            notes = :notes,
+            sync_state = :syncState,
+            local_updated_at = :updatedAt
+        WHERE id = :reportId
+        """,
+    )
+    suspend fun updateLocalHeader(
+        reportId: String,
+        weatherCondition: String?,
+        notes: String?,
+        syncState: String,
+        updatedAt: Long,
+    )
+
+    @Query(
+        """
         UPDATE dpr_reports
         SET sync_state = :syncState,
             local_updated_at = :updatedAt
@@ -93,6 +147,43 @@ interface DprDao {
     @Transaction
     suspend fun createLocalDraft(report: DprReportEntity, mutation: DprMutationEntity) {
         upsertReport(report)
+        upsertMutation(mutation)
+    }
+
+    @Transaction
+    suspend fun updatePendingCreate(
+        reportId: String,
+        mutationId: String,
+        payloadJson: String,
+        weatherCondition: String?,
+        notes: String?,
+        updatedAt: Long,
+    ) {
+        updatePendingMutationPayload(mutationId, payloadJson, updatedAt)
+        updateLocalHeader(
+            reportId = reportId,
+            weatherCondition = weatherCondition,
+            notes = notes,
+            syncState = DprSyncState.SAVED_ON_DEVICE,
+            updatedAt = updatedAt,
+        )
+    }
+
+    @Transaction
+    suspend fun queueHeaderUpdate(
+        reportId: String,
+        weatherCondition: String?,
+        notes: String?,
+        mutation: DprMutationEntity,
+        updatedAt: Long,
+    ) {
+        updateLocalHeader(
+            reportId = reportId,
+            weatherCondition = weatherCondition,
+            notes = notes,
+            syncState = DprSyncState.WAITING_FOR_NETWORK,
+            updatedAt = updatedAt,
+        )
         upsertMutation(mutation)
     }
 
@@ -138,7 +229,7 @@ interface DprDao {
     }
 
     @Transaction
-    suspend fun applyCreate(
+    suspend fun applyServerResult(
         mutation: DprMutationEntity,
         serverReport: DprReportEntity,
         updatedAt: Long,

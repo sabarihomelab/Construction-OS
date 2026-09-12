@@ -70,8 +70,9 @@ fun DailyReportScreen(
     val history by historyFlow.collectAsState(initial = emptyList())
     val report = dayReports.firstOrNull { it.shiftCode == "day" } ?: dayReports.firstOrNull()
     val canCreate = context.hasProjectPermission(project.id, "field.daily_report.create")
+    val canUpdate = context.hasProjectPermission(project.id, "field.daily_report.update")
 
-    LaunchedEffect(report?.id) {
+    LaunchedEffect(report?.id, report?.localUpdatedAt) {
         if (report != null) {
             weather = report.weatherCondition.orEmpty()
             notes = report.notes.orEmpty()
@@ -118,6 +119,7 @@ fun DailyReportScreen(
                 weather = weather,
                 notes = notes,
                 canCreate = canCreate,
+                canUpdate = canUpdate,
                 onWeatherChange = { weather = it },
                 onNotesChange = { notes = it },
                 onPreviousDay = {
@@ -141,6 +143,20 @@ fun DailyReportScreen(
                             )
                         }.onFailure { error ->
                             message = error.message ?: "Daily report could not be started"
+                        }
+                    }
+                },
+                onSave = { reportId ->
+                    scope.launch {
+                        message = null
+                        runCatching {
+                            repository.saveDraftHeader(
+                                reportId = reportId,
+                                weatherCondition = weather,
+                                notes = notes,
+                            )
+                        }.onFailure { error ->
+                            message = error.message ?: "Daily report changes could not be saved"
                         }
                     }
                 },
@@ -193,11 +209,13 @@ private fun DailyReportTodayContent(
     weather: String,
     notes: String,
     canCreate: Boolean,
+    canUpdate: Boolean,
     onWeatherChange: (String) -> Unit,
     onNotesChange: (String) -> Unit,
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit,
     onStart: () -> Unit,
+    onSave: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val date = LocalDate.parse(selectedDate)
@@ -278,38 +296,86 @@ private fun DailyReportTodayContent(
             return
         }
 
-        DailyReportSummary(report)
+        DailyReportStatus(report)
+
+        if (report.status == DprRepository.STATUS_DRAFT && canUpdate) {
+            OutlinedTextField(
+                value = weather,
+                onValueChange = onWeatherChange,
+                label = { Text("Weather (optional)") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+            )
+            OutlinedTextField(
+                value = notes,
+                onValueChange = onNotesChange,
+                label = { Text("Site note (optional)") },
+                minLines = 3,
+                maxLines = 6,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+            )
+            Button(
+                onClick = { onSave(report.id) },
+                enabled = report.canQueueHeaderEdit(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 14.dp),
+            ) {
+                Text("Save changes")
+            }
+            Text(
+                text = when {
+                    report.syncState == DprSyncState.NEEDS_ATTENTION ->
+                        "This report needs sync attention before another change can be saved."
+                    !report.canQueueHeaderEdit() ->
+                        "Finish syncing the previous change before saving another one."
+                    else ->
+                        "Changes are saved on this device first and synced in the background."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        } else {
+            DailyReportSummary(report)
+        }
     }
+}
+
+@Composable
+private fun DailyReportStatus(report: DprReportEntity) {
+    Text(
+        text = report.status.replace('_', ' ').replaceFirstChar { it.uppercase() },
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(top = 18.dp),
+    )
+    Text(
+        text = dprSyncStateLabel(report.syncState),
+        style = MaterialTheme.typography.labelMedium,
+        color = if (report.syncState == DprSyncState.NEEDS_ATTENTION) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+    )
 }
 
 @Composable
 private fun DailyReportSummary(report: DprReportEntity) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = report.status.replace('_', ' ').replaceFirstChar { it.uppercase() },
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 18.dp),
-        )
-        Text(
-            text = dprSyncStateLabel(report.syncState),
-            style = MaterialTheme.typography.labelMedium,
-            color = if (report.syncState == DprSyncState.NEEDS_ATTENTION) {
-                MaterialTheme.colorScheme.error
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
-        )
-
         DprSummaryRow("Shift", report.shiftCode)
-        DprSummaryRow("Weather", report.weatherCondition ?: "Not recorded")
+        DprSummaryRow("Weather", report.weatherCondition?.takeIf { it.isNotBlank() } ?: "Not recorded")
         if (report.temperatureLow != null || report.temperatureHigh != null) {
             val temperature = listOfNotNull(report.temperatureLow, report.temperatureHigh)
                 .joinToString(" – ")
                 .plus(report.temperatureUnit?.let { " $it" }.orEmpty())
             DprSummaryRow("Temperature", temperature)
         }
-        DprSummaryRow("Site note", report.notes ?: "No note")
+        DprSummaryRow("Site note", report.notes?.takeIf { it.isNotBlank() } ?: "No note")
 
         if (report.serverId == null) {
             Text(
@@ -402,6 +468,12 @@ private fun DailyReportHistoryContent(
             HorizontalDivider()
         }
     }
+}
+
+private fun DprReportEntity.canQueueHeaderEdit(): Boolean = when {
+    syncState == DprSyncState.NEEDS_ATTENTION -> false
+    serverId == null -> syncState != DprSyncState.SYNCING
+    else -> syncState == DprSyncState.SYNCED
 }
 
 private fun dprSyncStateLabel(syncState: String): String = when (syncState) {
