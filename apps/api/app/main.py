@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings, validate_runtime_deployment
 from app.modules.authentication.bootstrap import configure_authentication_providers
 from app.modules.authentication.native_router import router as native_authentication_router
+from app.modules.authorization.router import router as authorization_router
 from app.modules.configuration.router import router as configuration_router
 from app.modules.deployment.router import router as deployment_router
 from app.modules.events.router import router as realtime_router
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     application.include_router(offline_router, prefix="/api/v1")
     application.include_router(configuration_router, prefix="/api/v1")
     application.include_router(organization_router, prefix="/api/v1")
+    application.include_router(authorization_router, prefix="/api/v1")
     application.include_router(help_router, prefix="/api/v1")
     mount_runtime_routers(application, runtime_plan)
     return application
