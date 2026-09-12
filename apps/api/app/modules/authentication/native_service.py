@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.modules.authentication.providers import AuthenticationAssertion
 from app.modules.identity.models import MembershipStatus, OrganizationMembership, User, UserStatus
 from app.modules.organizations.models import Organization
@@ -84,15 +85,20 @@ async def active_memberships_for_user(
     db: AsyncSession,
     user_id: UUID,
 ) -> tuple[MembershipOption, ...]:
+    conditions = [
+        OrganizationMembership.user_id == user_id,
+        OrganizationMembership.status == MembershipStatus.ACTIVE,
+        Organization.is_active.is_(True),
+    ]
+    deployment_organization_id = get_settings().deployment_organization_id
+    if deployment_organization_id is not None:
+        conditions.append(OrganizationMembership.organization_id == deployment_organization_id)
+
     rows = (
         await db.execute(
             select(OrganizationMembership, Organization)
             .join(Organization, Organization.id == OrganizationMembership.organization_id)
-            .where(
-                OrganizationMembership.user_id == user_id,
-                OrganizationMembership.status == MembershipStatus.ACTIVE,
-                Organization.is_active.is_(True),
-            )
+            .where(*conditions)
             .order_by(Organization.name, OrganizationMembership.id)
         )
     ).all()
@@ -125,7 +131,7 @@ async def begin_native_authentication(
     )
     memberships = await active_memberships_for_user(db, user.id)
     if not memberships:
-        raise NativeAuthenticationError("Authenticated user has no active organization membership")
+        raise NativeAuthenticationError("Authenticated user has no active membership for this deployment")
     if len(memberships) == 1:
         if identity_linked:
             return await issue_session_for_assertion(
@@ -185,6 +191,13 @@ async def complete_native_membership_selection(
         or membership.status != MembershipStatus.ACTIVE
     ):
         raise NativeAuthenticationError("Selected membership is not available for this user")
+    deployment_organization_id = get_settings().deployment_organization_id
+    if (
+        deployment_organization_id is not None
+        and membership.organization_id != deployment_organization_id
+    ):
+        raise NativeAuthenticationError("Selected membership does not belong to this deployment")
+
     organization = await db.get(Organization, membership.organization_id)
     if organization is None or not organization.is_active:
         raise NativeAuthenticationError("Selected organization is not active")
