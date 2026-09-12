@@ -9,7 +9,10 @@ from app.modules.features.service import build_access_context
 from app.modules.projects.access import project_permission_is_allowed
 from app.modules.sessions.deps import CurrentSession
 from app.modules.workforce.attendance_models import AttendanceRegister, AttendanceRegisterStatus
-from app.modules.workforce.attendance_schemas import AttendanceDPRSummaryRead, AttendanceDPRSummaryRow
+from app.modules.workforce.attendance_schemas import (
+    AttendanceDPRSummaryRead,
+    AttendanceDPRSummaryRow,
+)
 from app.modules.workforce.attendance_service import build_dpr_summary
 from app.modules.workforce.service import WorkforceValidationError
 
