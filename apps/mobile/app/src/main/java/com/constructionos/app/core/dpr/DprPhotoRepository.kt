@@ -10,6 +10,8 @@ import com.constructionos.app.core.database.DprPhotoDao
 import com.constructionos.app.core.database.DprPhotoEntity
 import com.constructionos.app.core.database.DprPhotoState
 import com.constructionos.app.core.database.DprSyncState
+import com.constructionos.app.core.files.PhotoUploadPolicy
+import com.constructionos.app.core.files.PhotoUploadPreparer
 import com.constructionos.app.core.network.DprPhotoApi
 import com.constructionos.app.core.offline.WorkspaceSyncScheduler
 import java.io.File
@@ -31,6 +33,7 @@ class DprPhotoRepository(
 ) {
     private val applicationContext = context.applicationContext
     private val resolver = applicationContext.contentResolver
+    private val uploadPreparer = PhotoUploadPreparer()
     private val photoRoot = File(
         applicationContext.filesDir,
         "dpr_photos/${safeNamespace(connectionNamespace)}",
@@ -43,6 +46,7 @@ class DprPhotoRepository(
         reportId: String,
         sourceUri: Uri,
         caption: String? = null,
+        uploadPolicy: PhotoUploadPolicy = PhotoUploadPolicy.FIELD_OPTIMIZED,
     ): String = withContext(Dispatchers.IO) {
         val report = requireNotNull(dprDao.reportById(reportId)) { "Daily report was not found." }
         require(report.status == DprRepository.STATUS_DRAFT) {
@@ -67,10 +71,19 @@ class DprPhotoRepository(
                 ?: "site-photo-$clientPhotoId"
             val original = File(directory, "original-${safeFilename(displayName)}")
             val copied = copyAndHash(sourceUri, original)
-            val contentType = detectContentType(original, resolver.getType(sourceUri))
+            val originalContentType = detectContentType(original, resolver.getType(sourceUri))
                 ?: throw IllegalArgumentException("Select a supported JPEG, PNG, WebP, HEIC or HEIF image.")
+            val prepared = uploadPreparer.prepare(
+                original = original,
+                originalFilename = displayName,
+                originalContentType = originalContentType,
+                originalSizeBytes = copied.sizeBytes,
+                originalSha256 = copied.sha256,
+                policy = uploadPolicy,
+                workingDirectory = directory,
+            )
             val thumbnail = File(directory, "thumbnail.jpg")
-            createThumbnail(original, thumbnail)
+            createThumbnail(prepared.file, thumbnail)
 
             val now = System.currentTimeMillis()
             photoDao.upsert(
@@ -79,11 +92,15 @@ class DprPhotoRepository(
                     reportId = report.id,
                     projectId = report.projectId,
                     originalPath = original.absolutePath,
+                    uploadPath = prepared.file
+                        .takeIf { it.absolutePath != original.absolutePath }
+                        ?.absolutePath,
+                    uploadPolicy = uploadPolicy.wireValue,
                     thumbnailPath = thumbnail.absolutePath,
-                    filename = displayName,
-                    contentType = contentType,
-                    sizeBytes = copied.sizeBytes,
-                    sha256 = copied.sha256,
+                    filename = prepared.filename,
+                    contentType = prepared.contentType,
+                    sizeBytes = prepared.sizeBytes,
+                    sha256 = prepared.sha256,
                     caption = normalizedCaption,
                     capturedAt = null,
                     uploadSessionId = null,
@@ -125,6 +142,8 @@ class DprPhotoRepository(
                 reportId = report.id,
                 projectId = report.projectId,
                 originalPath = existing?.originalPath,
+                uploadPath = existing?.uploadPath,
+                uploadPolicy = existing?.uploadPolicy ?: "server_original",
                 thumbnailPath = existing?.thumbnailPath,
                 filename = row.filename,
                 contentType = row.contentType,
@@ -153,7 +172,7 @@ class DprPhotoRepository(
         val photo = photoDao.photo(clientPhotoId) ?: return@withContext
         require(photo.serverAssetId == null) { "Synced photos must be removed through the server." }
         if (photo.uploadSessionId == null) {
-            photo.originalPath?.let { File(it).parentFile?.deleteRecursively() }
+            localDirectory(photo)?.deleteRecursively()
             photoDao.delete(clientPhotoId)
         } else {
             photoDao.markCancelRequested(clientPhotoId, System.currentTimeMillis())
@@ -281,6 +300,11 @@ class DprPhotoRepository(
         }
         return declared?.lowercase()?.takeIf { it in SUPPORTED_CONTENT_TYPES }
     }
+
+    private fun localDirectory(photo: DprPhotoEntity): File? =
+        photo.originalPath?.let(::File)?.parentFile
+            ?: photo.uploadPath?.let(::File)?.parentFile
+            ?: photo.thumbnailPath?.let(::File)?.parentFile
 
     companion object {
         private const val MAX_PHOTO_BYTES = 25L * 1024L * 1024L
