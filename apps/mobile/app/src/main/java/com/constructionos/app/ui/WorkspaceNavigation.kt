@@ -40,6 +40,7 @@ import com.constructionos.app.core.authorization.ProjectActionMode
 import com.constructionos.app.core.authorization.ProjectHomeAction
 import com.constructionos.app.core.authorization.ProjectHomeActionKey
 import com.constructionos.app.core.authorization.projectHomeActions
+import com.constructionos.app.core.boq.BoqFieldRepository
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.network.SessionContextResponse
@@ -53,6 +54,7 @@ private const val ATTENDANCE_ROUTE = "attendance/{projectId}"
 private const val DAILY_REPORT_ROUTE = "daily-report/{projectId}"
 private const val PARTY_DIRECTORY_ROUTE = "party-directory/{projectId}"
 private const val WBS_ROUTE = "wbs/{projectId}"
+private const val BOQ_ROUTE = "boq/{projectId}"
 private const val PROJECT_ACCESS_ROUTE = "project-access/{projectId}"
 private const val ACCESS_MANAGEMENT_ROUTE = "access-management"
 
@@ -70,6 +72,7 @@ fun WorkspaceNavigation(
     dprRepository: DprRepository,
     partyRepository: PartyRepository,
     wbsRepository: WbsRepository,
+    boqFieldRepository: BoqFieldRepository,
     accessAdminRepository: AccessAdminRepository,
     projectAccessAdminRepository: ProjectAccessAdminRepository,
     onLogout: () -> Unit,
@@ -158,6 +161,7 @@ fun WorkspaceNavigation(
                     onOpenDailyReport = { navController.navigate(dailyReportRoute(project.id)) },
                     onOpenPartyDirectory = { navController.navigate(partyDirectoryRoute(project.id)) },
                     onOpenWbs = { navController.navigate(wbsRoute(project.id)) },
+                    onOpenBoq = { navController.navigate(boqRoute(project.id)) },
                     onOpenProjectAccess = { navController.navigate(projectAccessRoute(project.id)) },
                     onOpenAccessManagement = { navController.navigate(ACCESS_MANAGEMENT_ROUTE) },
                     onLogout = onLogout,
@@ -243,6 +247,30 @@ fun WorkspaceNavigation(
                 WbsLookupScreen(
                     project = project,
                     repository = wbsRepository,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+        }
+
+        composable(
+            route = BOQ_ROUTE,
+            arguments = listOf(navArgument("projectId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId").orEmpty()
+            val project = projects.firstOrNull { it.id == projectId }
+            val permissions = context.projectPermissions(projectId)
+            val boqReleased = context.hasMobileFeature("commercial.boq")
+            if (project == null) {
+                MissingProjectScreen(onChooseProject = { navController.popBackStack() })
+            } else if (!boqReleased || "commercial.boq.view" !in permissions) {
+                MissingPermissionScreen(
+                    message = "Approved BOQ is not available for this project and session.",
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                BoqLookupScreen(
+                    project = project,
+                    repository = boqFieldRepository,
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -354,6 +382,7 @@ private fun ProjectWorkspaceScreen(
     onOpenDailyReport: () -> Unit,
     onOpenPartyDirectory: () -> Unit,
     onOpenWbs: () -> Unit,
+    onOpenBoq: () -> Unit,
     onOpenProjectAccess: () -> Unit,
     onOpenAccessManagement: () -> Unit,
     onLogout: () -> Unit,
@@ -368,6 +397,7 @@ private fun ProjectWorkspaceScreen(
     val canViewAccessManagement = "security.role.view" in context.permissions
     val projectPermissions = context.projectPermissions(project.id)
     val canViewWbs = context.hasMobileFeature("commercial.wbs") && "commercial.wbs.view" in projectPermissions
+    val canViewBoq = context.hasMobileFeature("commercial.boq") && "commercial.boq.view" in projectPermissions
     val canViewProjectAccess = "projects.membership.view" in projectPermissions
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -383,10 +413,12 @@ private fun ProjectWorkspaceScreen(
                 project = project,
                 canViewPartyDirectory = canViewPartyDirectory,
                 canViewWbs = canViewWbs,
+                canViewBoq = canViewBoq,
                 canViewProjectAccess = canViewProjectAccess,
                 canViewAccessManagement = canViewAccessManagement,
                 onOpenPartyDirectory = onOpenPartyDirectory,
                 onOpenWbs = onOpenWbs,
+                onOpenBoq = onOpenBoq,
                 onOpenProjectAccess = onOpenProjectAccess,
                 onOpenAccessManagement = onOpenAccessManagement,
                 onChooseProject = onChooseProject,
@@ -504,10 +536,12 @@ private fun ProjectMoreContent(
     project: ProjectEntity,
     canViewPartyDirectory: Boolean,
     canViewWbs: Boolean,
+    canViewBoq: Boolean,
     canViewProjectAccess: Boolean,
     canViewAccessManagement: Boolean,
     onOpenPartyDirectory: () -> Unit,
     onOpenWbs: () -> Unit,
+    onOpenBoq: () -> Unit,
     onOpenProjectAccess: () -> Unit,
     onOpenAccessManagement: () -> Unit,
     onChooseProject: () -> Unit,
@@ -539,6 +573,11 @@ private fun ProjectMoreContent(
         if (canViewWbs) {
             item {
                 MoreLink("WBS / Cost Codes", "Search the project hierarchy from the local field cache.", onOpenWbs)
+            }
+        }
+        if (canViewBoq) {
+            item {
+                MoreLink("Approved BOQ", "Search approved field-safe BOQ items from the local cache.", onOpenBoq)
             }
         }
         if (canViewProjectAccess) {
@@ -593,4 +632,5 @@ private fun attendanceRoute(projectId: String): String = "attendance/$projectId"
 private fun dailyReportRoute(projectId: String): String = "daily-report/$projectId"
 private fun partyDirectoryRoute(projectId: String): String = "party-directory/$projectId"
 private fun wbsRoute(projectId: String): String = "wbs/$projectId"
+private fun boqRoute(projectId: String): String = "boq/$projectId"
 private fun projectAccessRoute(projectId: String): String = "project-access/$projectId"
