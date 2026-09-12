@@ -62,6 +62,7 @@ def _membership_read(membership, user, roles: list[Role]) -> MembershipAdminRead
             id=role.id,
             key=role.key,
             name=role.name,
+            assignment_scope=role.assignment_scope,
             is_template=role.is_template,
             is_protected=role.is_protected,
         )
@@ -129,6 +130,7 @@ async def post_role(
             permission_keys=set(payload.permission_keys),
             actor_user_id=session.user_id,
             session_id=session.id,
+            assignment_scope=payload.assignment_scope,
         )
         await db.commit()
         await db.refresh(role)
@@ -345,7 +347,10 @@ async def post_membership(
         for row_membership, user, roles in rows:
             if row_membership.id == membership.id:
                 return _membership_read(row_membership, user, roles)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Membership readback failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Membership readback failed",
+        )
     except (AuthorizationConflictError, AuthorizationValidationError) as exc:
         await db.rollback()
         _domain_error(exc)
@@ -383,7 +388,10 @@ async def put_membership_roles(
         for row_membership, user, roles in rows:
             if row_membership.id == membership.id:
                 return _membership_read(row_membership, user, roles)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Membership readback failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Membership readback failed",
+        )
     except (AuthorizationConflictError, AuthorizationValidationError) as exc:
         await db.rollback()
         _domain_error(exc)
@@ -413,7 +421,10 @@ async def patch_membership_status(
         for row_membership, user, roles in rows:
             if row_membership.id == membership.id:
                 return _membership_read(row_membership, user, roles)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Membership readback failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Membership readback failed",
+        )
     except (AuthorizationConflictError, AuthorizationValidationError) as exc:
         await db.rollback()
         _domain_error(exc)
