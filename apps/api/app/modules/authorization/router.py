@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.core.deps import DbSession
-from app.modules.authorization.models import OrganizationMembership, Role
+from app.modules.authorization.models import Role
 from app.modules.authorization.schemas import (
     AssignedRoleRead,
     MembershipAdminCreate,
