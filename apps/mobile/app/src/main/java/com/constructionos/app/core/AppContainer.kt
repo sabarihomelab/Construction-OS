@@ -21,6 +21,7 @@ import com.constructionos.app.core.projects.ProjectRepository
 import com.constructionos.app.core.projects.ProjectSelectionStore
 import com.constructionos.app.core.session.SecureSessionStore
 import com.constructionos.app.core.wbs.WbsRepository
+import com.constructionos.app.core.workforce.WorkforceRepository
 import com.constructionos.app.core.workspace.WorkspaceCoordinator
 
 class AppContainer(
@@ -34,6 +35,7 @@ class AppContainer(
     private val wbsApi = NetworkFactory.createWbsApi(connection.apiBaseUrl, sessionStore)
     private val boqFieldApi = NetworkFactory.createBoqFieldApi(connection.apiBaseUrl, sessionStore)
     private val estimatingApi = NetworkFactory.createEstimatingApi(connection.apiBaseUrl, sessionStore)
+    private val workforceApi = NetworkFactory.createWorkforceApi(connection.apiBaseUrl, sessionStore)
     private val database = ConstructionOsDatabase.getInstance(
         applicationContext,
         localNamespace,
@@ -94,6 +96,11 @@ class AppContainer(
 
     val estimatingReviewRepository = EstimatingReviewRepository(
         api = estimatingApi,
+    )
+
+    val workforceRepository = WorkforceRepository(
+        api = workforceApi,
+        dao = database.workforceDao(),
     )
 
     val authController = AuthController(
