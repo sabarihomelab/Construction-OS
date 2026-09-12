@@ -15,6 +15,7 @@ import com.constructionos.app.core.dpr.DprMutationSyncService
 import com.constructionos.app.core.dpr.DprPhotoRepository
 import com.constructionos.app.core.dpr.DprPhotoSyncService
 import com.constructionos.app.core.dpr.DprRepository
+import com.constructionos.app.core.dpr.bindPhotoRepository
 import com.constructionos.app.core.estimating.EstimatingReviewRepository
 import com.constructionos.app.core.network.NetworkFactory
 import com.constructionos.app.core.offline.DeviceRegistrar
@@ -97,7 +98,7 @@ class AppContainer(
         photoDao = dprPhotoDatabase.dprPhotoDao(),
         dprDao = database.dprDao(),
         syncScheduler = syncScheduler,
-    )
+    ).also(dprRepository::bindPhotoRepository)
 
     private val dprMutationSyncService = DprMutationSyncService(
         api = api,
