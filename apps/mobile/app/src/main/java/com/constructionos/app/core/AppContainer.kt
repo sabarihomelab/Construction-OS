@@ -5,6 +5,7 @@ import com.constructionos.app.core.attendance.AttendanceMutationSyncService
 import com.constructionos.app.core.attendance.AttendanceRepository
 import com.constructionos.app.core.auth.AuthController
 import com.constructionos.app.core.database.ConstructionOsDatabase
+import com.constructionos.app.core.deployment.WorkspaceConnection
 import com.constructionos.app.core.dpr.DprMutationSyncService
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.network.NetworkFactory
@@ -17,15 +18,27 @@ import com.constructionos.app.core.projects.ProjectSelectionStore
 import com.constructionos.app.core.session.SecureSessionStore
 import com.constructionos.app.core.workspace.WorkspaceCoordinator
 
-class AppContainer(context: Context) {
+class AppContainer(
+    context: Context,
+    connection: WorkspaceConnection,
+) {
     private val applicationContext = context.applicationContext
-    private val sessionStore = SecureSessionStore(applicationContext)
-    private val api = NetworkFactory.createApi(sessionStore)
-    private val database = ConstructionOsDatabase.getInstance(applicationContext)
+    private val sessionStore = SecureSessionStore(applicationContext, connection.deploymentId)
+    private val api = NetworkFactory.createApi(connection.apiBaseUrl, sessionStore)
+    private val database = ConstructionOsDatabase.getInstance(
+        applicationContext,
+        connection.deploymentId,
+    )
     private val projectRepository = ProjectRepository(api, database.projectDao())
-    private val projectSelectionStore = ProjectSelectionStore(applicationContext)
+    private val projectSelectionStore = ProjectSelectionStore(
+        applicationContext,
+        connection.deploymentId,
+    )
     private val deviceRegistrar = DeviceRegistrar(applicationContext, api)
-    private val syncScheduler = WorkspaceSyncScheduler(applicationContext)
+    private val syncScheduler = WorkspaceSyncScheduler(
+        applicationContext,
+        connection.deploymentId,
+    )
 
     val attendanceRepository = AttendanceRepository(
         api = api,
