@@ -8,8 +8,13 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.workDataOf
+import com.constructionos.app.core.deployment.WorkspaceConnectionStore
 
-class WorkspaceSyncScheduler(context: Context) {
+class WorkspaceSyncScheduler(
+    context: Context,
+    private val deploymentId: String,
+) {
     private val applicationContext = context.applicationContext
     private val workManager = WorkManager.getInstance(applicationContext)
     private val connectivityManager = applicationContext.getSystemService(ConnectivityManager::class.java)
@@ -25,12 +30,17 @@ class WorkspaceSyncScheduler(context: Context) {
     }
 
     fun scheduleOnce() {
-        disableLegacyPeriodicSync()
+        disableLegacySync()
         val request = OneTimeWorkRequestBuilder<WorkspaceSyncWorker>()
             .setConstraints(networkConstraints)
+            .setInputData(
+                workDataOf(
+                    WorkspaceConnectionStore.WORKER_DEPLOYMENT_ID to deploymentId,
+                ),
+            )
             .build()
         workManager.enqueueUniqueWork(
-            ONE_TIME_WORK,
+            oneTimeWorkName(),
             ExistingWorkPolicy.REPLACE,
             request,
         )
@@ -41,12 +51,20 @@ class WorkspaceSyncScheduler(context: Context) {
     }
 
     fun cancel() {
-        workManager.cancelUniqueWork(ONE_TIME_WORK)
+        workManager.cancelUniqueWork(oneTimeWorkName())
+        disableLegacySync()
+    }
+
+    private fun disableLegacySync() {
+        workManager.cancelUniqueWork(LEGACY_ONE_TIME_WORK)
         disableLegacyPeriodicSync()
     }
 
+    private fun oneTimeWorkName(): String = "$ONE_TIME_WORK_PREFIX:$deploymentId"
+
     companion object {
-        private const val ONE_TIME_WORK = "workspace-sync-now"
+        private const val ONE_TIME_WORK_PREFIX = "workspace-sync-now"
+        private const val LEGACY_ONE_TIME_WORK = "workspace-sync-now"
         private const val LEGACY_PERIODIC_WORK = "workspace-sync-periodic"
     }
 }
