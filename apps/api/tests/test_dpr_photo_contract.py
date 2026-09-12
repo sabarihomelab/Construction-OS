@@ -6,7 +6,11 @@ from pydantic import ValidationError
 
 from app.main import create_app
 from app.modules.field.dpr_photo_schemas import DPRPhotoUploadStart
+from app.modules.files.jobs import FILE_PROCESS_JOB_TYPE
 from app.modules.files.local_provider import LocalStorageProvider, LocalStorageProviderError
+from app.modules.jobs.handlers import JobHandlerRegistry
+from app.runtime.deployment import build_runtime_plan
+from app.runtime.worker import register_runtime_handlers
 
 
 PHOTO_ROUTE_PREFIX = "/api/v1/projects/{project_id}/daily-reports/{report_id}/photos"
@@ -38,7 +42,21 @@ def test_dpr_photo_start_requires_revision_and_limits_size() -> None:
         DPRPhotoUploadStart.model_validate({**payload, "size_bytes": 25 * 1024 * 1024 + 1})
 
     with pytest.raises(ValidationError):
-        DPRPhotoUploadStart.model_validate({key: value for key, value in payload.items() if key != "expected_revision"})
+        DPRPhotoUploadStart.model_validate(
+            {key: value for key, value in payload.items() if key != "expected_revision"}
+        )
+
+
+def test_file_processing_job_is_registered_for_runtime_worker() -> None:
+    registry = JobHandlerRegistry()
+    register_runtime_handlers(build_runtime_plan_from_defaults(), registry)
+    assert FILE_PROCESS_JOB_TYPE in registry.registered_job_types()
+
+
+def build_runtime_plan_from_defaults():
+    from app.core.config import Settings
+
+    return build_runtime_plan(Settings())
 
 
 def test_local_upload_provider_rejects_path_escape(tmp_path: Path) -> None:
