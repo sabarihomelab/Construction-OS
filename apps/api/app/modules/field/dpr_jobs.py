@@ -5,8 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.field import dpr_provider as _dpr_provider  # noqa: F401
 from app.modules.field import dpr_report_type as _dpr_report_type  # noqa: F401
+from app.modules.field.dpr_custom_field_service import (
+    materialize_and_validate_required_dpr_custom_fields,
+)
 from app.modules.field.dpr_report_type import DPR_REPORT_TYPE_KEY
+from app.modules.field.dpr_service import DPRValidationError
 from app.modules.field.models import DailyReport, DailyReportStatus
+from app.modules.field.service import DailyReportValidationError
 from app.modules.jobs.handlers import JobHandlerRegistry
 from app.modules.jobs.models import BackgroundJob
 from app.modules.jobs.service import enqueue_job
@@ -47,6 +52,16 @@ async def enqueue_dpr_approval_report(
     actor_user_id: UUID,
     session_id: UUID | None,
 ) -> BackgroundJob | None:
+    try:
+        await materialize_and_validate_required_dpr_custom_fields(
+            db,
+            organization_id=report.organization_id,
+            report=report,
+            actor_user_id=actor_user_id,
+        )
+    except DPRValidationError as exc:
+        raise DailyReportValidationError(str(exc)) from exc
+
     contract = report_types.get(DPR_REPORT_TYPE_KEY)
     if not contract.stores_issued_output:
         return None
