@@ -4,6 +4,7 @@ import com.constructionos.app.core.attendance.AttendanceMutationSyncService
 import com.constructionos.app.core.attendance.AttendanceRepository
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.dpr.DprMutationSyncService
+import com.constructionos.app.core.dpr.DprPhotoSyncService
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.network.ConstructionOsApi
 import com.constructionos.app.core.network.SessionContextResponse
@@ -19,6 +20,7 @@ class WorkspaceSyncService(
     private val attendanceMutationSyncService: AttendanceMutationSyncService,
     private val dprRepository: DprRepository,
     private val dprMutationSyncService: DprMutationSyncService,
+    private val dprPhotoSyncService: DprPhotoSyncService,
 ) {
     suspend fun syncNow() {
         val context = api.sessionContext()
@@ -26,6 +28,7 @@ class WorkspaceSyncService(
 
         attendanceMutationSyncService.drain()
         dprMutationSyncService.drain()
+        dprPhotoSyncService.drain()
 
         val projects = projectRepository.refresh(context.organizationId)
         projects.forEach { project ->
@@ -49,6 +52,7 @@ class WorkspaceSyncService(
 
         attendanceMutationSyncService.drain()
         dprMutationSyncService.drain()
+        dprPhotoSyncService.drain()
     }
 }
 
