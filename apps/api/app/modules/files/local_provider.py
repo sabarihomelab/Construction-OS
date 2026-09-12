@@ -85,6 +85,10 @@ class LocalStorageProvider:
 
         return await asyncio.to_thread(_append)
 
+    async def uploaded_size(self, storage_key: str) -> int:
+        target = self._path(storage_key)
+        return await asyncio.to_thread(lambda: target.stat().st_size if target.is_file() else 0)
+
     async def clone_object(self, *, source_storage_key: str, target_storage_key: str) -> None:
         source = self._path(source_storage_key)
         target = self._path(target_storage_key)
