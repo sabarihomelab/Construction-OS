@@ -4,6 +4,7 @@ import com.constructionos.app.core.network.ConstructionOsApi
 import com.constructionos.app.core.network.SecurityMembershipCreateRequest
 import com.constructionos.app.core.network.SecurityMembershipResponse
 import com.constructionos.app.core.network.SecurityMembershipRoleSetRequest
+import com.constructionos.app.core.network.SecurityMembershipStatusRequest
 import com.constructionos.app.core.network.SecurityPermissionResponse
 import com.constructionos.app.core.network.SecurityRoleCreateRequest
 import com.constructionos.app.core.network.SecurityRoleFromTemplateRequest
@@ -33,11 +34,13 @@ class AccessAdminRepository(
         key: String,
         name: String,
         description: String?,
+        assignmentScope: String = "project",
     ): SecurityRoleResponse = api.createSecurityRole(
         SecurityRoleCreateRequest(
             key = key,
             name = name,
             description = description,
+            assignmentScope = assignmentScope,
         )
     )
 
@@ -87,6 +90,14 @@ class AccessAdminRepository(
     ): SecurityMembershipResponse = api.replaceSecurityMembershipRoles(
         membershipId,
         SecurityMembershipRoleSetRequest(roleIds.sorted()),
+    )
+
+    suspend fun updateMembershipStatus(
+        membershipId: String,
+        status: String,
+    ): SecurityMembershipResponse = api.updateSecurityMembershipStatus(
+        membershipId,
+        SecurityMembershipStatusRequest(status),
     )
 }
 
