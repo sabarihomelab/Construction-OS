@@ -19,6 +19,8 @@ data class DprPhotoEntity(
     @ColumnInfo(name = "report_id") val reportId: String,
     @ColumnInfo(name = "project_id") val projectId: String,
     @ColumnInfo(name = "original_path") val originalPath: String?,
+    @ColumnInfo(name = "upload_path") val uploadPath: String? = null,
+    @ColumnInfo(name = "upload_policy") val uploadPolicy: String = "legacy_original",
     @ColumnInfo(name = "thumbnail_path") val thumbnailPath: String?,
     val filename: String,
     @ColumnInfo(name = "content_type") val contentType: String?,
