@@ -2,6 +2,7 @@ package com.constructionos.app.core.dpr
 
 import com.constructionos.app.core.database.DprBoqReferenceEntity
 import com.constructionos.app.core.database.DprDao
+import com.constructionos.app.core.database.DprDelayEntity
 import com.constructionos.app.core.database.DprMutationEntity
 import com.constructionos.app.core.database.DprMutationState
 import com.constructionos.app.core.database.DprReportEntity
@@ -12,6 +13,7 @@ import com.constructionos.app.core.network.ConstructionOsApi
 import com.constructionos.app.core.network.DailyReportCreateRequest
 import com.constructionos.app.core.network.DailyReportResponse
 import com.constructionos.app.core.network.DailyReportUpdateRequest
+import com.constructionos.app.core.network.DprDelayWriteRequest
 import com.constructionos.app.core.network.DprWorkProgressWriteRequest
 import com.constructionos.app.core.offline.WorkspaceSyncScheduler
 import com.google.gson.Gson
@@ -33,6 +35,9 @@ class DprRepository(
 
     fun observeWorkProgress(reportId: String): Flow<List<DprWorkProgressEntity>> =
         dao.observeWorkProgress(reportId)
+
+    fun observeDelays(reportId: String): Flow<List<DprDelayEntity>> =
+        dao.observeDelays(reportId)
 
     fun observeWbsReferences(projectId: String): Flow<List<DprWbsReferenceEntity>> =
         dao.observeWbsReferences(projectId)
@@ -71,6 +76,27 @@ class DprRepository(
                 )
             }
             dao.replaceWorkProgressFromServer(localId, rows)
+
+            val detail = api.dailyReportDetail(projectId, remote.id)
+            dao.replaceDelaysFromServer(
+                localId,
+                detail.delays.mapIndexed { index, row ->
+                    DprDelayEntity(
+                        id = row.id,
+                        reportId = localId,
+                        projectId = projectId,
+                        position = index,
+                        category = row.category,
+                        description = row.description,
+                        startedAt = row.startedAt,
+                        endedAt = row.endedAt,
+                        lostHours = row.lostHours,
+                        responsibleParty = row.responsibleParty,
+                        scheduleImpact = row.scheduleImpact,
+                        notes = row.notes,
+                    )
+                },
+            )
         }
 
         val references = api.dprWorkProgressReferences(projectId)
@@ -285,11 +311,71 @@ class DprRepository(
         syncScheduler.scheduleOnce()
     }
 
+    suspend fun saveDelays(
+        reportId: String,
+        rows: List<DprDelayDraft>,
+    ) {
+        val report = requireNotNull(dao.reportById(reportId)) { "Daily report was not found" }
+        require(report.status == STATUS_DRAFT) { "Only a draft daily report can be edited." }
+        require(rows.size <= 1000) { "A daily report can contain at most 1000 delay rows." }
+
+        val normalized = rows.mapIndexed { index, draft ->
+            val description = draft.description.trim()
+            val category = draft.category.normalizedOrNull()
+            val responsibleParty = draft.responsibleParty.normalizedOrNull()
+            require(description.isNotEmpty()) { "Delay / blocker description is required." }
+            require(description.length <= 2000) { "Delay / blocker description must be 2000 characters or fewer." }
+            require((category?.length ?: 0) <= 120) { "Delay category must be 120 characters or fewer." }
+            require((responsibleParty?.length ?: 0) <= 255) { "Responsible party must be 255 characters or fewer." }
+            draft.lostHours.normalizedDecimal("Lost hours")?.let {
+                require(it >= BigDecimal.ZERO) { "Lost hours cannot be negative." }
+            }
+            DprDelayEntity(
+                id = draft.id ?: UUID.randomUUID().toString(),
+                reportId = report.id,
+                projectId = report.projectId,
+                position = index,
+                category = category,
+                description = description,
+                startedAt = draft.startedAt.normalizedOrNull(),
+                endedAt = draft.endedAt.normalizedOrNull(),
+                lostHours = draft.lostHours.normalizedOrNull(),
+                responsibleParty = responsibleParty,
+                scheduleImpact = draft.scheduleImpact,
+                notes = draft.notes.normalizedOrNull(),
+            )
+        }
+
+        val payload = DprPendingDelaysPayload(
+            rows = normalized.map { it.toWriteRequest() },
+        )
+        val now = System.currentTimeMillis()
+        val existing = dao.mutation(report.id, OP_REPLACE_DELAYS)
+        val mutation = existing?.copy(
+            payloadJson = gson.toJson(payload),
+            updatedAt = now,
+        ) ?: DprMutationEntity(
+            clientMutationId = UUID.randomUUID().toString(),
+            projectId = report.projectId,
+            reportId = report.id,
+            operation = OP_REPLACE_DELAYS,
+            payloadJson = gson.toJson(payload),
+            state = DprMutationState.PENDING,
+            errorCode = null,
+            attemptCount = 0,
+            createdAt = now,
+            updatedAt = now,
+        )
+        dao.replaceDelaysLocally(report.id, normalized, mutation, now)
+        syncScheduler.scheduleOnce()
+    }
+
     companion object {
         const val STATUS_DRAFT = "draft"
         const val OP_CREATE = "create_report"
         const val OP_UPDATE_HEADER = "update_header"
         const val OP_REPLACE_WORK_PROGRESS = "replace_work_progress"
+        const val OP_REPLACE_DELAYS = "replace_delays"
     }
 }
 
@@ -305,8 +391,25 @@ data class DprWorkProgressDraft(
     val remarks: String? = null,
 )
 
+data class DprDelayDraft(
+    val id: String? = null,
+    val category: String? = null,
+    val description: String,
+    val startedAt: String? = null,
+    val endedAt: String? = null,
+    val lostHours: String? = null,
+    val responsibleParty: String? = null,
+    val scheduleImpact: Boolean = false,
+    val notes: String? = null,
+)
+
 internal data class DprPendingWorkProgressPayload(
     val rows: List<DprWorkProgressWriteRequest>,
+    val reason: String? = null,
+)
+
+internal data class DprPendingDelaysPayload(
+    val rows: List<DprDelayWriteRequest>,
     val reason: String? = null,
 )
 
@@ -319,6 +422,17 @@ private fun DprWorkProgressEntity.toWriteRequest(): DprWorkProgressWriteRequest 
     unitCode = unitCode,
     progressPercent = progressPercent,
     remarks = remarks,
+)
+
+private fun DprDelayEntity.toWriteRequest(): DprDelayWriteRequest = DprDelayWriteRequest(
+    category = category,
+    description = description,
+    startedAt = startedAt,
+    endedAt = endedAt,
+    lostHours = lostHours,
+    responsibleParty = responsibleParty,
+    scheduleImpact = scheduleImpact,
+    notes = notes,
 )
 
 private fun String?.normalizedOrNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
