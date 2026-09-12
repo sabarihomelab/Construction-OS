@@ -24,6 +24,12 @@ object NetworkFactory {
     ): BoqFieldApi = authenticatedRetrofit(baseUrl, tokenProvider)
         .create(BoqFieldApi::class.java)
 
+    fun createEstimatingApi(
+        baseUrl: String,
+        tokenProvider: SessionTokenProvider,
+    ): EstimatingApi = authenticatedRetrofit(baseUrl, tokenProvider)
+        .create(EstimatingApi::class.java)
+
     fun createBootstrapApi(baseUrl: String): ConstructionOsApi {
         val client = OkHttpClient.Builder().build()
         return createRetrofit(baseUrl, client).create(ConstructionOsApi::class.java)
