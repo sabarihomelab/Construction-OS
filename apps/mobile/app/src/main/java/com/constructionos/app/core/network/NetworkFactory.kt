@@ -9,16 +9,28 @@ object NetworkFactory {
     fun createApi(
         baseUrl: String,
         tokenProvider: SessionTokenProvider,
-    ): ConstructionOsApi {
-        val client = OkHttpClient.Builder()
-            .addInterceptor(BearerSessionInterceptor(tokenProvider))
-            .build()
-        return createRetrofit(baseUrl, client).create(ConstructionOsApi::class.java)
-    }
+    ): ConstructionOsApi = authenticatedRetrofit(baseUrl, tokenProvider)
+        .create(ConstructionOsApi::class.java)
+
+    fun createWbsApi(
+        baseUrl: String,
+        tokenProvider: SessionTokenProvider,
+    ): WbsApi = authenticatedRetrofit(baseUrl, tokenProvider)
+        .create(WbsApi::class.java)
 
     fun createBootstrapApi(baseUrl: String): ConstructionOsApi {
         val client = OkHttpClient.Builder().build()
         return createRetrofit(baseUrl, client).create(ConstructionOsApi::class.java)
+    }
+
+    private fun authenticatedRetrofit(
+        baseUrl: String,
+        tokenProvider: SessionTokenProvider,
+    ): Retrofit {
+        val client = OkHttpClient.Builder()
+            .addInterceptor(BearerSessionInterceptor(tokenProvider))
+            .build()
+        return createRetrofit(baseUrl, client)
     }
 
     private fun createRetrofit(baseUrl: String, client: OkHttpClient): Retrofit =
