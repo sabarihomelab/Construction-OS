@@ -20,14 +20,17 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         DprWbsReferenceEntity::class,
         DprBoqReferenceEntity::class,
         DprDelayEntity::class,
+        PartyEntity::class,
+        ProjectPartyAssignmentEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class ConstructionOsDatabase : RoomDatabase() {
     abstract fun projectDao(): ProjectDao
     abstract fun attendanceDao(): AttendanceDao
     abstract fun dprDao(): DprDao
+    abstract fun partyDao(): PartyDao
 
     companion object {
         @Volatile
@@ -283,6 +286,57 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
             }
         }
 
+        private val migration5To6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS parties (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        organization_id TEXT NOT NULL,
+                        code TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        legal_name TEXT,
+                        party_type TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        email TEXT,
+                        phone TEXT,
+                        address_line_1 TEXT,
+                        address_line_2 TEXT,
+                        locality TEXT,
+                        state_name TEXT,
+                        postal_code TEXT,
+                        revision INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_parties_organization_id_name ON parties(organization_id, name)",
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_parties_organization_id_code ON parties(organization_id, code)",
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS project_party_assignments (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        project_id TEXT NOT NULL,
+                        party_id TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        active INTEGER NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_project_party_assignments_project_id_party_id ON project_party_assignments(project_id, party_id)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_project_party_assignments_project_id_role ON project_party_assignments(project_id, role)",
+                )
+            }
+        }
+
         fun getInstance(context: Context): ConstructionOsDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -290,7 +344,13 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
                     ConstructionOsDatabase::class.java,
                     "construction-os.db",
                 )
-                    .addMigrations(migration1To2, migration2To3, migration3To4, migration4To5)
+                    .addMigrations(
+                        migration1To2,
+                        migration2To3,
+                        migration3To4,
+                        migration4To5,
+                        migration5To6,
+                    )
                     .build()
                     .also { instance = it }
             }
