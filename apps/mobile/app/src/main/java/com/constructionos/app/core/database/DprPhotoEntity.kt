@@ -44,6 +44,7 @@ object DprPhotoState {
     const val SAVED_ON_DEVICE = "saved_on_device"
     const val WAITING_FOR_NETWORK = "waiting_for_network"
     const val UPLOADING = "uploading"
+    const val CANCEL_REQUESTED = "cancel_requested"
     const val SYNCED = "synced"
     const val NEEDS_ATTENTION = "needs_attention"
 }
