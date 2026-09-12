@@ -3,17 +3,14 @@ package com.constructionos.app.core.network
 import com.google.gson.annotations.SerializedName
 import retrofit2.http.GET
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface DprAttendanceApi {
-    @GET("projects/{projectId}/workforce/attendance")
-    suspend fun attendanceRegisters(
-        @Path("projectId") projectId: String,
-    ): List<AttendanceRegisterResponse>
-
-    @GET("projects/{projectId}/workforce/attendance/{registerId}/dpr-summary")
+    @GET("projects/{projectId}/workforce/attendance/dpr-summary")
     suspend fun dprSummary(
         @Path("projectId") projectId: String,
-        @Path("registerId") registerId: String,
+        @Query("attendance_date") attendanceDate: String,
+        @Query("shift_code") shiftCode: String,
     ): AttendanceDprSummaryResponse
 }
 
