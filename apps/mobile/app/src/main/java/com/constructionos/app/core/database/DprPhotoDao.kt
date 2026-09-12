@@ -19,6 +19,9 @@ interface DprPhotoDao {
     @Query("SELECT * FROM dpr_photos WHERE client_photo_id = :clientPhotoId LIMIT 1")
     suspend fun photo(clientPhotoId: String): DprPhotoEntity?
 
+    @Query("SELECT * FROM dpr_photos WHERE server_asset_id = :assetId LIMIT 1")
+    suspend fun photoByServerAssetId(assetId: String): DprPhotoEntity?
+
     @Query(
         """
         SELECT * FROM dpr_photos
@@ -40,6 +43,7 @@ interface DprPhotoDao {
         UPDATE dpr_photos
         SET state = :state,
             upload_session_id = :uploadSessionId,
+            upload_target_url = :uploadTargetUrl,
             error_code = :errorCode,
             attempt_count = :attemptCount,
             updated_at = :updatedAt
@@ -50,6 +54,7 @@ interface DprPhotoDao {
         clientPhotoId: String,
         state: String,
         uploadSessionId: String?,
+        uploadTargetUrl: String?,
         errorCode: String?,
         attemptCount: Int,
         updatedAt: Long,
@@ -58,8 +63,22 @@ interface DprPhotoDao {
     @Query(
         """
         UPDATE dpr_photos
+        SET state = 'waiting_for_network',
+            upload_session_id = NULL,
+            upload_target_url = NULL,
+            error_code = NULL,
+            updated_at = :updatedAt
+        WHERE client_photo_id = :clientPhotoId
+        """,
+    )
+    suspend fun resetUploadSession(clientPhotoId: String, updatedAt: Long)
+
+    @Query(
+        """
+        UPDATE dpr_photos
         SET state = 'synced',
             upload_session_id = :uploadSessionId,
+            upload_target_url = NULL,
             server_asset_id = :serverAssetId,
             server_version = :serverVersion,
             base_revision = :reportRevision,
