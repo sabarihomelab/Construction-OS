@@ -45,3 +45,7 @@ class DPRPhotoRead(BaseModel):
     captured_at: datetime | None = None
     created_at: datetime
     report_revision: int
+
+
+class DPRPhotoChangeRead(BaseModel):
+    report_revision: int
