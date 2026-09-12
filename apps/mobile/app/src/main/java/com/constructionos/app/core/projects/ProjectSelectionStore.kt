@@ -2,7 +2,10 @@ package com.constructionos.app.core.projects
 
 import android.content.Context
 
-class ProjectSelectionStore(context: Context) {
+class ProjectSelectionStore(
+    context: Context,
+    private val deploymentId: String,
+) {
     private val preferences = context.getSharedPreferences(
         "construction-os-project-selection",
         Context.MODE_PRIVATE,
@@ -19,5 +22,6 @@ class ProjectSelectionStore(context: Context) {
         preferences.edit().remove(key(organizationId)).apply()
     }
 
-    private fun key(organizationId: String): String = "selected-project:$organizationId"
+    private fun key(organizationId: String): String =
+        "selected-project:$deploymentId:$organizationId"
 }
