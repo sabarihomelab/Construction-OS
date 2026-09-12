@@ -43,6 +43,7 @@ import com.constructionos.app.core.authorization.projectHomeActions
 import com.constructionos.app.core.boq.BoqFieldRepository
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.dpr.DprRepository
+import com.constructionos.app.core.estimating.EstimatingReviewRepository
 import com.constructionos.app.core.network.SessionContextResponse
 import com.constructionos.app.core.parties.PartyRepository
 import com.constructionos.app.core.wbs.WbsRepository
@@ -55,6 +56,7 @@ private const val DAILY_REPORT_ROUTE = "daily-report/{projectId}"
 private const val PARTY_DIRECTORY_ROUTE = "party-directory/{projectId}"
 private const val WBS_ROUTE = "wbs/{projectId}"
 private const val BOQ_ROUTE = "boq/{projectId}"
+private const val ESTIMATING_ROUTE = "estimating/{projectId}"
 private const val PROJECT_ACCESS_ROUTE = "project-access/{projectId}"
 private const val ACCESS_MANAGEMENT_ROUTE = "access-management"
 
@@ -73,6 +75,7 @@ fun WorkspaceNavigation(
     partyRepository: PartyRepository,
     wbsRepository: WbsRepository,
     boqFieldRepository: BoqFieldRepository,
+    estimatingReviewRepository: EstimatingReviewRepository,
     accessAdminRepository: AccessAdminRepository,
     projectAccessAdminRepository: ProjectAccessAdminRepository,
     onLogout: () -> Unit,
@@ -162,6 +165,7 @@ fun WorkspaceNavigation(
                     onOpenPartyDirectory = { navController.navigate(partyDirectoryRoute(project.id)) },
                     onOpenWbs = { navController.navigate(wbsRoute(project.id)) },
                     onOpenBoq = { navController.navigate(boqRoute(project.id)) },
+                    onOpenEstimating = { navController.navigate(estimatingRoute(project.id)) },
                     onOpenProjectAccess = { navController.navigate(projectAccessRoute(project.id)) },
                     onOpenAccessManagement = { navController.navigate(ACCESS_MANAGEMENT_ROUTE) },
                     onLogout = onLogout,
@@ -277,6 +281,36 @@ fun WorkspaceNavigation(
         }
 
         composable(
+            route = ESTIMATING_ROUTE,
+            arguments = listOf(navArgument("projectId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId").orEmpty()
+            val project = projects.firstOrNull { it.id == projectId }
+            val permissions = context.projectPermissions(projectId)
+            val estimatingReleased = context.hasMobileFeature("estimating")
+            val canViewEstimates = "estimating.estimate.view" in permissions
+            val canViewBudgets = "estimating.budget.view" in permissions
+            if (project == null) {
+                MissingProjectScreen(onChooseProject = { navController.popBackStack() })
+            } else if (!estimatingReleased || (!canViewEstimates && !canViewBudgets)) {
+                MissingPermissionScreen(
+                    message = "Estimating / Budget is not available for this project and session.",
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                EstimatingReviewScreen(
+                    project = project,
+                    repository = estimatingReviewRepository,
+                    canViewEstimates = canViewEstimates,
+                    canApproveEstimates = "estimating.estimate.approve" in permissions,
+                    canViewBudgets = canViewBudgets,
+                    canApproveBudgets = "estimating.budget.approve" in permissions,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+        }
+
+        composable(
             route = PROJECT_ACCESS_ROUTE,
             arguments = listOf(navArgument("projectId") { type = NavType.StringType }),
         ) { backStackEntry ->
@@ -383,6 +417,7 @@ private fun ProjectWorkspaceScreen(
     onOpenPartyDirectory: () -> Unit,
     onOpenWbs: () -> Unit,
     onOpenBoq: () -> Unit,
+    onOpenEstimating: () -> Unit,
     onOpenProjectAccess: () -> Unit,
     onOpenAccessManagement: () -> Unit,
     onLogout: () -> Unit,
@@ -398,6 +433,9 @@ private fun ProjectWorkspaceScreen(
     val projectPermissions = context.projectPermissions(project.id)
     val canViewWbs = context.hasMobileFeature("commercial.wbs") && "commercial.wbs.view" in projectPermissions
     val canViewBoq = context.hasMobileFeature("commercial.boq") && "commercial.boq.view" in projectPermissions
+    val canViewEstimating = context.hasMobileFeature("estimating") && (
+        "estimating.estimate.view" in projectPermissions || "estimating.budget.view" in projectPermissions
+    )
     val canViewProjectAccess = "projects.membership.view" in projectPermissions
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -414,11 +452,13 @@ private fun ProjectWorkspaceScreen(
                 canViewPartyDirectory = canViewPartyDirectory,
                 canViewWbs = canViewWbs,
                 canViewBoq = canViewBoq,
+                canViewEstimating = canViewEstimating,
                 canViewProjectAccess = canViewProjectAccess,
                 canViewAccessManagement = canViewAccessManagement,
                 onOpenPartyDirectory = onOpenPartyDirectory,
                 onOpenWbs = onOpenWbs,
                 onOpenBoq = onOpenBoq,
+                onOpenEstimating = onOpenEstimating,
                 onOpenProjectAccess = onOpenProjectAccess,
                 onOpenAccessManagement = onOpenAccessManagement,
                 onChooseProject = onChooseProject,
@@ -537,11 +577,13 @@ private fun ProjectMoreContent(
     canViewPartyDirectory: Boolean,
     canViewWbs: Boolean,
     canViewBoq: Boolean,
+    canViewEstimating: Boolean,
     canViewProjectAccess: Boolean,
     canViewAccessManagement: Boolean,
     onOpenPartyDirectory: () -> Unit,
     onOpenWbs: () -> Unit,
     onOpenBoq: () -> Unit,
+    onOpenEstimating: () -> Unit,
     onOpenProjectAccess: () -> Unit,
     onOpenAccessManagement: () -> Unit,
     onChooseProject: () -> Unit,
@@ -578,6 +620,11 @@ private fun ProjectMoreContent(
         if (canViewBoq) {
             item {
                 MoreLink("Approved BOQ", "Search approved field-safe BOQ items from the local cache.", onOpenBoq)
+            }
+        }
+        if (canViewEstimating) {
+            item {
+                MoreLink("Estimating & Budget", "Review governed estimate and budget status and approve when permitted.", onOpenEstimating)
             }
         }
         if (canViewProjectAccess) {
@@ -633,4 +680,5 @@ private fun dailyReportRoute(projectId: String): String = "daily-report/$project
 private fun partyDirectoryRoute(projectId: String): String = "party-directory/$projectId"
 private fun wbsRoute(projectId: String): String = "wbs/$projectId"
 private fun boqRoute(projectId: String): String = "boq/$projectId"
+private fun estimatingRoute(projectId: String): String = "estimating/$projectId"
 private fun projectAccessRoute(projectId: String): String = "project-access/$projectId"
