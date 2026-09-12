@@ -47,12 +47,14 @@ import com.constructionos.app.core.estimating.EstimatingReviewRepository
 import com.constructionos.app.core.network.SessionContextResponse
 import com.constructionos.app.core.parties.PartyRepository
 import com.constructionos.app.core.wbs.WbsRepository
+import com.constructionos.app.core.workforce.WorkforceRepository
 import com.constructionos.app.core.workspace.WorkspaceCoordinator
 
 private const val PROJECT_SELECTOR_ROUTE = "project-selector"
 private const val PROJECT_HOME_ROUTE = "project-home/{projectId}"
 private const val ATTENDANCE_ROUTE = "attendance/{projectId}"
 private const val DAILY_REPORT_ROUTE = "daily-report/{projectId}"
+private const val WORKFORCE_ROUTE = "workforce/{projectId}"
 private const val PARTY_DIRECTORY_ROUTE = "party-directory/{projectId}"
 private const val WBS_ROUTE = "wbs/{projectId}"
 private const val BOQ_ROUTE = "boq/{projectId}"
@@ -76,6 +78,7 @@ fun WorkspaceNavigation(
     wbsRepository: WbsRepository,
     boqFieldRepository: BoqFieldRepository,
     estimatingReviewRepository: EstimatingReviewRepository,
+    workforceRepository: WorkforceRepository,
     accessAdminRepository: AccessAdminRepository,
     projectAccessAdminRepository: ProjectAccessAdminRepository,
     onLogout: () -> Unit,
@@ -162,6 +165,7 @@ fun WorkspaceNavigation(
                     },
                     onOpenAttendance = { navController.navigate(attendanceRoute(project.id)) },
                     onOpenDailyReport = { navController.navigate(dailyReportRoute(project.id)) },
+                    onOpenWorkforce = { navController.navigate(workforceRoute(project.id)) },
                     onOpenPartyDirectory = { navController.navigate(partyDirectoryRoute(project.id)) },
                     onOpenWbs = { navController.navigate(wbsRoute(project.id)) },
                     onOpenBoq = { navController.navigate(boqRoute(project.id)) },
@@ -204,6 +208,38 @@ fun WorkspaceNavigation(
                     project = project,
                     context = context,
                     repository = dprRepository,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+        }
+
+        composable(
+            route = WORKFORCE_ROUTE,
+            arguments = listOf(navArgument("projectId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId").orEmpty()
+            val project = projects.firstOrNull { it.id == projectId }
+            val permissions = context.projectPermissions(projectId)
+            val workforceReleased = context.hasMobileFeature("workforce")
+            val canViewWorkers = "workforce.worker.view" in permissions
+            val canViewCrews = "workforce.crew.view" in permissions
+            val canViewAssignments = "workforce.assignment.view" in permissions
+            val canOpenDirectory = canViewCrews || (canViewWorkers && canViewAssignments)
+            if (project == null) {
+                MissingProjectScreen(onChooseProject = { navController.popBackStack() })
+            } else if (!workforceReleased || !canOpenDirectory) {
+                MissingPermissionScreen(
+                    message = "Workforce directory is not available for this project and session.",
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                WorkforceDirectoryScreen(
+                    organizationId = context.organizationId,
+                    project = project,
+                    repository = workforceRepository,
+                    canViewWorkers = canViewWorkers,
+                    canViewCrews = canViewCrews,
+                    canViewAssignments = canViewAssignments,
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -414,6 +450,7 @@ private fun ProjectWorkspaceScreen(
     onChooseProject: () -> Unit,
     onOpenAttendance: () -> Unit,
     onOpenDailyReport: () -> Unit,
+    onOpenWorkforce: () -> Unit,
     onOpenPartyDirectory: () -> Unit,
     onOpenWbs: () -> Unit,
     onOpenBoq: () -> Unit,
@@ -435,6 +472,10 @@ private fun ProjectWorkspaceScreen(
     val canViewBoq = context.hasMobileFeature("commercial.boq") && "commercial.boq.view" in projectPermissions
     val canViewEstimating = context.hasMobileFeature("estimating") && (
         "estimating.estimate.view" in projectPermissions || "estimating.budget.view" in projectPermissions
+    )
+    val canViewWorkforce = context.hasMobileFeature("workforce") && (
+        "workforce.crew.view" in projectPermissions ||
+            ("workforce.worker.view" in projectPermissions && "workforce.assignment.view" in projectPermissions)
     )
     val canViewProjectAccess = "projects.membership.view" in projectPermissions
 
@@ -469,6 +510,9 @@ private fun ProjectWorkspaceScreen(
         NavigationBar {
             NavigationBarItem(selected = selectedTab == ProjectTab.HOME.name, onClick = { selectedTab = ProjectTab.HOME.name }, icon = {}, label = { Text("Home") })
             NavigationBarItem(selected = selectedTab == ProjectTab.FIELD.name, onClick = { selectedTab = ProjectTab.FIELD.name }, icon = {}, label = { Text("Field") })
+            if (canViewWorkforce) {
+                NavigationBarItem(selected = false, onClick = onOpenWorkforce, icon = {}, label = { Text("Workforce") })
+            }
             NavigationBarItem(selected = false, onClick = onChooseProject, icon = {}, label = { Text("Projects") })
             NavigationBarItem(selected = selectedTab == ProjectTab.MORE.name, onClick = { selectedTab = ProjectTab.MORE.name }, icon = {}, label = { Text("More") })
         }
@@ -677,6 +721,7 @@ private fun MissingPermissionScreen(message: String, onBack: () -> Unit) {
 private fun projectHomeRoute(projectId: String): String = "project-home/$projectId"
 private fun attendanceRoute(projectId: String): String = "attendance/$projectId"
 private fun dailyReportRoute(projectId: String): String = "daily-report/$projectId"
+private fun workforceRoute(projectId: String): String = "workforce/$projectId"
 private fun partyDirectoryRoute(projectId: String): String = "party-directory/$projectId"
 private fun wbsRoute(projectId: String): String = "wbs/$projectId"
 private fun boqRoute(projectId: String): String = "boq/$projectId"
