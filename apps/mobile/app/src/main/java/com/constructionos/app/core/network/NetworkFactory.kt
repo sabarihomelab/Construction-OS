@@ -1,22 +1,30 @@
 package com.constructionos.app.core.network
 
-import com.constructionos.app.BuildConfig
 import com.constructionos.app.core.session.SessionTokenProvider
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object NetworkFactory {
-    fun createApi(tokenProvider: SessionTokenProvider): ConstructionOsApi {
+    fun createApi(
+        baseUrl: String,
+        tokenProvider: SessionTokenProvider,
+    ): ConstructionOsApi {
         val client = OkHttpClient.Builder()
             .addInterceptor(BearerSessionInterceptor(tokenProvider))
             .build()
+        return createRetrofit(baseUrl, client).create(ConstructionOsApi::class.java)
+    }
 
-        return Retrofit.Builder()
-            .baseUrl(BuildConfig.API_BASE_URL)
+    fun createBootstrapApi(baseUrl: String): ConstructionOsApi {
+        val client = OkHttpClient.Builder().build()
+        return createRetrofit(baseUrl, client).create(ConstructionOsApi::class.java)
+    }
+
+    private fun createRetrofit(baseUrl: String, client: OkHttpClient): Retrofit =
+        Retrofit.Builder()
+            .baseUrl(baseUrl)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(ConstructionOsApi::class.java)
-    }
 }
