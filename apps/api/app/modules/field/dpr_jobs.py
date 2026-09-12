@@ -20,6 +20,7 @@ from app.modules.reporting.template_models import ReportRenderRecord, TemplateOu
 from app.modules.reporting.type_registry import ReportGenerationTrigger, report_types
 
 DPR_APPROVAL_JOB_TYPE = "reporting.issue_dpr_on_approval"
+_CUSTOM_FIELDS_VALIDATED_KEY = "custom_fields_validated_at_submission"
 
 
 class DPRReportJobError(ValueError):
@@ -52,15 +53,20 @@ async def enqueue_dpr_approval_report(
     actor_user_id: UUID,
     session_id: UUID | None,
 ) -> BackgroundJob | None:
-    try:
-        await materialize_and_validate_required_dpr_custom_fields(
-            db,
-            organization_id=report.organization_id,
-            report=report,
-            actor_user_id=actor_user_id,
-        )
-    except DPRValidationError as exc:
-        raise DailyReportValidationError(str(exc)) from exc
+    submission_context = dict(report.configuration_context or {})
+    if not submission_context.get(_CUSTOM_FIELDS_VALIDATED_KEY, False):
+        try:
+            await materialize_and_validate_required_dpr_custom_fields(
+                db,
+                organization_id=report.organization_id,
+                report=report,
+                actor_user_id=actor_user_id,
+            )
+        except DPRValidationError as exc:
+            raise DailyReportValidationError(str(exc)) from exc
+        submission_context[_CUSTOM_FIELDS_VALIDATED_KEY] = True
+        report.configuration_context = submission_context
+        await db.flush()
 
     contract = report_types.get(DPR_REPORT_TYPE_KEY)
     if not contract.stores_issued_output:
