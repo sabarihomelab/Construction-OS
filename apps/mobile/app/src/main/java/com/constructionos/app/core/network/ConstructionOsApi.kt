@@ -187,6 +187,7 @@ data class SecurityRoleResponse(
     val key: String,
     val name: String,
     val description: String? = null,
+    @SerializedName("assignment_scope") val assignmentScope: String,
     @SerializedName("is_template") val isTemplate: Boolean,
     @SerializedName("is_protected") val isProtected: Boolean,
     @SerializedName("is_active") val isActive: Boolean,
@@ -197,6 +198,7 @@ data class SecurityRoleCreateRequest(
     val key: String,
     val name: String,
     val description: String? = null,
+    @SerializedName("assignment_scope") val assignmentScope: String = "project",
     @SerializedName("permission_keys") val permissionKeys: List<String> = emptyList(),
 )
 
@@ -219,6 +221,7 @@ data class SecurityAssignedRoleResponse(
     val id: String,
     val key: String,
     val name: String,
+    @SerializedName("assignment_scope") val assignmentScope: String,
     @SerializedName("is_template") val isTemplate: Boolean,
     @SerializedName("is_protected") val isProtected: Boolean,
 )
