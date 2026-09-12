@@ -4,7 +4,8 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.modules.field.dpr_offline_router import _permission_for, router as dpr_offline_router
+from app.modules.field.dpr_offline_router import _permission_for
+from app.modules.field.dpr_offline_router import router as dpr_offline_router
 from app.modules.field.dpr_offline_schemas import (
     DailyReportOfflineMutationRequest,
     DailyReportOfflineOperation,
