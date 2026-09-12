@@ -30,6 +30,33 @@ interface DprDao {
 
     @Query(
         """
+        SELECT * FROM dpr_work_progress
+        WHERE report_id = :reportId
+        ORDER BY position, id
+        """,
+    )
+    fun observeWorkProgress(reportId: String): Flow<List<DprWorkProgressEntity>>
+
+    @Query(
+        """
+        SELECT * FROM dpr_wbs_references
+        WHERE project_id = :projectId
+        ORDER BY code, id
+        """,
+    )
+    fun observeWbsReferences(projectId: String): Flow<List<DprWbsReferenceEntity>>
+
+    @Query(
+        """
+        SELECT * FROM dpr_boq_references
+        WHERE project_id = :projectId
+        ORDER BY boq_code, item_code, id
+        """,
+    )
+    fun observeBoqReferences(projectId: String): Flow<List<DprBoqReferenceEntity>>
+
+    @Query(
+        """
         SELECT * FROM dpr_reports
         WHERE project_id = :projectId AND report_date = :reportDate AND shift_code = :shiftCode
         LIMIT 1
@@ -40,11 +67,38 @@ interface DprDao {
     @Query("SELECT * FROM dpr_reports WHERE id = :reportId LIMIT 1")
     suspend fun reportById(reportId: String): DprReportEntity?
 
+    @Query(
+        """
+        SELECT * FROM dpr_work_progress
+        WHERE report_id = :reportId
+        ORDER BY position, id
+        """,
+    )
+    suspend fun workProgress(reportId: String): List<DprWorkProgressEntity>
+
     @Upsert
     suspend fun upsertReport(report: DprReportEntity)
 
+    @Upsert
+    suspend fun upsertWorkProgress(rows: List<DprWorkProgressEntity>)
+
+    @Upsert
+    suspend fun upsertWbsReferences(rows: List<DprWbsReferenceEntity>)
+
+    @Upsert
+    suspend fun upsertBoqReferences(rows: List<DprBoqReferenceEntity>)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertMutation(mutation: DprMutationEntity)
+
+    @Query("DELETE FROM dpr_work_progress WHERE report_id = :reportId")
+    suspend fun deleteWorkProgress(reportId: String)
+
+    @Query("DELETE FROM dpr_wbs_references WHERE project_id = :projectId")
+    suspend fun deleteWbsReferences(projectId: String)
+
+    @Query("DELETE FROM dpr_boq_references WHERE project_id = :projectId")
+    suspend fun deleteBoqReferences(projectId: String)
 
     @Query(
         """
@@ -188,6 +242,40 @@ interface DprDao {
     }
 
     @Transaction
+    suspend fun replaceWorkProgressLocally(
+        reportId: String,
+        rows: List<DprWorkProgressEntity>,
+        mutation: DprMutationEntity,
+        updatedAt: Long,
+    ) {
+        deleteWorkProgress(reportId)
+        if (rows.isNotEmpty()) upsertWorkProgress(rows)
+        upsertMutation(mutation)
+        updateReportSyncState(reportId, DprSyncState.SAVED_ON_DEVICE, updatedAt)
+    }
+
+    @Transaction
+    suspend fun replaceWorkProgressFromServer(
+        reportId: String,
+        rows: List<DprWorkProgressEntity>,
+    ) {
+        deleteWorkProgress(reportId)
+        if (rows.isNotEmpty()) upsertWorkProgress(rows)
+    }
+
+    @Transaction
+    suspend fun replaceReferences(
+        projectId: String,
+        wbs: List<DprWbsReferenceEntity>,
+        boq: List<DprBoqReferenceEntity>,
+    ) {
+        deleteWbsReferences(projectId)
+        deleteBoqReferences(projectId)
+        if (wbs.isNotEmpty()) upsertWbsReferences(wbs)
+        if (boq.isNotEmpty()) upsertBoqReferences(boq)
+    }
+
+    @Transaction
     suspend fun markInFlight(mutation: DprMutationEntity, updatedAt: Long) {
         updateMutationState(
             mutationId = mutation.clientMutationId,
@@ -232,9 +320,14 @@ interface DprDao {
     suspend fun applyServerResult(
         mutation: DprMutationEntity,
         serverReport: DprReportEntity,
+        serverWorkProgress: List<DprWorkProgressEntity>? = null,
         updatedAt: Long,
     ) {
         upsertReport(serverReport.copy(id = mutation.reportId, localUpdatedAt = updatedAt))
+        if (serverWorkProgress != null) {
+            deleteWorkProgress(mutation.reportId)
+            if (serverWorkProgress.isNotEmpty()) upsertWorkProgress(serverWorkProgress)
+        }
         updateMutationState(
             mutationId = mutation.clientMutationId,
             state = DprMutationState.APPLIED,
