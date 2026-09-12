@@ -1,5 +1,7 @@
 package com.constructionos.app.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,14 +31,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.constructionos.app.core.authorization.hasProjectPermission
+import com.constructionos.app.core.database.DprBoqReferenceEntity
 import com.constructionos.app.core.database.DprReportEntity
 import com.constructionos.app.core.database.DprSyncState
+import com.constructionos.app.core.database.DprWbsReferenceEntity
+import com.constructionos.app.core.database.DprWorkProgressEntity
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.dpr.DprRepository
+import com.constructionos.app.core.dpr.DprWorkProgressDraft
 import com.constructionos.app.core.network.SessionContextResponse
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 private enum class DprTab(val label: String) {
@@ -66,9 +73,21 @@ fun DailyReportScreen(
     val historyFlow = remember(project.id) {
         repository.observeProjectReports(project.id)
     }
+    val wbsFlow = remember(project.id) {
+        repository.observeWbsReferences(project.id)
+    }
+    val boqFlow = remember(project.id) {
+        repository.observeBoqReferences(project.id)
+    }
     val dayReports by dayFlow.collectAsState(initial = emptyList())
     val history by historyFlow.collectAsState(initial = emptyList())
+    val wbsReferences by wbsFlow.collectAsState(initial = emptyList())
+    val boqReferences by boqFlow.collectAsState(initial = emptyList())
     val report = dayReports.firstOrNull { it.shiftCode == "day" } ?: dayReports.firstOrNull()
+    val workProgressFlow = remember(report?.id) {
+        report?.id?.let(repository::observeWorkProgress) ?: flowOf(emptyList())
+    }
+    val workProgress by workProgressFlow.collectAsState(initial = emptyList())
     val canCreate = context.hasProjectPermission(project.id, "field.daily_report.create")
     val canUpdate = context.hasProjectPermission(project.id, "field.daily_report.update")
 
@@ -118,6 +137,9 @@ fun DailyReportScreen(
                 today = today,
                 weather = weather,
                 notes = notes,
+                workProgress = workProgress,
+                wbsReferences = wbsReferences,
+                boqReferences = boqReferences,
                 canCreate = canCreate,
                 canUpdate = canUpdate,
                 onWeatherChange = { weather = it },
@@ -157,6 +179,16 @@ fun DailyReportScreen(
                             )
                         }.onFailure { error ->
                             message = error.message ?: "Daily report changes could not be saved"
+                        }
+                    }
+                },
+                onSaveWorkProgress = { reportId, rows ->
+                    scope.launch {
+                        message = null
+                        runCatching {
+                            repository.saveWorkProgress(reportId, rows)
+                        }.onFailure { error ->
+                            message = error.message ?: "Work progress could not be saved"
                         }
                     }
                 },
@@ -208,6 +240,9 @@ private fun DailyReportTodayContent(
     today: LocalDate,
     weather: String,
     notes: String,
+    workProgress: List<DprWorkProgressEntity>,
+    wbsReferences: List<DprWbsReferenceEntity>,
+    boqReferences: List<DprBoqReferenceEntity>,
     canCreate: Boolean,
     canUpdate: Boolean,
     onWeatherChange: (String) -> Unit,
@@ -216,11 +251,14 @@ private fun DailyReportTodayContent(
     onNextDay: () -> Unit,
     onStart: () -> Unit,
     onSave: (String) -> Unit,
+    onSaveWorkProgress: (String, List<DprWorkProgressDraft>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val date = LocalDate.parse(selectedDate)
 
-    Column(modifier = modifier) {
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -325,16 +363,16 @@ private fun DailyReportTodayContent(
                     .fillMaxWidth()
                     .padding(top = 14.dp),
             ) {
-                Text("Save changes")
+                Text("Save header")
             }
             Text(
                 text = when {
                     report.syncState == DprSyncState.NEEDS_ATTENTION ->
-                        "This report needs sync attention before another change can be saved."
+                        "This report needs sync attention before another header change can be saved."
                     !report.canQueueHeaderEdit() ->
-                        "Finish syncing the previous change before saving another one."
+                        "Finish syncing the previous header change before saving another one."
                     else ->
-                        "Changes are saved on this device first and synced in the background."
+                        "Header changes are saved on this device first and synced in the background."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 6.dp),
@@ -342,6 +380,247 @@ private fun DailyReportTodayContent(
         } else {
             DailyReportSummary(report)
         }
+
+        DprWorkProgressSection(
+            report = report,
+            rows = workProgress,
+            wbsReferences = wbsReferences,
+            boqReferences = boqReferences,
+            editable = report.status == DprRepository.STATUS_DRAFT && canUpdate,
+            onSave = { drafts -> onSaveWorkProgress(report.id, drafts) },
+        )
+    }
+}
+
+@Composable
+private fun DprWorkProgressSection(
+    report: DprReportEntity,
+    rows: List<DprWorkProgressEntity>,
+    wbsReferences: List<DprWbsReferenceEntity>,
+    boqReferences: List<DprBoqReferenceEntity>,
+    editable: Boolean,
+    onSave: (List<DprWorkProgressDraft>) -> Unit,
+) {
+    var search by rememberSaveable(report.id) { mutableStateOf("") }
+    var selectedWbsId by rememberSaveable(report.id) { mutableStateOf<String?>(null) }
+    var selectedBoqId by rememberSaveable(report.id) { mutableStateOf<String?>(null) }
+    var description by rememberSaveable(report.id) { mutableStateOf("") }
+    var location by rememberSaveable(report.id) { mutableStateOf("") }
+    var quantity by rememberSaveable(report.id) { mutableStateOf("") }
+    var unitCode by rememberSaveable(report.id) { mutableStateOf("") }
+    var progress by rememberSaveable(report.id) { mutableStateOf("") }
+    var remarks by rememberSaveable(report.id) { mutableStateOf("") }
+
+    HorizontalDivider(modifier = Modifier.padding(top = 22.dp))
+    Text(
+        "Work progress",
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(top = 16.dp),
+    )
+    Text(
+        if (rows.isEmpty()) "No work progress recorded yet" else "${rows.size} work item${if (rows.size == 1) "" else "s"} recorded",
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(top = 3.dp, bottom = 8.dp),
+    )
+
+    rows.forEach { row ->
+        val reference = when {
+            row.boqItemId != null -> boqReferences.firstOrNull { it.id == row.boqItemId }
+                ?.let { "${it.boqCode} • ${it.itemCode}" }
+            row.wbsCodeId != null -> wbsReferences.firstOrNull { it.id == row.wbsCodeId }
+                ?.let { "${it.code} • ${it.name}" }
+            else -> null
+        } ?: "Linked work item"
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+        ) {
+            Text(reference, style = MaterialTheme.typography.labelLarge)
+            Text(row.description, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
+            val details = buildList {
+                row.quantity?.let { value -> add(value + row.unitCode?.let { " $it" }.orEmpty()) }
+                row.progressPercent?.let { add("$it%") }
+                row.location?.takeIf { it.isNotBlank() }?.let(::add)
+            }.joinToString(" • ")
+            if (details.isNotBlank()) {
+                Text(details, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
+            }
+            row.remarks?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
+            }
+            if (editable) {
+                TextButton(
+                    onClick = {
+                        onSave(rows.filterNot { it.id == row.id }.map(DprWorkProgressEntity::toDraft))
+                    },
+                ) {
+                    Text("Remove")
+                }
+            }
+        }
+        HorizontalDivider()
+    }
+
+    if (!editable) return
+
+    Text(
+        "Add work",
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.padding(top = 18.dp),
+    )
+    OutlinedTextField(
+        value = search,
+        onValueChange = { search = it },
+        label = { Text("Find WBS or approved BOQ item") },
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    )
+
+    val normalizedSearch = search.trim().lowercase()
+    val matchingWbs = wbsReferences.asSequence()
+        .filter {
+            normalizedSearch.isEmpty() ||
+                it.code.lowercase().contains(normalizedSearch) ||
+                it.name.lowercase().contains(normalizedSearch)
+        }
+        .take(4)
+        .toList()
+    val matchingBoq = boqReferences.asSequence()
+        .filter {
+            normalizedSearch.isEmpty() ||
+                it.boqCode.lowercase().contains(normalizedSearch) ||
+                it.itemCode.lowercase().contains(normalizedSearch) ||
+                it.description.lowercase().contains(normalizedSearch)
+        }
+        .take(4)
+        .toList()
+
+    if (matchingWbs.isNotEmpty()) {
+        Text("WBS / Cost Codes", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 10.dp))
+        matchingWbs.forEach { item ->
+            TextButton(
+                onClick = {
+                    selectedWbsId = item.id
+                    selectedBoqId = null
+                    search = "${item.code} • ${item.name}"
+                    if (description.isBlank()) description = item.name
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("${item.code} • ${item.name}", modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+
+    if (matchingBoq.isNotEmpty()) {
+        Text("Approved BOQ", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
+        matchingBoq.forEach { item ->
+            TextButton(
+                onClick = {
+                    selectedBoqId = item.id
+                    selectedWbsId = item.wbsCodeId
+                    search = "${item.boqCode} • ${item.itemCode}"
+                    description = item.description
+                    unitCode = item.unitCode
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("${item.boqCode} • ${item.itemCode} — ${item.description}", modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+
+    OutlinedTextField(
+        value = description,
+        onValueChange = { description = it },
+        label = { Text("Work description") },
+        minLines = 2,
+        maxLines = 4,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    )
+    OutlinedTextField(
+        value = location,
+        onValueChange = { location = it },
+        label = { Text("Location (optional)") },
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            value = quantity,
+            onValueChange = { quantity = it },
+            label = { Text("Quantity") },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            value = unitCode,
+            onValueChange = { unitCode = it },
+            label = { Text("Unit") },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+        )
+    }
+    OutlinedTextField(
+        value = progress,
+        onValueChange = { progress = it },
+        label = { Text("Progress % (optional)") },
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    )
+    OutlinedTextField(
+        value = remarks,
+        onValueChange = { remarks = it },
+        label = { Text("Remarks (optional)") },
+        minLines = 2,
+        maxLines = 4,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    )
+    Button(
+        onClick = {
+            val next = rows.map(DprWorkProgressEntity::toDraft) + DprWorkProgressDraft(
+                wbsCodeId = selectedWbsId,
+                boqItemId = selectedBoqId,
+                description = description,
+                location = location,
+                quantity = quantity,
+                unitCode = unitCode,
+                progressPercent = progress,
+                remarks = remarks,
+            )
+            onSave(next)
+            selectedWbsId = null
+            selectedBoqId = null
+            search = ""
+            description = ""
+            location = ""
+            quantity = ""
+            unitCode = ""
+            progress = ""
+            remarks = ""
+        },
+        enabled = (selectedWbsId != null || selectedBoqId != null) && description.isNotBlank(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp, bottom = 24.dp),
+    ) {
+        Text("Add work progress")
     }
 }
 
@@ -469,6 +748,18 @@ private fun DailyReportHistoryContent(
         }
     }
 }
+
+private fun DprWorkProgressEntity.toDraft(): DprWorkProgressDraft = DprWorkProgressDraft(
+    id = id,
+    wbsCodeId = wbsCodeId,
+    boqItemId = boqItemId,
+    description = description,
+    location = location,
+    quantity = quantity,
+    unitCode = unitCode,
+    progressPercent = progressPercent,
+    remarks = remarks,
+)
 
 private fun DprReportEntity.canQueueHeaderEdit(): Boolean = when {
     syncState == DprSyncState.NEEDS_ATTENTION -> false
