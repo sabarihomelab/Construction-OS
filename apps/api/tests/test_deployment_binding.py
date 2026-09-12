@@ -3,7 +3,8 @@ from uuid import uuid4
 import pytest
 
 from app.core.config import Settings, validate_runtime_deployment
-from app.modules.deployment.router import DeploymentBootstrapResponse, router as deployment_router
+from app.modules.deployment.router import DeploymentBootstrapResponse
+from app.modules.deployment.router import router as deployment_router
 
 
 def test_production_api_requires_company_bound_deployment() -> None:
