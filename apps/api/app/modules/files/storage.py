@@ -53,6 +53,23 @@ class StorageProvider(Protocol):
     async def delete_object(self, storage_key: str) -> None: ...
 
 
+class ResumableStorageProvider(StorageProvider, Protocol):
+    async def write_upload_chunk(
+        self,
+        *,
+        storage_key: str,
+        offset: int,
+        content: bytes,
+    ) -> int: ...
+
+    async def clone_object(
+        self,
+        *,
+        source_storage_key: str,
+        target_storage_key: str,
+    ) -> None: ...
+
+
 class StorageProviderRegistry:
     def __init__(self) -> None:
         self._providers: dict[str, StorageProvider] = {}
