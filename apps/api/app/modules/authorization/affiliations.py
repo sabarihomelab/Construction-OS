@@ -8,7 +8,7 @@ from app.modules.audit.service import record_audit_event
 from app.modules.authorization.models import MembershipPartyAffiliation, OrganizationAuthorizationState
 from app.modules.commercial.models import Party, PartyStatus
 from app.modules.events.service import enqueue_event
-from app.modules.identity.models import MembershipKind, OrganizationMembership
+from app.modules.identity.models import MembershipKind, MembershipStatus, OrganizationMembership
 
 
 class PartyAffiliationValidationError(ValueError):
@@ -100,6 +100,10 @@ async def set_membership_party(
         else:
             affiliation.party_id = party.id
     elif affiliation is not None:
+        if membership.kind == MembershipKind.EXTERNAL and membership.status == MembershipStatus.ACTIVE:
+            raise PartyAffiliationValidationError(
+                "Suspend the external membership before clearing its represented party"
+            )
         await db.delete(affiliation)
 
     if before_party_id == party_id:
