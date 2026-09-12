@@ -38,7 +38,7 @@ class PhotoUploadPreparer {
         }
 
         val uploadFile = File(workingDirectory, "upload.jpg")
-        val decoded = decodeForUpload(original, decision.targetMaxEdgePx)
+        val decoded = decodeForTarget(original, decision.targetMaxEdgePx)
         try {
             uploadFile.outputStream().buffered().use { output ->
                 check(decoded.compress(Bitmap.CompressFormat.JPEG, decision.jpegQuality, output)) {
@@ -72,6 +72,26 @@ class PhotoUploadPreparer {
         )
     }
 
+    fun createThumbnail(
+        source: File,
+        target: File,
+        maxEdgePx: Int = THUMBNAIL_MAX_EDGE_PX,
+        jpegQuality: Int = THUMBNAIL_JPEG_QUALITY,
+    ) {
+        require(maxEdgePx > 0) { "Thumbnail size must be positive." }
+        require(jpegQuality in 1..100) { "Thumbnail quality must be between 1 and 100." }
+        val decoded = decodeForTarget(source, maxEdgePx)
+        try {
+            target.outputStream().buffered().use { output ->
+                check(decoded.compress(Bitmap.CompressFormat.JPEG, jpegQuality, output)) {
+                    "Could not create photo thumbnail."
+                }
+            }
+        } finally {
+            decoded.recycle()
+        }
+    }
+
     private fun readBounds(file: File): Pair<Int, Int> {
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, options)
@@ -81,7 +101,7 @@ class PhotoUploadPreparer {
         return options.outWidth to options.outHeight
     }
 
-    private fun decodeForUpload(file: File, targetMaxEdgePx: Int): Bitmap {
+    private fun decodeForTarget(file: File, targetMaxEdgePx: Int): Bitmap {
         val (width, height) = readBounds(file)
         var sampleSize = 1
         val decodeCeiling = targetMaxEdgePx * 2
@@ -162,6 +182,8 @@ class PhotoUploadPreparer {
     }
 
     companion object {
+        private const val THUMBNAIL_MAX_EDGE_PX = 512
+        private const val THUMBNAIL_JPEG_QUALITY = 82
         private val TRANSFORMABLE_CONTENT_TYPES = setOf(
             "image/jpeg",
             "image/jpg",
