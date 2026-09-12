@@ -9,9 +9,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -19,10 +20,12 @@ import androidx.compose.ui.unit.dp
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.dpr.DprLifecycleRepository
 import com.constructionos.app.core.dpr.DprRepository
+import com.constructionos.app.core.dpr.requirePhotoRepository
 import com.constructionos.app.core.network.SessionContextResponse
 
 enum class DailyReportHubTab(val label: String) {
     ENTRY("Entry"),
+    PHOTOS("Photos"),
     REVIEW("Review"),
 }
 
@@ -41,22 +44,22 @@ fun DailyReportHubScreen(
     val canReopen = "field.daily_report.update" in permissions
     val canManage = "field.daily_report.manage" in permissions
     val showReview = canSubmit || canApprove || canReopen || canManage
+    val tabs = remember(showReview) {
+        if (showReview) {
+            DailyReportHubTab.entries
+        } else {
+            DailyReportHubTab.entries.filterNot { it == DailyReportHubTab.REVIEW }
+        }
+    }
+    val photoRepository = remember(repository) { repository.requirePhotoRepository() }
     var selected by rememberSaveable(project.id) { mutableStateOf(DailyReportHubTab.ENTRY.name) }
-
-    if (!showReview) {
-        DailyReportScreen(
-            project = project,
-            context = context,
-            repository = repository,
-            onBack = onBack,
-            modifier = modifier,
-        )
-        return
+    val selectedTab = DailyReportHubTab.valueOf(selected).let { tab ->
+        if (tab in tabs) tab else DailyReportHubTab.ENTRY
     }
 
     Column(modifier = modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxWidth()) {
-            DailyReportHubTab.entries.forEach { tab ->
+            tabs.forEach { tab ->
                 Column(modifier = Modifier.weight(1f)) {
                     TextButton(
                         onClick = { selected = tab.name },
@@ -64,13 +67,13 @@ fun DailyReportHubScreen(
                     ) {
                         Text(
                             tab.label,
-                            fontWeight = if (selected == tab.name) FontWeight.Bold else FontWeight.Normal,
+                            fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal,
                             style = MaterialTheme.typography.labelLarge,
                         )
                     }
                     HorizontalDivider(
-                        thickness = if (selected == tab.name) 3.dp else 1.dp,
-                        color = if (selected == tab.name) {
+                        thickness = if (selectedTab == tab) 3.dp else 1.dp,
+                        color = if (selectedTab == tab) {
                             MaterialTheme.colorScheme.primary
                         } else {
                             MaterialTheme.colorScheme.outlineVariant
@@ -80,11 +83,19 @@ fun DailyReportHubScreen(
             }
         }
 
-        when (DailyReportHubTab.valueOf(selected)) {
+        when (selectedTab) {
             DailyReportHubTab.ENTRY -> DailyReportScreen(
                 project = project,
                 context = context,
                 repository = repository,
+                onBack = onBack,
+                modifier = Modifier.weight(1f),
+            )
+            DailyReportHubTab.PHOTOS -> DprPhotosScreen(
+                project = project,
+                context = context,
+                dprRepository = repository,
+                photoRepository = photoRepository,
                 onBack = onBack,
                 modifier = Modifier.weight(1f),
             )
