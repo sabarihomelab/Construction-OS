@@ -44,6 +44,12 @@ type AssignedRole = {
   is_template: boolean;
   is_protected: boolean;
 };
+type PartyReference = {
+  id: string;
+  code: string;
+  name: string;
+  party_type: string;
+};
 type Membership = {
   id: string;
   user_id: string;
@@ -53,6 +59,9 @@ type Membership = {
   status: "invited" | "active" | "suspended" | "ended";
   role_ids: string[];
   roles: AssignedRole[];
+  represented_party_id: string | null;
+  represented_party_name: string | null;
+  represented_party_type: string | null;
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
@@ -117,11 +126,13 @@ export default function AccessManagementWorkspace() {
   const [templates, setTemplates] = useState<RoleTemplate[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [partyReferences, setPartyReferences] = useState<PartyReference[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const [rolePermissionDraft, setRolePermissionDraft] = useState<Set<string>>(new Set());
   const [rolePermissionVersion, setRolePermissionVersion] = useState<number | null>(null);
   const [selectedMembershipId, setSelectedMembershipId] = useState("");
   const [memberRoleDraft, setMemberRoleDraft] = useState<Set<string>>(new Set());
+  const [partyDraft, setPartyDraft] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -146,18 +157,20 @@ export default function AccessManagementWorkspace() {
   const load = async () => {
     setError("");
     try {
-      const [nextContext, nextRoles, nextTemplates, nextPermissions, nextMemberships] = await Promise.all([
+      const [nextContext, nextRoles, nextTemplates, nextPermissions, nextMemberships, nextParties] = await Promise.all([
         api<AccessContext>("/session/context"),
         api<Role[]>("/security/roles"),
         api<RoleTemplate[]>("/security/role-templates"),
         api<Permission[]>("/security/permissions"),
         api<Membership[]>("/security/memberships"),
+        api<PartyReference[]>("/security/party-references"),
       ]);
       setContext(nextContext);
       setRoles(nextRoles);
       setTemplates(nextTemplates);
       setPermissions(nextPermissions);
       setMemberships(nextMemberships);
+      setPartyReferences(nextParties);
       if (selectedRoleId && !nextRoles.some((role) => role.id === selectedRoleId)) {
         setSelectedRoleId("");
         setRolePermissionDraft(new Set());
@@ -166,6 +179,7 @@ export default function AccessManagementWorkspace() {
       if (selectedMembershipId && !nextMemberships.some((membership) => membership.id === selectedMembershipId)) {
         setSelectedMembershipId("");
         setMemberRoleDraft(new Set());
+        setPartyDraft("");
       }
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -191,6 +205,7 @@ export default function AccessManagementWorkspace() {
   const openMembership = (membership: Membership) => {
     setSelectedMembershipId(membership.id);
     setMemberRoleDraft(new Set(membership.role_ids));
+    setPartyDraft(membership.represented_party_id || "");
   };
 
   const installDefaults = async () => {
@@ -250,10 +265,7 @@ export default function AccessManagementWorkspace() {
     try {
       const updated = await api<Role>(`/security/roles/${selectedRole.id}/permissions`, {
         method: "PUT",
-        body: JSON.stringify({
-          expected_version: rolePermissionVersion,
-          permission_keys: [...rolePermissionDraft],
-        }),
+        body: JSON.stringify({ expected_version: rolePermissionVersion, permission_keys: [...rolePermissionDraft] }),
       });
       setRolePermissionVersion(updated.version);
       setMessage(`Permissions saved for ${updated.name}.`);
@@ -270,6 +282,7 @@ export default function AccessManagementWorkspace() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const roleId = String(form.get("role_id") || "");
+    const representedPartyId = String(form.get("represented_party_id") || "");
     setBusy(true);
     setError("");
     setMessage("");
@@ -282,6 +295,7 @@ export default function AccessManagementWorkspace() {
           kind: form.get("kind"),
           status: form.get("status"),
           role_ids: roleId ? [roleId] : [],
+          represented_party_id: representedPartyId || null,
         }),
       });
       event.currentTarget.reset();
@@ -305,6 +319,26 @@ export default function AccessManagementWorkspace() {
         body: JSON.stringify({ role_ids: [...memberRoleDraft] }),
       });
       setMessage(`Roles updated for ${selectedMembership.display_name}.`);
+      await load();
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const savePartyAffiliation = async () => {
+    if (!selectedMembership || selectedMembership.kind !== "external") return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const updated = await api<Membership>(`/security/memberships/${selectedMembership.id}/party-affiliation`, {
+        method: "PUT",
+        body: JSON.stringify({ party_id: partyDraft || null }),
+      });
+      setPartyDraft(updated.represented_party_id || "");
+      setMessage(updated.represented_party_name ? `${updated.display_name} now represents ${updated.represented_party_name}.` : `Party affiliation cleared for ${updated.display_name}.`);
       await load();
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -340,18 +374,17 @@ export default function AccessManagementWorkspace() {
             <h1>People, Roles & Permissions</h1>
             <p>India-first company and project access. Workers remain separate from application users.</p>
           </div>
-          <a href="/admin/company">Company settings</a>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <a href="/admin/project-access">Project access</a>
+            <a href="/admin/company">Company settings</a>
+          </div>
         </div>
 
         {error && <div className="error-banner"><strong>Action not completed</strong><span>{error}</span></div>}
         {message && <div className="workflow-card"><strong>{message}</strong></div>}
 
         <section className="workflow-card">
-          <div>
-            <p className="eyebrow">DEFAULTS</p>
-            <h2>Indian construction role templates</h2>
-            <p>Install safe starting roles, then clone or customize them for the company.</p>
-          </div>
+          <div><p className="eyebrow">DEFAULTS</p><h2>Indian construction role templates</h2><p>Install safe starting roles, then clone or customize them for the company.</p></div>
           <div className="flow-line">
             {templates.map((template) => (
               <div className="flow-step" key={template.key}>
@@ -369,20 +402,12 @@ export default function AccessManagementWorkspace() {
             <form className="quick-form" onSubmit={createRole}>
               <input name="name" placeholder="Role name" required />
               <input name="key" placeholder="Key (optional)" />
-              <select name="template" defaultValue="">
-                <option value="">Blank role</option>
-                {templates.map((template) => <option key={template.key} value={template.key}>Copy: {template.name}</option>)}
-              </select>
-              <select name="assignment_scope" defaultValue="project">
-                <option value="project">Project only</option>
-                <option value="company">Company wide</option>
-                <option value="both">Company or project</option>
-              </select>
+              <select name="template" defaultValue=""><option value="">Blank role</option>{templates.map((template) => <option key={template.key} value={template.key}>Copy: {template.name}</option>)}</select>
+              <select name="assignment_scope" defaultValue="project"><option value="project">Project only</option><option value="company">Company wide</option><option value="both">Company or project</option></select>
               <input name="description" placeholder="Description (blank role)" />
               <button disabled={busy}>Create role</button>
             </form>
           )}
-
           <div className="data-table">
             <div className="table-head four-cols"><span>Role</span><span>Scope / type</span><span>Status</span><span>Action</span></div>
             {roles.map((role) => (
@@ -398,29 +423,14 @@ export default function AccessManagementWorkspace() {
 
         {selectedRole && (
           <section className="workflow-card">
-            <div>
-              <p className="eyebrow">PERMISSION EDITOR</p>
-              <h2>{selectedRole.name}</h2>
-              <p>{scopeLabel(selectedRole.assignment_scope)} scope · {selectedRole.is_protected ? "Protected administrator permissions cannot be edited." : "Changes are server-authoritative and audited."}</p>
-            </div>
+            <div><p className="eyebrow">PERMISSION EDITOR</p><h2>{selectedRole.name}</h2><p>{scopeLabel(selectedRole.assignment_scope)} scope · {selectedRole.is_protected ? "Protected administrator permissions cannot be edited." : "Changes are server-authoritative and audited."}</p></div>
             {groupedPermissions.map(([module, modulePermissions]) => (
               <details key={module} open={["field", "workforce", "commercial", "projects"].includes(module)}>
                 <summary><strong>{module.replaceAll("_", " ").toUpperCase()}</strong> · {modulePermissions.filter((permission) => rolePermissionDraft.has(permission.key)).length}/{modulePermissions.length}</summary>
                 <div style={{ display: "grid", gap: 8, padding: "12px 0" }}>
                   {modulePermissions.map((permission) => (
                     <label key={permission.key} style={{ display: "grid", gridTemplateColumns: "24px 1fr auto", gap: 8, alignItems: "start" }}>
-                      <input
-                        type="checkbox"
-                        disabled={!canManage || selectedRole.is_protected || busy}
-                        checked={rolePermissionDraft.has(permission.key)}
-                        onChange={(event) => {
-                          setRolePermissionDraft((current) => {
-                            const next = new Set(current);
-                            if (event.target.checked) next.add(permission.key); else next.delete(permission.key);
-                            return next;
-                          });
-                        }}
-                      />
+                      <input type="checkbox" disabled={!canManage || selectedRole.is_protected || busy} checked={rolePermissionDraft.has(permission.key)} onChange={(event) => setRolePermissionDraft((current) => { const next = new Set(current); if (event.target.checked) next.add(permission.key); else next.delete(permission.key); return next; })} />
                       <span><strong>{permission.resource.replaceAll("_", " ")} · {permission.action.replaceAll("_", " ")}</strong><small style={{ display: "block" }}>{permission.description}</small></span>
                       <small>{riskLabel(permission.risk)}</small>
                     </label>
@@ -433,29 +443,24 @@ export default function AccessManagementWorkspace() {
         )}
 
         <section className="workflow-card">
-          <div>
-            <p className="eyebrow">PEOPLE</p>
-            <h2>Company memberships</h2>
-            <p>Internal staff and selected external people can have logins. Site labour should normally remain Worker/Crew records, not memberships.</p>
-          </div>
-
+          <div><p className="eyebrow">PEOPLE</p><h2>Company memberships</h2><p>Internal staff and selected external people can have logins. Site labour should normally remain Worker/Crew records, not memberships.</p></div>
           {canManage && (
             <form className="quick-form" onSubmit={addPerson}>
               <input type="email" name="primary_email" placeholder="Email" required />
               <input name="display_name" placeholder="Display name" required />
               <select name="kind" defaultValue="internal"><option value="internal">Internal employee</option><option value="external">External party person</option><option value="service">Service account</option></select>
               <select name="status" defaultValue="invited"><option value="invited">Invited</option><option value="active">Active</option></select>
+              <select name="represented_party_id" defaultValue=""><option value="">No represented party</option>{partyReferences.map((party) => <option key={party.id} value={party.id}>{party.name} · {party.party_type}</option>)}</select>
               <select name="role_id" defaultValue=""><option value="">No company role yet</option>{companyAssignableRoles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select>
               <button disabled={busy}>Add person</button>
             </form>
           )}
-
           <div className="data-table">
-            <div className="table-head four-cols"><span>Person</span><span>Membership</span><span>Roles</span><span>Action</span></div>
+            <div className="table-head four-cols"><span>Person</span><span>Membership / party</span><span>Roles</span><span>Action</span></div>
             {memberships.map((membership) => (
               <div className="table-row four-cols" key={membership.id}>
                 <span><strong>{membership.display_name}</strong><small style={{ display: "block" }}>{membership.primary_email}</small></span>
-                <span>{membership.kind} · {membership.status}</span>
+                <span>{membership.kind} · {membership.status}{membership.represented_party_name ? <small style={{ display: "block" }}>Represents: {membership.represented_party_name}</small> : null}</span>
                 <span>{membership.roles.length ? membership.roles.map((role) => role.name).join(", ") : "No company role"}</span>
                 <button onClick={() => openMembership(membership)}>Manage</button>
               </div>
@@ -465,7 +470,16 @@ export default function AccessManagementWorkspace() {
 
         {selectedMembership && (
           <section className="workflow-card">
-            <div><p className="eyebrow">MEMBERSHIP & ROLE ASSIGNMENT</p><h2>{selectedMembership.display_name}</h2><p>Company roles apply across the company. Project-scoped roles must be assigned through project membership.</p></div>
+            <div><p className="eyebrow">MEMBERSHIP & ROLE ASSIGNMENT</p><h2>{selectedMembership.display_name}</h2><p>Company roles apply across the company. Project-scoped roles must be assigned through Project Access.</p></div>
+            {selectedMembership.kind === "external" && (
+              <div className="quick-form" style={{ marginBottom: 12 }}>
+                <select value={partyDraft} onChange={(event) => setPartyDraft(event.target.value)} disabled={!canManage || busy}>
+                  <option value="">No represented party</option>
+                  {partyReferences.map((party) => <option key={party.id} value={party.id}>{party.name} · {party.party_type}</option>)}
+                </select>
+                {canManage && <button disabled={busy} onClick={() => void savePartyAffiliation()}>Save represented party</button>}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
               {canManage && selectedMembership.status !== "active" && <button disabled={busy} onClick={() => void setMembershipStatus(selectedMembership, "active")}>Activate</button>}
               {canManage && selectedMembership.status === "active" && <button disabled={busy} onClick={() => void setMembershipStatus(selectedMembership, "suspended")}>Suspend</button>}
@@ -474,18 +488,7 @@ export default function AccessManagementWorkspace() {
             <div style={{ display: "grid", gap: 8 }}>
               {companyAssignableRoles.map((role) => (
                 <label key={role.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={memberRoleDraft.has(role.id)}
-                    disabled={!canManage || busy}
-                    onChange={(event) => {
-                      setMemberRoleDraft((current) => {
-                        const next = new Set(current);
-                        if (event.target.checked) next.add(role.id); else next.delete(role.id);
-                        return next;
-                      });
-                    }}
-                  />
+                  <input type="checkbox" checked={memberRoleDraft.has(role.id)} disabled={!canManage || busy} onChange={(event) => setMemberRoleDraft((current) => { const next = new Set(current); if (event.target.checked) next.add(role.id); else next.delete(role.id); return next; })} />
                   <span><strong>{role.name}</strong> <small>({scopeLabel(role.assignment_scope)} · {role.is_protected ? "protected" : role.is_template ? "default" : "custom"})</small></span>
                 </label>
               ))}
