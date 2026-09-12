@@ -6,6 +6,7 @@ import com.constructionos.app.core.attendance.AttendanceRepository
 import com.constructionos.app.core.auth.AuthController
 import com.constructionos.app.core.authorization.AccessAdminRepository
 import com.constructionos.app.core.authorization.ProjectAccessAdminRepository
+import com.constructionos.app.core.boq.BoqFieldRepository
 import com.constructionos.app.core.database.ConstructionOsDatabase
 import com.constructionos.app.core.deployment.WorkspaceConnection
 import com.constructionos.app.core.dpr.DprMutationSyncService
@@ -30,6 +31,7 @@ class AppContainer(
     private val sessionStore = SecureSessionStore(applicationContext, localNamespace)
     private val api = NetworkFactory.createApi(connection.apiBaseUrl, sessionStore)
     private val wbsApi = NetworkFactory.createWbsApi(connection.apiBaseUrl, sessionStore)
+    private val boqFieldApi = NetworkFactory.createBoqFieldApi(connection.apiBaseUrl, sessionStore)
     private val database = ConstructionOsDatabase.getInstance(
         applicationContext,
         localNamespace,
@@ -81,6 +83,11 @@ class AppContainer(
     val wbsRepository = WbsRepository(
         api = wbsApi,
         dao = database.wbsDao(),
+    )
+
+    val boqFieldRepository = BoqFieldRepository(
+        api = boqFieldApi,
+        dao = database.boqFieldDao(),
     )
 
     val authController = AuthController(
