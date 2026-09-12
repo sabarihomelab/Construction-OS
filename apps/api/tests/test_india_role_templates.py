@@ -42,7 +42,7 @@ def test_external_role_templates_are_marked_external() -> None:
 
 
 def test_security_management_routes_are_mounted() -> None:
-    paths = {path for route in app.routes if (path := getattr(route, "path", None)) is not None}
+    paths = set(app.openapi()["paths"])
     assert "/api/v1/security/permissions" in paths
     assert "/api/v1/security/role-templates" in paths
     assert "/api/v1/security/roles" in paths
