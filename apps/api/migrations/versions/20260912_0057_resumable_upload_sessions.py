@@ -17,101 +17,92 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("upload_sessions", sa.Column("client_upload_id", sa.Uuid(), nullable=True))
-    op.add_column("upload_sessions", sa.Column("context_type", sa.String(length=80), nullable=True))
-    op.add_column("upload_sessions", sa.Column("context_id", sa.Uuid(), nullable=True))
-    op.add_column("upload_sessions", sa.Column("request_hash", sa.String(length=64), nullable=True))
-    op.add_column(
-        "upload_sessions",
+    op.create_table(
+        "resumable_upload_states",
+        sa.Column("upload_session_id", sa.Uuid(), nullable=False),
+        sa.Column("organization_id", sa.Uuid(), nullable=False),
+        sa.Column("client_upload_id", sa.Uuid(), nullable=False),
+        sa.Column("context_type", sa.String(length=80), nullable=False),
+        sa.Column("context_id", sa.Uuid(), nullable=False),
+        sa.Column("request_hash", sa.String(length=64), nullable=False),
         sa.Column("chunk_size_bytes", sa.Integer(), nullable=False, server_default="5242880"),
-    )
-    op.add_column(
-        "upload_sessions",
         sa.Column("uploaded_bytes", sa.BigInteger(), nullable=False, server_default="0"),
-    )
-    op.add_column(
-        "upload_sessions",
         sa.Column("deduplicated_storage_object_id", sa.Uuid(), nullable=True),
-    )
-    op.add_column("upload_sessions", sa.Column("finalized_asset_id", sa.Uuid(), nullable=True))
-    op.add_column("upload_sessions", sa.Column("finalized_version", sa.Integer(), nullable=True))
-    op.add_column(
-        "upload_sessions",
+        sa.Column("finalized_asset_id", sa.Uuid(), nullable=True),
+        sa.Column("finalized_version", sa.Integer(), nullable=True),
         sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
-    )
-
-    op.create_unique_constraint(
-        "uq_upload_sessions_org_client_upload",
-        "upload_sessions",
-        ["organization_id", "client_upload_id"],
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.ForeignKeyConstraint(
+            ["upload_session_id"],
+            ["upload_sessions.id"],
+            name="fk_resumable_upload_state_session",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["organization_id"],
+            ["organizations.id"],
+            name="fk_resumable_upload_state_organization",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["deduplicated_storage_object_id", "organization_id"],
+            ["storage_objects.id", "storage_objects.organization_id"],
+            name="fk_resumable_upload_state_dedup_object_org",
+            ondelete="RESTRICT",
+        ),
+        sa.PrimaryKeyConstraint("upload_session_id"),
+        sa.UniqueConstraint(
+            "organization_id",
+            "client_upload_id",
+            name="uq_resumable_upload_state_org_client",
+        ),
+        sa.CheckConstraint(
+            "chunk_size_bytes > 0",
+            name="ck_resumable_upload_state_chunk_size_positive",
+        ),
+        sa.CheckConstraint(
+            "uploaded_bytes >= 0",
+            name="ck_resumable_upload_state_uploaded_nonnegative",
+        ),
+        sa.CheckConstraint(
+            "length(request_hash) = 64",
+            name="ck_resumable_upload_state_request_hash_length",
+        ),
+        sa.CheckConstraint(
+            "finalized_version IS NULL OR finalized_version >= 1",
+            name="ck_resumable_upload_state_finalized_version_positive",
+        ),
     )
     op.create_index(
-        "ix_upload_sessions_org_context",
-        "upload_sessions",
+        "ix_resumable_upload_state_org_context",
+        "resumable_upload_states",
         ["organization_id", "context_type", "context_id"],
     )
     op.create_index(
-        "ix_upload_sessions_dedup_object",
-        "upload_sessions",
+        "ix_resumable_upload_state_dedup_object",
+        "resumable_upload_states",
         ["deduplicated_storage_object_id"],
-    )
-    op.create_check_constraint(
-        "ck_upload_sessions_chunk_size_positive",
-        "upload_sessions",
-        "chunk_size_bytes > 0",
-    )
-    op.create_check_constraint(
-        "ck_upload_sessions_uploaded_bytes_nonnegative",
-        "upload_sessions",
-        "uploaded_bytes >= 0",
-    )
-    op.create_check_constraint(
-        "ck_upload_sessions_request_hash_length",
-        "upload_sessions",
-        "request_hash IS NULL OR length(request_hash) = 64",
-    )
-    op.create_check_constraint(
-        "ck_upload_sessions_finalized_version_positive",
-        "upload_sessions",
-        "finalized_version IS NULL OR finalized_version >= 1",
     )
 
 
 def downgrade() -> None:
-    op.drop_constraint(
-        "ck_upload_sessions_finalized_version_positive",
-        "upload_sessions",
-        type_="check",
+    op.drop_index(
+        "ix_resumable_upload_state_dedup_object",
+        table_name="resumable_upload_states",
     )
-    op.drop_constraint(
-        "ck_upload_sessions_request_hash_length",
-        "upload_sessions",
-        type_="check",
+    op.drop_index(
+        "ix_resumable_upload_state_org_context",
+        table_name="resumable_upload_states",
     )
-    op.drop_constraint(
-        "ck_upload_sessions_uploaded_bytes_nonnegative",
-        "upload_sessions",
-        type_="check",
-    )
-    op.drop_constraint(
-        "ck_upload_sessions_chunk_size_positive",
-        "upload_sessions",
-        type_="check",
-    )
-    op.drop_index("ix_upload_sessions_dedup_object", table_name="upload_sessions")
-    op.drop_index("ix_upload_sessions_org_context", table_name="upload_sessions")
-    op.drop_constraint(
-        "uq_upload_sessions_org_client_upload",
-        "upload_sessions",
-        type_="unique",
-    )
-    op.drop_column("upload_sessions", "cancelled_at")
-    op.drop_column("upload_sessions", "finalized_version")
-    op.drop_column("upload_sessions", "finalized_asset_id")
-    op.drop_column("upload_sessions", "deduplicated_storage_object_id")
-    op.drop_column("upload_sessions", "uploaded_bytes")
-    op.drop_column("upload_sessions", "chunk_size_bytes")
-    op.drop_column("upload_sessions", "request_hash")
-    op.drop_column("upload_sessions", "context_id")
-    op.drop_column("upload_sessions", "context_type")
-    op.drop_column("upload_sessions", "client_upload_id")
+    op.drop_table("resumable_upload_states")
