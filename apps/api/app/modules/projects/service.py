@@ -1,12 +1,16 @@
 from collections.abc import Mapping
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.audit.models import AuditActorType, AuditRisk
 from app.modules.audit.service import record_audit_event
-from app.modules.authorization.models import OrganizationAuthorizationState, Role
+from app.modules.authorization.models import (
+    OrganizationAuthorizationState,
+    Role,
+    RoleAssignmentScope,
+)
 from app.modules.events.service import enqueue_event
 from app.modules.identity.models import MembershipStatus, OrganizationMembership
 from app.modules.projects.models import (
@@ -366,6 +370,8 @@ async def assign_project_role(
     )
     if role is None:
         raise ProjectValidationError("Active company role was not found")
+    if role.assignment_scope not in {RoleAssignmentScope.PROJECT, RoleAssignmentScope.BOTH}:
+        raise ProjectValidationError("This role cannot be assigned at project level")
 
     assignment = await db.scalar(
         select(ProjectRoleAssignment).where(
@@ -411,6 +417,117 @@ async def assign_project_role(
         payload={"authorization_revision": revision},
     )
     return assignment
+
+
+async def replace_project_roles(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    project_membership_id: UUID,
+    role_ids: set[UUID],
+    actor_user_id: UUID,
+    session_id: UUID | None = None,
+    correlation_id: UUID | None = None,
+) -> list[ProjectRoleAssignment]:
+    membership = await db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.id == project_membership_id,
+            ProjectMembership.organization_id == organization_id,
+            ProjectMembership.status == ProjectMembershipStatus.ACTIVE,
+        )
+    )
+    if membership is None:
+        raise ProjectValidationError("Active project membership was not found")
+
+    roles: list[Role] = []
+    if role_ids:
+        roles = list(
+            (
+                await db.scalars(
+                    select(Role).where(
+                        Role.id.in_(role_ids),
+                        Role.organization_id == organization_id,
+                        Role.is_active.is_(True),
+                    )
+                )
+            ).all()
+        )
+        if {role.id for role in roles} != role_ids:
+            raise ProjectValidationError("One or more project roles are unavailable")
+        invalid = [
+            role.name
+            for role in roles
+            if role.assignment_scope not in {RoleAssignmentScope.PROJECT, RoleAssignmentScope.BOTH}
+        ]
+        if invalid:
+            raise ProjectValidationError(
+                "Company-only roles cannot be assigned to a project: " + ", ".join(sorted(invalid))
+            )
+
+    before = set(
+        (
+            await db.scalars(
+                select(ProjectRoleAssignment.role_id).where(
+                    ProjectRoleAssignment.project_membership_id == project_membership_id
+                )
+            )
+        ).all()
+    )
+    if before == role_ids:
+        rows = await db.scalars(
+            select(ProjectRoleAssignment).where(
+                ProjectRoleAssignment.project_membership_id == project_membership_id
+            )
+        )
+        return list(rows.all())
+
+    await db.execute(
+        delete(ProjectRoleAssignment).where(
+            ProjectRoleAssignment.project_membership_id == project_membership_id
+        )
+    )
+    assignments = [
+        ProjectRoleAssignment(
+            organization_id=organization_id,
+            project_membership_id=project_membership_id,
+            role_id=role_id,
+        )
+        for role_id in sorted(role_ids, key=str)
+    ]
+    db.add_all(assignments)
+
+    revision = await _bump_authorization_revision(db, organization_id)
+    await record_audit_event(
+        db,
+        organization_id=organization_id,
+        action="project.roles.changed",
+        target_type="project_membership",
+        target_id=str(project_membership_id),
+        actor_type=AuditActorType.USER,
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+        correlation_id=correlation_id,
+        risk=AuditRisk.HIGH,
+        changes={
+            "project_id": str(membership.project_id),
+            "before": [str(value) for value in sorted(before, key=str)],
+            "after": [str(value) for value in sorted(role_ids, key=str)],
+        },
+    )
+    await enqueue_event(
+        db,
+        organization_id=organization_id,
+        event_type="access_context.changed",
+        entity_type="organization_membership",
+        entity_id=membership.organization_membership_id,
+        entity_version=revision,
+        recipient_membership_id=membership.organization_membership_id,
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+        correlation_id=correlation_id,
+        payload={"authorization_revision": revision},
+    )
+    return assignments
 
 
 async def set_project_membership_status(
