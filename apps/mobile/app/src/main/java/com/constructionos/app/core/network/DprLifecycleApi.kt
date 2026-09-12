@@ -1,10 +1,13 @@
 package com.constructionos.app.core.network
 
 import com.google.gson.annotations.SerializedName
+import okhttp3.ResponseBody
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Streaming
 
 interface DprLifecycleApi {
     @POST("projects/{projectId}/daily-reports/{reportId}/approve")
@@ -40,6 +43,14 @@ interface DprLifecycleApi {
         @Path("projectId") projectId: String,
         @Path("reportId") reportId: String,
     ): DprGenerationStatusResponse
+
+    @Streaming
+    @GET("projects/{projectId}/daily-reports/{reportId}/render-history/{renderId}/download")
+    suspend fun downloadIssuedReport(
+        @Path("projectId") projectId: String,
+        @Path("reportId") reportId: String,
+        @Path("renderId") renderId: String,
+    ): Response<ResponseBody>
 }
 
 data class DailyReportRequiredReasonActionRequest(
