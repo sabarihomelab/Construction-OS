@@ -11,6 +11,7 @@ import com.constructionos.app.core.database.ConstructionOsDatabase
 import com.constructionos.app.core.deployment.WorkspaceConnection
 import com.constructionos.app.core.dpr.DprMutationSyncService
 import com.constructionos.app.core.dpr.DprRepository
+import com.constructionos.app.core.estimating.EstimatingReviewRepository
 import com.constructionos.app.core.network.NetworkFactory
 import com.constructionos.app.core.offline.DeviceRegistrar
 import com.constructionos.app.core.offline.WorkspaceSyncScheduler
@@ -32,6 +33,7 @@ class AppContainer(
     private val api = NetworkFactory.createApi(connection.apiBaseUrl, sessionStore)
     private val wbsApi = NetworkFactory.createWbsApi(connection.apiBaseUrl, sessionStore)
     private val boqFieldApi = NetworkFactory.createBoqFieldApi(connection.apiBaseUrl, sessionStore)
+    private val estimatingApi = NetworkFactory.createEstimatingApi(connection.apiBaseUrl, sessionStore)
     private val database = ConstructionOsDatabase.getInstance(
         applicationContext,
         localNamespace,
@@ -88,6 +90,10 @@ class AppContainer(
     val boqFieldRepository = BoqFieldRepository(
         api = boqFieldApi,
         dao = database.boqFieldDao(),
+    )
+
+    val estimatingReviewRepository = EstimatingReviewRepository(
+        api = estimatingApi,
     )
 
     val authController = AuthController(
