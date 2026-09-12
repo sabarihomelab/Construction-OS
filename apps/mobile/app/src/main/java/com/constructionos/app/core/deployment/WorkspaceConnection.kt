@@ -4,7 +4,7 @@ import android.content.Context
 import com.constructionos.app.BuildConfig
 import com.constructionos.app.core.network.NetworkFactory
 import java.net.URI
-
+import java.security.MessageDigest
 
 data class WorkspaceConnection(
     val deploymentId: String,
@@ -12,7 +12,15 @@ data class WorkspaceConnection(
     val organizationName: String,
     val apiBaseUrl: String,
     val environmentName: String,
-)
+) {
+    val localNamespace: String
+        get() {
+            val material = "$apiBaseUrl|$deploymentId"
+            val digest = MessageDigest.getInstance("SHA-256")
+                .digest(material.toByteArray(Charsets.UTF_8))
+            return digest.joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        }
+}
 
 class WorkspaceConnectionStore(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences(
@@ -54,7 +62,7 @@ class WorkspaceConnectionStore(context: Context) {
     }
 
     companion object {
-        const val WORKER_DEPLOYMENT_ID = "workspace_deployment_id"
+        const val WORKER_CONNECTION_NAMESPACE = "workspace_connection_namespace"
 
         private const val PREFERENCES_NAME = "construction-os-workspace-connection"
         private const val KEY_DEPLOYMENT_ID = "deployment_id"
