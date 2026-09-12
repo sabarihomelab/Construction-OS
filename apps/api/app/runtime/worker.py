@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.modules.field.dpr_jobs import register_dpr_report_handlers
+from app.modules.files.jobs import register_file_handlers
 from app.modules.jobs.handlers import JobHandlerRegistry, job_handlers
 from app.modules.jobs.models import (
     BackgroundJob,
@@ -32,6 +33,7 @@ def _worker_id() -> str:
 def register_runtime_handlers(plan: RuntimePlan, registry: JobHandlerRegistry) -> None:
     if not registry.contains("search.index_entity"):
         register_search_handlers(registry, search_projection_providers)
+    register_file_handlers(registry)
     if plan.module_enabled("field"):
         register_dpr_report_handlers(registry)
 
