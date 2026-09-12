@@ -41,9 +41,19 @@ def test_external_role_templates_are_marked_external() -> None:
         assert ROLE_TEMPLATES_BY_KEY[key].membership_kind_hint == MembershipKind.EXTERNAL
 
 
-def test_security_management_routes_are_mounted() -> None:
+def test_role_templates_expose_safe_assignment_scope_hints() -> None:
+    assert ROLE_TEMPLATES_BY_KEY["company-management"].scope_hint == "company"
+    for key in ("project-manager", "site-engineer", "site-supervisor"):
+        assert ROLE_TEMPLATES_BY_KEY[key].scope_hint == "project"
+
+
+def test_access_management_routes_are_mounted() -> None:
     paths = set(app.openapi()["paths"])
     assert "/api/v1/security/permissions" in paths
     assert "/api/v1/security/role-templates" in paths
     assert "/api/v1/security/roles" in paths
     assert "/api/v1/security/memberships" in paths
+    assert "/api/v1/security/party-references" in paths
+    assert "/api/v1/security/memberships/{membership_id}/party-affiliation" in paths
+    assert "/api/v1/projects/{project_id}/access" in paths
+    assert "/api/v1/projects/{project_id}/memberships/{project_membership_id}/roles" in paths
