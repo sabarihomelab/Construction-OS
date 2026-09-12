@@ -23,8 +23,9 @@ import java.security.MessageDigest
         DprDelayEntity::class,
         PartyEntity::class,
         ProjectPartyAssignmentEntity::class,
+        WbsEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class ConstructionOsDatabase : RoomDatabase() {
@@ -32,6 +33,7 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
     abstract fun attendanceDao(): AttendanceDao
     abstract fun dprDao(): DprDao
     abstract fun partyDao(): PartyDao
+    abstract fun wbsDao(): WbsDao
 
     companion object {
         private val instances = mutableMapOf<String, ConstructionOsDatabase>()
@@ -337,6 +339,40 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
             }
         }
 
+        private val migration6To7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS wbs_codes (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        organization_id TEXT NOT NULL,
+                        project_id TEXT NOT NULL,
+                        parent_id TEXT,
+                        code TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        kind TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        description TEXT,
+                        revision INTEGER NOT NULL,
+                        depth INTEGER NOT NULL,
+                        path_codes TEXT NOT NULL,
+                        child_count INTEGER NOT NULL,
+                        tree_order INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_wbs_codes_project_id_tree_order ON wbs_codes(project_id, tree_order)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_wbs_codes_project_id_code ON wbs_codes(project_id, code)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_wbs_codes_project_id_parent_id ON wbs_codes(project_id, parent_id)",
+                )
+            }
+        }
+
         fun getInstance(
             context: Context,
             deploymentId: String,
@@ -352,6 +388,7 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
                     migration3To4,
                     migration4To5,
                     migration5To6,
+                    migration6To7,
                 )
                 .build()
                 .also { instances[deploymentId] = it }
