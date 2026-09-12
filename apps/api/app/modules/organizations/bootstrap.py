@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -14,6 +14,7 @@ from app.modules.authorization.models import (
     Role,
     RolePermission,
 )
+from app.modules.authorization.templates import INDIA_ROLE_TEMPLATES
 from app.modules.identity.models import (
     MembershipKind,
     MembershipStatus,
@@ -145,10 +146,35 @@ async def bootstrap_initial_company(
     )
     if not permission_keys:
         raise CompanyBootstrapError("Permission catalog is empty; apply all migrations first")
+    available_permissions = set(permission_keys)
+
     db.add_all(
         [RolePermission(role_id=admin_role.id, permission_key=key) for key in permission_keys]
     )
     db.add(MembershipRole(membership_id=membership.id, role_id=admin_role.id))
+
+    seeded_role_keys: list[str] = []
+    for template in INDIA_ROLE_TEMPLATES:
+        role = Role(
+            organization_id=organization.id,
+            key=template.key,
+            name=template.name,
+            description=template.description,
+            is_template=True,
+            is_protected=False,
+            is_active=True,
+            version=1,
+        )
+        db.add(role)
+        await db.flush()
+        db.add_all(
+            [
+                RolePermission(role_id=role.id, permission_key=key)
+                for key in sorted(template.permission_keys & available_permissions)
+            ]
+        )
+        seeded_role_keys.append(role.key)
+
     db.add(OrganizationAuthorizationState(organization_id=organization.id, revision=1))
     await db.flush()
 
@@ -173,6 +199,7 @@ async def bootstrap_initial_company(
                 "email": user.primary_email,
                 "role_key": admin_role.key,
             },
+            "default_roles": seeded_role_keys,
             "localization": {
                 "locale": settings.locale,
                 "timezone": settings.timezone,
