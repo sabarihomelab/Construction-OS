@@ -12,6 +12,7 @@ from app.modules.authorization.models import (
     OrganizationAuthorizationState,
     Permission,
     Role,
+    RoleAssignmentScope,
     RolePermission,
 )
 from app.modules.authorization.templates import INDIA_ROLE_TEMPLATES
@@ -61,6 +62,14 @@ def _normalize_slug(value: str) -> str:
     if not 2 <= len(normalized) <= 100:
         raise CompanyBootstrapError("Company slug must be between 2 and 100 characters")
     return normalized
+
+
+def _template_scope(scope_hint: str) -> RoleAssignmentScope:
+    if scope_hint == "company":
+        return RoleAssignmentScope.COMPANY
+    if scope_hint == "project":
+        return RoleAssignmentScope.PROJECT
+    return RoleAssignmentScope.BOTH
 
 
 async def bootstrap_initial_company(
@@ -129,6 +138,7 @@ async def bootstrap_initial_company(
         key="company-admin",
         name="Company Administrator",
         description="Protected first-run administrator role for this Construction OS company.",
+        assignment_scope=RoleAssignmentScope.COMPANY,
         is_template=False,
         is_protected=True,
         is_active=True,
@@ -160,6 +170,7 @@ async def bootstrap_initial_company(
             key=template.key,
             name=template.name,
             description=template.description,
+            assignment_scope=_template_scope(template.scope_hint),
             is_template=True,
             is_protected=False,
             is_active=True,
