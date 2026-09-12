@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.constructionos.app.core.authorization.AccessAdminRepository
 import com.constructionos.app.core.authorization.AccessAdminSnapshot
 import com.constructionos.app.core.network.SecurityMembershipResponse
+import com.constructionos.app.core.network.SecurityPartyReferenceResponse
 import com.constructionos.app.core.network.SecurityPermissionResponse
 import com.constructionos.app.core.network.SecurityRoleResponse
 import com.constructionos.app.core.network.SecurityRoleTemplateResponse
@@ -58,6 +59,7 @@ fun AccessManagementScreen(
     var selectedPermissions by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedPermissionVersion by remember { mutableStateOf<Int?>(null) }
     var selectedMemberRoles by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedPartyId by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -88,6 +90,9 @@ fun AccessManagementScreen(
         )
         else -> {
             val data = snapshot!!
+            val companyRoles = data.roles.filter { role ->
+                role.isActive && role.assignmentScope in setOf("company", "both")
+            }
             when (view) {
                 AccessAdminView.OVERVIEW -> AccessOverview(
                     snapshot = data,
@@ -144,6 +149,7 @@ fun AccessManagementScreen(
                     onOpenMember = { member ->
                         selectedMembership = member
                         selectedMemberRoles = member.roleIds.toSet()
+                        selectedPartyId = member.representedPartyId
                         error = null
                         message = null
                         view = AccessAdminView.MEMBER
@@ -175,8 +181,8 @@ fun AccessManagementScreen(
                                     permissionKeys = selectedPermissions,
                                 )
                             }.onSuccess { updated ->
-                                selectedRole = updated
                                 val permissionSet = repository.rolePermissions(updated.id)
+                                selectedRole = updated
                                 selectedPermissions = permissionSet.permissionKeys.toSet()
                                 selectedPermissionVersion = permissionSet.expectedVersion
                                 message = "Permissions saved for ${updated.name}."
@@ -196,8 +202,10 @@ fun AccessManagementScreen(
 
                 AccessAdminView.MEMBER -> MembershipRoleEditor(
                     membership = selectedMembership,
-                    roles = data.roles.filter { it.isActive },
+                    roles = companyRoles,
+                    parties = data.partyReferences,
                     selectedRoleIds = selectedMemberRoles,
+                    selectedPartyId = selectedPartyId,
                     canManage = canManage,
                     busy = busy,
                     error = error,
@@ -206,7 +214,8 @@ fun AccessManagementScreen(
                             if (checked) values.add(roleId) else values.remove(roleId)
                         }
                     },
-                    onSave = {
+                    onPartyChanged = { selectedPartyId = it },
+                    onSaveRoles = {
                         val membership = selectedMembership ?: return@MembershipRoleEditor
                         scope.launch {
                             busy = true
@@ -225,19 +234,54 @@ fun AccessManagementScreen(
                             busy = false
                         }
                     },
+                    onSaveParty = {
+                        val membership = selectedMembership ?: return@MembershipRoleEditor
+                        scope.launch {
+                            busy = true
+                            error = null
+                            runCatching {
+                                repository.updateMembershipParty(membership.id, selectedPartyId)
+                            }.onSuccess { updated ->
+                                selectedMembership = updated
+                                selectedPartyId = updated.representedPartyId
+                                message = updated.representedPartyName?.let { party ->
+                                    "${updated.displayName} now represents $party."
+                                } ?: "Represented party cleared for ${updated.displayName}."
+                                reload()
+                            }.onFailure { error = accessAdminError(it) }
+                            busy = false
+                        }
+                    },
+                    onStatus = { status ->
+                        val membership = selectedMembership ?: return@MembershipRoleEditor
+                        scope.launch {
+                            busy = true
+                            error = null
+                            runCatching {
+                                repository.updateMembershipStatus(membership.id, status)
+                            }.onSuccess { updated ->
+                                selectedMembership = updated
+                                message = "${updated.displayName} is now ${updated.status}."
+                                reload()
+                            }.onFailure { error = accessAdminError(it) }
+                            busy = false
+                        }
+                    },
                     onBack = {
                         selectedMembership = null
                         selectedMemberRoles = emptySet()
+                        selectedPartyId = null
                         view = AccessAdminView.OVERVIEW
                     },
                     modifier = modifier,
                 )
 
                 AccessAdminView.ADD_PERSON -> AddPersonForm(
-                    roles = data.roles.filter { it.isActive },
+                    roles = companyRoles,
+                    parties = data.partyReferences,
                     busy = busy,
                     error = error,
-                    onSave = { email, name, kind, roleId ->
+                    onSave = { email, name, kind, roleId, partyId ->
                         scope.launch {
                             busy = true
                             error = null
@@ -248,6 +292,7 @@ fun AccessManagementScreen(
                                     kind = kind,
                                     status = "invited",
                                     roleIds = roleId?.let(::setOf) ?: emptySet(),
+                                    representedPartyId = if (kind == "external") partyId else null,
                                 )
                             }.onSuccess {
                                 message = "${it.displayName} was added as an invited company member."
@@ -316,13 +361,7 @@ private fun AccessOverview(
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
-        item {
-            AccessAdminHeader(
-                title = "People & access",
-                subtitle = "Server-authoritative company roles, permissions and memberships.",
-                onBack = onBack,
-            )
-        }
+        item { AccessAdminHeader("People & access", "Server-authoritative company roles, permissions and memberships.", onBack) }
         if (error != null) item { AccessAdminMessage(error, true) }
         if (message != null) item { AccessAdminMessage(message, false) }
         item {
@@ -333,47 +372,26 @@ private fun AccessOverview(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 4.dp),
                 )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onRefresh, enabled = !busy) { Text("Refresh") }
-                    if (canManage) {
-                        Button(onClick = onInstallDefaults, enabled = !busy) { Text("Install defaults") }
-                    }
+                    if (canManage) Button(onClick = onInstallDefaults, enabled = !busy) { Text("Install defaults") }
                 }
             }
             HorizontalDivider()
         }
+        item { AccessSectionTitle("Recommended India roles", "${snapshot.templates.size} templates available") }
+        items(snapshot.templates, key = { "template-${it.key}" }) { TemplateRow(it) }
         item {
-            AccessSectionTitle("Recommended India roles", "${snapshot.templates.size} templates available")
-        }
-        items(snapshot.templates, key = { "template-${it.key}" }) { template ->
-            TemplateRow(template)
-        }
-        item {
-            AccessSectionTitle("Company roles", "${snapshot.roles.size} installed")
-            if (canManage) {
-                TextButton(onClick = onCreateRole, enabled = !busy) { Text("Create custom role") }
-            }
+            AccessSectionTitle("Roles", "${snapshot.roles.size} installed")
+            if (canManage) TextButton(onClick = onCreateRole, enabled = !busy) { Text("Create custom role") }
         }
         items(snapshot.roles, key = { "role-${it.id}" }) { role ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(role.name, style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "${role.key} · ${if (role.isProtected) "protected" else if (role.isTemplate) "default" else "custom"}",
+                            "${role.key} · ${role.assignmentScope} · ${if (role.isProtected) "protected" else if (role.isTemplate) "default" else "custom"}",
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -384,16 +402,10 @@ private fun AccessOverview(
         }
         item {
             AccessSectionTitle("Company people", "${snapshot.memberships.size} memberships")
-            if (canManage) {
-                TextButton(onClick = onAddPerson, enabled = !busy) { Text("Add person") }
-            }
+            if (canManage) TextButton(onClick = onAddPerson, enabled = !busy) { Text("Add person") }
         }
         items(snapshot.memberships, key = { "member-${it.id}" }) { member ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-            ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
                 Text(member.displayName, style = MaterialTheme.typography.titleMedium)
                 Text(member.primaryEmail, style = MaterialTheme.typography.bodySmall)
                 Text(
@@ -401,7 +413,10 @@ private fun AccessOverview(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 3.dp),
                 )
-                TextButton(onClick = { onOpenMember(member) }, enabled = !busy) { Text("Roles") }
+                member.representedPartyName?.let { party ->
+                    Text("Represents: $party", style = MaterialTheme.typography.bodySmall)
+                }
+                TextButton(onClick = { onOpenMember(member) }, enabled = !busy) { Text("Manage") }
             }
             HorizontalDivider()
         }
@@ -429,44 +444,23 @@ private fun RolePermissionEditor(
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item {
             AccessAdminHeader(
-                title = role.name,
-                subtitle = if (role.isProtected) {
-                    "Protected administrator role. Permissions are read-only."
-                } else {
-                    "${selectedPermissions.size} permissions selected."
-                },
-                onBack = onBack,
+                role.name,
+                if (role.isProtected) "Protected administrator role. Permissions are read-only." else "${role.assignmentScope} · ${selectedPermissions.size} permissions selected.",
+                onBack,
             )
         }
         if (error != null) item { AccessAdminMessage(error, true) }
         grouped.forEach { (module, modulePermissions) ->
-            item {
-                AccessSectionTitle(
-                    module.replace('_', ' ').uppercase(),
-                    "${modulePermissions.count { it.key in selectedPermissions }}/${modulePermissions.size} enabled",
-                )
-            }
+            item { AccessSectionTitle(module.replace('_', ' ').uppercase(), "${modulePermissions.count { it.key in selectedPermissions }}/${modulePermissions.size} enabled") }
             items(modulePermissions, key = { "permission-${it.key}" }) { permission ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.Top) {
                     Checkbox(
                         checked = permission.key in selectedPermissions,
                         onCheckedChange = { checked -> onPermissionChanged(permission.key, checked) },
                         enabled = canManage && !role.isProtected && !busy,
                     )
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = 8.dp),
-                    ) {
-                        Text(
-                            "${permission.resource.replace('_', ' ')} · ${permission.action.replace('_', ' ')}",
-                            style = MaterialTheme.typography.titleSmall,
-                        )
+                    Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                        Text("${permission.resource.replace('_', ' ')} · ${permission.action.replace('_', ' ')}", style = MaterialTheme.typography.titleSmall)
                         Text(permission.description, style = MaterialTheme.typography.bodySmall)
                         Text("Risk: ${permission.risk}", style = MaterialTheme.typography.labelSmall)
                     }
@@ -476,13 +470,9 @@ private fun RolePermissionEditor(
         }
         if (canManage && !role.isProtected) {
             item {
-                Button(
-                    onClick = onSave,
-                    enabled = !busy,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                ) { Text(if (busy) "Saving…" else "Save permissions") }
+                Button(onClick = onSave, enabled = !busy, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(if (busy) "Saving…" else "Save permissions")
+                }
             }
         }
     }
@@ -492,12 +482,17 @@ private fun RolePermissionEditor(
 private fun MembershipRoleEditor(
     membership: SecurityMembershipResponse?,
     roles: List<SecurityRoleResponse>,
+    parties: List<SecurityPartyReferenceResponse>,
     selectedRoleIds: Set<String>,
+    selectedPartyId: String?,
     canManage: Boolean,
     busy: Boolean,
     error: String?,
     onRoleChanged: (String, Boolean) -> Unit,
-    onSave: () -> Unit,
+    onPartyChanged: (String?) -> Unit,
+    onSaveRoles: () -> Unit,
+    onSaveParty: () -> Unit,
+    onStatus: (String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -506,27 +501,43 @@ private fun MembershipRoleEditor(
         return
     }
     LazyColumn(modifier = modifier.fillMaxSize()) {
-        item {
-            AccessAdminHeader(
-                title = membership.displayName,
-                subtitle = "${membership.kind} · ${membership.status} · ${membership.primaryEmail}",
-                onBack = onBack,
-            )
-        }
+        item { AccessAdminHeader(membership.displayName, "${membership.kind} · ${membership.status} · ${membership.primaryEmail}", onBack) }
         if (error != null) item { AccessAdminMessage(error, true) }
-        item {
-            AccessSectionTitle(
-                "Company roles",
-                "Project roles are assigned separately from each project team.",
-            )
+        if (membership.kind == "external") {
+            item {
+                AccessSectionTitle("Represented party", "Required before an external membership can be active.")
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    OutlinedButton(onClick = { onPartyChanged(null) }, enabled = canManage && !busy) {
+                        Text(if (selectedPartyId == null) "✓ No represented party" else "No represented party")
+                    }
+                    parties.forEach { party ->
+                        TextButton(onClick = { onPartyChanged(party.id) }, enabled = canManage && !busy) {
+                            Text(if (selectedPartyId == party.id) "✓ ${party.name}" else "${party.name} · ${party.partyType}")
+                        }
+                    }
+                    if (canManage) {
+                        Button(onClick = onSaveParty, enabled = !busy, modifier = Modifier.padding(top = 8.dp)) {
+                            Text("Save represented party")
+                        }
+                    }
+                }
+                HorizontalDivider()
+            }
         }
+        if (canManage) {
+            item {
+                AccessSectionTitle("Membership status", "Activation is enforced by the company server.")
+                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (membership.status != "active") Button(onClick = { onStatus("active") }, enabled = !busy) { Text("Activate") }
+                    if (membership.status == "active") OutlinedButton(onClick = { onStatus("suspended") }, enabled = !busy) { Text("Suspend") }
+                    if (membership.status != "ended") OutlinedButton(onClick = { onStatus("ended") }, enabled = !busy) { Text("End") }
+                }
+                HorizontalDivider()
+            }
+        }
+        item { AccessSectionTitle("Company roles", "Project roles are assigned separately from each project team.") }
         items(roles, key = { "member-role-${it.id}" }) { role ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
                     checked = role.id in selectedRoleIds,
                     onCheckedChange = { checked -> onRoleChanged(role.id, checked) },
@@ -534,23 +545,16 @@ private fun MembershipRoleEditor(
                 )
                 Column(modifier = Modifier.padding(start = 8.dp)) {
                     Text(role.name, style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        if (role.isProtected) "Protected" else if (role.isTemplate) "Default" else "Custom",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    Text("${role.assignmentScope} · ${if (role.isProtected) "protected" else if (role.isTemplate) "default" else "custom"}", style = MaterialTheme.typography.bodySmall)
                 }
             }
             HorizontalDivider()
         }
         if (canManage) {
             item {
-                Button(
-                    onClick = onSave,
-                    enabled = !busy,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                ) { Text(if (busy) "Saving…" else "Save role assignment") }
+                Button(onClick = onSaveRoles, enabled = !busy, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(if (busy) "Saving…" else "Save company roles")
+                }
             }
         }
     }
@@ -559,9 +563,10 @@ private fun MembershipRoleEditor(
 @Composable
 private fun AddPersonForm(
     roles: List<SecurityRoleResponse>,
+    parties: List<SecurityPartyReferenceResponse>,
     busy: Boolean,
     error: String?,
-    onSave: (String, String, String, String?) -> Unit,
+    onSave: (String, String, String, String?, String?) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -569,45 +574,36 @@ private fun AddPersonForm(
     var name by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf("internal") }
     var roleId by remember { mutableStateOf<String?>(null) }
+    var partyId by remember { mutableStateOf<String?>(null) }
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item { AccessAdminHeader("Add company person", "Workers and crews do not need app membership by default.", onBack) }
         if (error != null) item { AccessAdminMessage(error, true) }
         item {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Display name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Email") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Display name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Text("Membership type", style = MaterialTheme.typography.titleSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { kind = "internal" }, enabled = !busy) {
-                        Text(if (kind == "internal") "✓ Internal" else "Internal")
-                    }
-                    OutlinedButton(onClick = { kind = "external" }, enabled = !busy) {
-                        Text(if (kind == "external") "✓ External" else "External")
+                    OutlinedButton(onClick = { kind = "internal"; partyId = null }, enabled = !busy) { Text(if (kind == "internal") "✓ Internal" else "Internal") }
+                    OutlinedButton(onClick = { kind = "external" }, enabled = !busy) { Text(if (kind == "external") "✓ External" else "External") }
+                }
+                if (kind == "external") {
+                    Text("Represented party", style = MaterialTheme.typography.titleSmall)
+                    Text("Can be set now or before activation.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = { partyId = null }, enabled = !busy) { Text(if (partyId == null) "✓ Set later" else "Set later") }
+                    parties.forEach { party ->
+                        TextButton(onClick = { partyId = party.id }, enabled = !busy) {
+                            Text(if (partyId == party.id) "✓ ${party.name}" else "${party.name} · ${party.partyType}")
+                        }
                     }
                 }
                 Text("Initial company role", style = MaterialTheme.typography.titleSmall)
-                OutlinedButton(onClick = { roleId = null }, enabled = !busy) {
-                    Text(if (roleId == null) "✓ No company role" else "No company role")
-                }
+                OutlinedButton(onClick = { roleId = null }, enabled = !busy) { Text(if (roleId == null) "✓ No company role" else "No company role") }
                 roles.forEach { role ->
-                    TextButton(onClick = { roleId = role.id }, enabled = !busy) {
-                        Text(if (roleId == role.id) "✓ ${role.name}" else role.name)
-                    }
+                    TextButton(onClick = { roleId = role.id }, enabled = !busy) { Text(if (roleId == role.id) "✓ ${role.name}" else role.name) }
                 }
                 Button(
-                    onClick = { onSave(email, name, kind, roleId) },
+                    onClick = { onSave(email, name, kind, roleId, partyId) },
                     enabled = !busy && email.isNotBlank() && name.isNotBlank(),
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(if (busy) "Adding…" else "Add as invited member") }
@@ -633,45 +629,23 @@ private fun CreateRoleForm(
         if (error != null) item { AccessAdminMessage(error, true) }
         item {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Role name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = key,
-                    onValueChange = { key = it },
-                    label = { Text("Role key (optional)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Role name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = key, onValueChange = { key = it }, label = { Text("Role key (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Text("Starting point", style = MaterialTheme.typography.titleSmall)
-                OutlinedButton(onClick = { templateKey = null }, enabled = !busy) {
-                    Text(if (templateKey == null) "✓ Blank role" else "Blank role")
-                }
+                OutlinedButton(onClick = { templateKey = null }, enabled = !busy) { Text(if (templateKey == null) "✓ Blank role" else "Blank role") }
                 templates.forEach { template ->
-                    TextButton(onClick = { templateKey = template.key }, enabled = !busy) {
-                        Text(if (templateKey == template.key) "✓ ${template.name}" else template.name)
-                    }
+                    TextButton(onClick = { templateKey = template.key }, enabled = !busy) { Text(if (templateKey == template.key) "✓ ${template.name}" else template.name) }
                 }
-                Button(
-                    onClick = { onSave(name, key, templateKey) },
-                    enabled = !busy && name.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (busy) "Creating…" else "Create role") }
+                Button(onClick = { onSave(name, key, templateKey) }, enabled = !busy && name.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                    Text(if (busy) "Creating…" else "Create role")
+                }
             }
         }
     }
 }
 
 @Composable
-private fun AccessAdminHeader(
-    title: String,
-    subtitle: String,
-    onBack: () -> Unit,
-) {
+private fun AccessAdminHeader(title: String, subtitle: String, onBack: () -> Unit) {
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
         TextButton(onClick = onBack) { Text("Back") }
         Text(title, style = MaterialTheme.typography.headlineSmall)
@@ -691,58 +665,30 @@ private fun AccessSectionTitle(title: String, detail: String) {
 
 @Composable
 private fun TemplateRow(template: SecurityRoleTemplateResponse) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    ) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(template.name, style = MaterialTheme.typography.titleSmall)
-        Text(
-            "${template.membershipKindHint} · ${template.scopeHint.replace('_', ' ')} · ${template.permissionKeys.size} permissions",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Text("${template.membershipKindHint} · ${template.scopeHint.replace('_', ' ')} · ${template.permissionKeys.size} permissions", style = MaterialTheme.typography.bodySmall)
     }
     HorizontalDivider()
 }
 
 @Composable
 private fun AccessAdminMessage(message: String, isError: Boolean) {
-    Text(
-        message,
-        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(16.dp),
-    )
+    Text(message, color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, modifier = Modifier.padding(16.dp))
     HorizontalDivider()
 }
 
 @Composable
 private fun AccessAdminLoading(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
+    Column(modifier = modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         CircularProgressIndicator()
         Text("Loading company access…", modifier = Modifier.padding(top = 16.dp))
     }
 }
 
 @Composable
-private fun AccessAdminFailure(
-    message: String,
-    onRetry: () -> Unit,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+private fun AccessAdminFailure(message: String, onRetry: () -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(message, color = MaterialTheme.colorScheme.error)
         Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) { Text("Retry") }
         TextButton(onClick = onBack) { Text("Back") }
