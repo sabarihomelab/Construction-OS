@@ -28,6 +28,12 @@ class PermissionRisk(StrEnum):
     CRITICAL = "critical"
 
 
+class RoleAssignmentScope(StrEnum):
+    COMPANY = "company"
+    PROJECT = "project"
+    BOTH = "both"
+
+
 def enum_values(enum_class: type[StrEnum]) -> list[str]:
     return [item.value for item in enum_class]
 
@@ -56,6 +62,10 @@ class Role(UUIDTimestampMixin, Base):
     key: Mapped[str] = mapped_column(String(100))
     name: Mapped[str] = mapped_column(String(160))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    assignment_scope: Mapped[RoleAssignmentScope] = mapped_column(
+        Enum(RoleAssignmentScope, native_enum=False, values_callable=enum_values),
+        default=RoleAssignmentScope.BOTH,
+    )
     is_template: Mapped[bool] = mapped_column(Boolean, default=False)
     is_protected: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
