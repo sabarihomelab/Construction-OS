@@ -66,6 +66,7 @@ fun DailyReportScreen(
     var selectedTab by rememberSaveable(project.id) { mutableStateOf(DprTab.TODAY.name) }
     var weather by rememberSaveable(project.id, selectedDate) { mutableStateOf("") }
     var notes by rememberSaveable(project.id, selectedDate) { mutableStateOf("") }
+    var enabledSections by remember(project.id) { mutableStateOf(DprRepository.DEFAULT_ENABLED_SECTIONS) }
     var message by remember(project.id) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -88,6 +89,11 @@ fun DailyReportScreen(
     val delays by delaysFlow.collectAsState(initial = emptyList())
     val canCreate = context.hasProjectPermission(project.id, "field.daily_report.create")
     val canUpdate = context.hasProjectPermission(project.id, "field.daily_report.update")
+
+    LaunchedEffect(project.id, context.configurationRevision) {
+        runCatching { repository.enabledSections(project.id) }
+            .onSuccess { enabledSections = it }
+    }
 
     LaunchedEffect(report?.id, report?.localUpdatedAt) {
         if (report != null) {
@@ -139,6 +145,9 @@ fun DailyReportScreen(
                 delays = delays,
                 wbsReferences = wbsReferences,
                 boqReferences = boqReferences,
+                showWork = "work" in enabledSections,
+                showNotes = "notes" in enabledSections,
+                showDelays = "delays" in enabledSections,
                 canCreate = canCreate,
                 canUpdate = canUpdate,
                 onWeatherChange = { weather = it },
@@ -160,7 +169,7 @@ fun DailyReportScreen(
                                 projectId = project.id,
                                 reportDate = selectedDate,
                                 weatherCondition = weather,
-                                notes = notes,
+                                notes = if ("notes" in enabledSections) notes else null,
                             )
                         }.onFailure { error ->
                             message = error.message ?: "Daily report could not be started"
@@ -174,7 +183,7 @@ fun DailyReportScreen(
                             repository.saveDraftHeader(
                                 reportId = reportId,
                                 weatherCondition = weather,
-                                notes = notes,
+                                notes = if ("notes" in enabledSections) notes else null,
                             )
                         }.onFailure { error ->
                             message = error.message ?: "Daily report details could not be saved"
@@ -218,10 +227,7 @@ private fun DprTabs(
     Row(modifier = Modifier.fillMaxWidth()) {
         DprTab.entries.forEach { tab ->
             Column(modifier = Modifier.weight(1f)) {
-                TextButton(
-                    onClick = { onSelect(tab) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
+                TextButton(onClick = { onSelect(tab) }, modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = tab.label,
                         fontWeight = if (selected == tab) FontWeight.Bold else FontWeight.Normal,
@@ -247,6 +253,9 @@ private fun DailyReportTodayContent(
     delays: List<DprDelayEntity>,
     wbsReferences: List<DprWbsReferenceEntity>,
     boqReferences: List<DprBoqReferenceEntity>,
+    showWork: Boolean,
+    showNotes: Boolean,
+    showDelays: Boolean,
     canCreate: Boolean,
     canUpdate: Boolean,
     onWeatherChange: (String) -> Unit,
@@ -297,6 +306,7 @@ private fun DailyReportTodayContent(
                 DprReportDetailsFields(
                     weather = weather,
                     notes = notes,
+                    showNotes = showNotes,
                     onWeatherChange = onWeatherChange,
                     onNotesChange = onNotesChange,
                 )
@@ -324,6 +334,7 @@ private fun DailyReportTodayContent(
             DprReportDetailsFields(
                 weather = weather,
                 notes = notes,
+                showNotes = showNotes,
                 onWeatherChange = onWeatherChange,
                 onNotesChange = onNotesChange,
             )
@@ -349,24 +360,28 @@ private fun DailyReportTodayContent(
                 modifier = Modifier.padding(top = 6.dp),
             )
         } else {
-            DailyReportSummary(report)
+            DailyReportSummary(report, showNotes)
         }
 
-        DprWorkProgressSection(
-            report = report,
-            rows = workProgress,
-            wbsReferences = wbsReferences,
-            boqReferences = boqReferences,
-            editable = report.status == DprRepository.STATUS_DRAFT && canUpdate,
-            onSave = { drafts -> onSaveWorkProgress(report.id, drafts) },
-        )
+        if (showWork) {
+            DprWorkProgressSection(
+                report = report,
+                rows = workProgress,
+                wbsReferences = wbsReferences,
+                boqReferences = boqReferences,
+                editable = report.status == DprRepository.STATUS_DRAFT && canUpdate,
+                onSave = { drafts -> onSaveWorkProgress(report.id, drafts) },
+            )
+        }
 
-        DprDelaysSection(
-            report = report,
-            rows = delays,
-            editable = report.status == DprRepository.STATUS_DRAFT && canUpdate,
-            onSave = { drafts -> onSaveDelays(report.id, drafts) },
-        )
+        if (showDelays) {
+            DprDelaysSection(
+                report = report,
+                rows = delays,
+                editable = report.status == DprRepository.STATUS_DRAFT && canUpdate,
+                onSave = { drafts -> onSaveDelays(report.id, drafts) },
+            )
+        }
     }
 }
 
@@ -374,6 +389,7 @@ private fun DailyReportTodayContent(
 private fun DprReportDetailsFields(
     weather: String,
     notes: String,
+    showNotes: Boolean,
     onWeatherChange: (String) -> Unit,
     onNotesChange: (String) -> Unit,
 ) {
@@ -391,21 +407,23 @@ private fun DprReportDetailsFields(
             .fillMaxWidth()
             .padding(top = 8.dp),
     )
-    Text(
-        "Notes",
-        style = MaterialTheme.typography.titleSmall,
-        modifier = Modifier.padding(top = 14.dp),
-    )
-    OutlinedTextField(
-        value = notes,
-        onValueChange = onNotesChange,
-        label = { Text("Site notes (optional)") },
-        minLines = 3,
-        maxLines = 6,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 6.dp),
-    )
+    if (showNotes) {
+        Text(
+            "Notes",
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(top = 14.dp),
+        )
+        OutlinedTextField(
+            value = notes,
+            onValueChange = onNotesChange,
+            label = { Text("Site notes (optional)") },
+            minLines = 3,
+            maxLines = 6,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
+        )
+    }
 }
 
 @Composable
@@ -654,7 +672,7 @@ private fun DailyReportStatus(report: DprReportEntity) {
 }
 
 @Composable
-private fun DailyReportSummary(report: DprReportEntity) {
+private fun DailyReportSummary(report: DprReportEntity, showNotes: Boolean) {
     Column(modifier = Modifier.fillMaxWidth()) {
         DprSummaryRow("Shift", report.shiftCode)
         DprSummaryRow("Weather", report.weatherCondition?.takeIf { it.isNotBlank() } ?: "Not recorded")
@@ -664,7 +682,9 @@ private fun DailyReportSummary(report: DprReportEntity) {
                 .plus(report.temperatureUnit?.let { " $it" }.orEmpty())
             DprSummaryRow("Temperature", temperature)
         }
-        DprSummaryRow("Notes", report.notes?.takeIf { it.isNotBlank() } ?: "No notes")
+        if (showNotes) {
+            DprSummaryRow("Notes", report.notes?.takeIf { it.isNotBlank() } ?: "No notes")
+        }
 
         if (report.serverId == null) {
             Text(
