@@ -50,6 +50,13 @@ _ALLOWED_CONTENT_TYPES = {
     "image/heif",
 }
 _MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+_PHOTO_DOMAIN_ERRORS = (
+    DPRPhotoConflictError,
+    DPRPhotoValidationError,
+    FileValidationError,
+    StorageCapacityError,
+    LocalStorageProviderError,
+)
 
 
 def _require_permission(context, project_id: UUID, permission_key: str) -> None:
@@ -66,12 +73,7 @@ def _require_permission(context, project_id: UUID, permission_key: str) -> None:
 def _domain_error(exc: Exception) -> None:
     if isinstance(exc, DPRPhotoConflictError):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    if isinstance(
-        exc,
-        (DPRPhotoValidationError, FileValidationError, StorageCapacityError, LocalStorageProviderError),
-    ):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    raise exc
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
 
 async def _require_existing_draft(
@@ -172,7 +174,7 @@ async def start_dpr_photo_upload(
             expected_sha256=payload.sha256,
         )
         await db.commit()
-    except Exception as exc:
+    except _PHOTO_DOMAIN_ERRORS as exc:
         await db.rollback()
         _domain_error(exc)
 
@@ -260,7 +262,7 @@ async def put_dpr_photo_content(
         await provider.write_upload_bytes(storage_key=upload.temporary_storage_key, content=body)
         upload.status = UploadStatus.UPLOADED
         await db.commit()
-    except Exception as exc:
+    except _PHOTO_DOMAIN_ERRORS as exc:
         await db.rollback()
         _domain_error(exc)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -301,7 +303,7 @@ async def finalize_dpr_photo_upload(
         )
         await db.commit()
         await db.refresh(link)
-    except Exception as exc:
+    except _PHOTO_DOMAIN_ERRORS as exc:
         await db.rollback()
         _domain_error(exc)
 
@@ -371,7 +373,7 @@ async def cancel_dpr_photo_upload(
         upload.status = UploadStatus.FAILED
         upload.failure_reason = "cancelled_by_user"
         await db.commit()
-    except Exception as exc:
+    except _PHOTO_DOMAIN_ERRORS as exc:
         await db.rollback()
         _domain_error(exc)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -405,7 +407,7 @@ async def delete_dpr_photo(
             session_id=session.id,
         )
         await db.commit()
-    except Exception as exc:
+    except _PHOTO_DOMAIN_ERRORS as exc:
         await db.rollback()
         _domain_error(exc)
     return DPRPhotoChangeRead(report_revision=report.revision)
