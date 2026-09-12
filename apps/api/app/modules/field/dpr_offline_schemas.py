@@ -8,6 +8,7 @@ from app.modules.field.schemas import (
     DailyReportCreate,
     DailyReportUpdate,
     DailyReportVersionAction,
+    DelayEntryWrite,
 )
 from app.modules.offline.models import SyncMutationStatus
 
@@ -16,7 +17,14 @@ class DailyReportOfflineOperation(StrEnum):
     CREATE_REPORT = "create_report"
     UPDATE_HEADER = "update_header"
     REPLACE_WORK_PROGRESS = "replace_work_progress"
+    REPLACE_DELAYS = "replace_delays"
     SUBMIT = "submit"
+
+
+class DailyReportDelayReplace(BaseModel):
+    expected_revision: int = Field(ge=1)
+    rows: list[DelayEntryWrite] = Field(default_factory=list, max_length=1000)
+    reason: str | None = Field(default=None, max_length=1000)
 
 
 class DailyReportOfflineMutationRequest(BaseModel):
@@ -28,13 +36,14 @@ class DailyReportOfflineMutationRequest(BaseModel):
     create: DailyReportCreate | None = None
     update: DailyReportUpdate | None = None
     work_progress: DPRWorkProgressReplace | None = None
+    delays: DailyReportDelayReplace | None = None
     action: DailyReportVersionAction | None = None
 
     @model_validator(mode="after")
     def validate_operation_payload(self) -> "DailyReportOfflineMutationRequest":
         supplied = sum(
             item is not None
-            for item in (self.create, self.update, self.work_progress, self.action)
+            for item in (self.create, self.update, self.work_progress, self.delays, self.action)
         )
         if supplied != 1:
             raise ValueError("Exactly one Daily Report operation payload is required")
@@ -52,6 +61,11 @@ class DailyReportOfflineMutationRequest(BaseModel):
                 raise ValueError("Work progress replacement requires payload and base_revision")
             if self.work_progress.expected_revision != self.base_revision:
                 raise ValueError("work_progress.expected_revision must match base_revision")
+        elif self.operation == DailyReportOfflineOperation.REPLACE_DELAYS:
+            if self.delays is None or self.base_revision is None:
+                raise ValueError("Delay replacement requires payload and base_revision")
+            if self.delays.expected_revision != self.base_revision:
+                raise ValueError("delays.expected_revision must match base_revision")
         elif self.operation == DailyReportOfflineOperation.SUBMIT:
             if self.action is None or self.base_revision is None:
                 raise ValueError("Submit requires action payload and base_revision")
