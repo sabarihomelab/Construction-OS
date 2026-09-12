@@ -1,7 +1,5 @@
 package com.constructionos.app.ui
 
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -32,11 +32,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.constructionos.app.core.authorization.hasProjectPermission
 import com.constructionos.app.core.database.DprBoqReferenceEntity
+import com.constructionos.app.core.database.DprDelayEntity
 import com.constructionos.app.core.database.DprReportEntity
 import com.constructionos.app.core.database.DprSyncState
 import com.constructionos.app.core.database.DprWbsReferenceEntity
 import com.constructionos.app.core.database.DprWorkProgressEntity
 import com.constructionos.app.core.database.ProjectEntity
+import com.constructionos.app.core.dpr.DprDelayDraft
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.dpr.DprWorkProgressDraft
 import com.constructionos.app.core.network.SessionContextResponse
@@ -67,18 +69,10 @@ fun DailyReportScreen(
     var message by remember(project.id) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    val dayFlow = remember(project.id, selectedDate) {
-        repository.observeDay(project.id, selectedDate)
-    }
-    val historyFlow = remember(project.id) {
-        repository.observeProjectReports(project.id)
-    }
-    val wbsFlow = remember(project.id) {
-        repository.observeWbsReferences(project.id)
-    }
-    val boqFlow = remember(project.id) {
-        repository.observeBoqReferences(project.id)
-    }
+    val dayFlow = remember(project.id, selectedDate) { repository.observeDay(project.id, selectedDate) }
+    val historyFlow = remember(project.id) { repository.observeProjectReports(project.id) }
+    val wbsFlow = remember(project.id) { repository.observeWbsReferences(project.id) }
+    val boqFlow = remember(project.id) { repository.observeBoqReferences(project.id) }
     val dayReports by dayFlow.collectAsState(initial = emptyList())
     val history by historyFlow.collectAsState(initial = emptyList())
     val wbsReferences by wbsFlow.collectAsState(initial = emptyList())
@@ -87,7 +81,11 @@ fun DailyReportScreen(
     val workProgressFlow = remember(report?.id) {
         report?.id?.let(repository::observeWorkProgress) ?: flowOf(emptyList())
     }
+    val delaysFlow = remember(report?.id) {
+        report?.id?.let(repository::observeDelays) ?: flowOf(emptyList())
+    }
     val workProgress by workProgressFlow.collectAsState(initial = emptyList())
+    val delays by delaysFlow.collectAsState(initial = emptyList())
     val canCreate = context.hasProjectPermission(project.id, "field.daily_report.create")
     val canUpdate = context.hasProjectPermission(project.id, "field.daily_report.update")
 
@@ -138,6 +136,7 @@ fun DailyReportScreen(
                 weather = weather,
                 notes = notes,
                 workProgress = workProgress,
+                delays = delays,
                 wbsReferences = wbsReferences,
                 boqReferences = boqReferences,
                 canCreate = canCreate,
@@ -168,7 +167,7 @@ fun DailyReportScreen(
                         }
                     }
                 },
-                onSave = { reportId ->
+                onSaveDetails = { reportId ->
                     scope.launch {
                         message = null
                         runCatching {
@@ -178,18 +177,26 @@ fun DailyReportScreen(
                                 notes = notes,
                             )
                         }.onFailure { error ->
-                            message = error.message ?: "Daily report changes could not be saved"
+                            message = error.message ?: "Daily report details could not be saved"
                         }
                     }
                 },
                 onSaveWorkProgress = { reportId, rows ->
                     scope.launch {
                         message = null
-                        runCatching {
-                            repository.saveWorkProgress(reportId, rows)
-                        }.onFailure { error ->
-                            message = error.message ?: "Work progress could not be saved"
-                        }
+                        runCatching { repository.saveWorkProgress(reportId, rows) }
+                            .onFailure { error ->
+                                message = error.message ?: "Work progress could not be saved"
+                            }
+                    }
+                },
+                onSaveDelays = { reportId, rows ->
+                    scope.launch {
+                        message = null
+                        runCatching { repository.saveDelays(reportId, rows) }
+                            .onFailure { error ->
+                                message = error.message ?: "Delay / blocker could not be saved"
+                            }
                     }
                 },
                 modifier = Modifier.weight(1f),
@@ -222,11 +229,7 @@ private fun DprTabs(
                 }
                 HorizontalDivider(
                     thickness = if (selected == tab) 3.dp else 1.dp,
-                    color = if (selected == tab) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.outlineVariant
-                    },
+                    color = if (selected == tab) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
                 )
             }
         }
@@ -241,6 +244,7 @@ private fun DailyReportTodayContent(
     weather: String,
     notes: String,
     workProgress: List<DprWorkProgressEntity>,
+    delays: List<DprDelayEntity>,
     wbsReferences: List<DprWbsReferenceEntity>,
     boqReferences: List<DprBoqReferenceEntity>,
     canCreate: Boolean,
@@ -250,15 +254,14 @@ private fun DailyReportTodayContent(
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit,
     onStart: () -> Unit,
-    onSave: (String) -> Unit,
+    onSaveDetails: (String) -> Unit,
     onSaveWorkProgress: (String, List<DprWorkProgressDraft>) -> Unit,
+    onSaveDelays: (String, List<DprDelayDraft>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val date = LocalDate.parse(selectedDate)
 
-    Column(
-        modifier = modifier.verticalScroll(rememberScrollState()),
-    ) {
+    Column(modifier = modifier.verticalScroll(rememberScrollState())) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -272,14 +275,9 @@ private fun DailyReportTodayContent(
                     text = date.format(DateTimeFormatter.ofPattern("EEE, d MMM")),
                     style = MaterialTheme.typography.titleMedium,
                 )
-                if (date == today) {
-                    Text("Today", style = MaterialTheme.typography.labelSmall)
-                }
+                if (date == today) Text("Today", style = MaterialTheme.typography.labelSmall)
             }
-            OutlinedButton(
-                onClick = onNextDay,
-                enabled = date < today,
-            ) { Text("›") }
+            OutlinedButton(onClick = onNextDay, enabled = date < today) { Text("›") }
         }
 
         HorizontalDivider()
@@ -295,26 +293,12 @@ private fun DailyReportTodayContent(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 4.dp),
             )
-
             if (canCreate) {
-                OutlinedTextField(
-                    value = weather,
-                    onValueChange = onWeatherChange,
-                    label = { Text("Weather (optional)") },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                )
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = onNotesChange,
-                    label = { Text("Site note (optional)") },
-                    minLines = 3,
-                    maxLines = 6,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp),
+                DprReportDetailsFields(
+                    weather = weather,
+                    notes = notes,
+                    onWeatherChange = onWeatherChange,
+                    onNotesChange = onNotesChange,
                 )
                 Button(
                     onClick = onStart,
@@ -337,42 +321,29 @@ private fun DailyReportTodayContent(
         DailyReportStatus(report)
 
         if (report.status == DprRepository.STATUS_DRAFT && canUpdate) {
-            OutlinedTextField(
-                value = weather,
-                onValueChange = onWeatherChange,
-                label = { Text("Weather (optional)") },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-            )
-            OutlinedTextField(
-                value = notes,
-                onValueChange = onNotesChange,
-                label = { Text("Site note (optional)") },
-                minLines = 3,
-                maxLines = 6,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp),
+            DprReportDetailsFields(
+                weather = weather,
+                notes = notes,
+                onWeatherChange = onWeatherChange,
+                onNotesChange = onNotesChange,
             )
             Button(
-                onClick = { onSave(report.id) },
+                onClick = { onSaveDetails(report.id) },
                 enabled = report.canQueueHeaderEdit(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 14.dp),
             ) {
-                Text("Save header")
+                Text("Save report details")
             }
             Text(
                 text = when {
                     report.syncState == DprSyncState.NEEDS_ATTENTION ->
-                        "This report needs sync attention before another header change can be saved."
+                        "This report needs sync attention before another details change can be saved."
                     !report.canQueueHeaderEdit() ->
-                        "Finish syncing the previous header change before saving another one."
+                        "Finish syncing the previous report change before saving details again."
                     else ->
-                        "Header changes are saved on this device first and synced in the background."
+                        "Report details are saved on this device first and synced in the background."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 6.dp),
@@ -389,7 +360,52 @@ private fun DailyReportTodayContent(
             editable = report.status == DprRepository.STATUS_DRAFT && canUpdate,
             onSave = { drafts -> onSaveWorkProgress(report.id, drafts) },
         )
+
+        DprDelaysSection(
+            report = report,
+            rows = delays,
+            editable = report.status == DprRepository.STATUS_DRAFT && canUpdate,
+            onSave = { drafts -> onSaveDelays(report.id, drafts) },
+        )
     }
+}
+
+@Composable
+private fun DprReportDetailsFields(
+    weather: String,
+    notes: String,
+    onWeatherChange: (String) -> Unit,
+    onNotesChange: (String) -> Unit,
+) {
+    Text(
+        "Report details",
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.padding(top = 12.dp),
+    )
+    OutlinedTextField(
+        value = weather,
+        onValueChange = onWeatherChange,
+        label = { Text("Weather (optional)") },
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    )
+    Text(
+        "Notes",
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.padding(top = 14.dp),
+    )
+    OutlinedTextField(
+        value = notes,
+        onValueChange = onNotesChange,
+        label = { Text("Site notes (optional)") },
+        minLines = 3,
+        maxLines = 6,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp),
+    )
 }
 
 @Composable
@@ -451,9 +467,7 @@ private fun DprWorkProgressSection(
             }
             if (editable) {
                 TextButton(
-                    onClick = {
-                        onSave(rows.filterNot { it.id == row.id }.map(DprWorkProgressEntity::toDraft))
-                    },
+                    onClick = { onSave(rows.filterNot { it.id == row.id }.map(DprWorkProgressEntity::toDraft)) },
                 ) {
                     Text("Remove")
                 }
@@ -634,11 +648,7 @@ private fun DailyReportStatus(report: DprReportEntity) {
     Text(
         text = dprSyncStateLabel(report.syncState),
         style = MaterialTheme.typography.labelMedium,
-        color = if (report.syncState == DprSyncState.NEEDS_ATTENTION) {
-            MaterialTheme.colorScheme.error
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
+        color = if (report.syncState == DprSyncState.NEEDS_ATTENTION) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
     )
 }
@@ -654,7 +664,7 @@ private fun DailyReportSummary(report: DprReportEntity) {
                 .plus(report.temperatureUnit?.let { " $it" }.orEmpty())
             DprSummaryRow("Temperature", temperature)
         }
-        DprSummaryRow("Site note", report.notes?.takeIf { it.isNotBlank() } ?: "No note")
+        DprSummaryRow("Notes", report.notes?.takeIf { it.isNotBlank() } ?: "No notes")
 
         if (report.serverId == null) {
             Text(
@@ -674,16 +684,8 @@ private fun DprSummaryRow(label: String, value: String) {
             .padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.weight(0.34f),
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(0.66f),
-        )
+        Text(text = label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(0.34f))
+        Text(text = value, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.66f))
     }
     HorizontalDivider()
 }
@@ -717,24 +719,16 @@ private fun DailyReportHistoryContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        LocalDate.parse(report.reportDate)
-                            .format(DateTimeFormatter.ofPattern("EEE, d MMM yyyy")),
+                        LocalDate.parse(report.reportDate).format(DateTimeFormatter.ofPattern("EEE, d MMM yyyy")),
                         style = MaterialTheme.typography.titleSmall,
                     )
-                    Text(
-                        report.status.replace('_', ' '),
-                        style = MaterialTheme.typography.labelMedium,
-                    )
+                    Text(report.status.replace('_', ' '), style = MaterialTheme.typography.labelMedium)
                 }
                 val detail = buildList {
                     report.weatherCondition?.takeIf { it.isNotBlank() }?.let(::add)
                     add(dprSyncStateLabel(report.syncState))
                 }.joinToString(" • ")
-                Text(
-                    detail,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 3.dp),
-                )
+                Text(detail, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
                 report.notes?.takeIf { it.isNotBlank() }?.let { note ->
                     Text(
                         note,
