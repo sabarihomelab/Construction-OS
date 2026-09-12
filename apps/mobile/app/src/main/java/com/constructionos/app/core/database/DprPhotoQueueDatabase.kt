@@ -10,7 +10,7 @@ import java.security.MessageDigest
 
 @Database(
     entities = [DprPhotoEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class DprPhotoQueueDatabase : RoomDatabase() {
@@ -30,6 +30,15 @@ abstract class DprPhotoQueueDatabase : RoomDatabase() {
             }
         }
 
+        private val migration2To3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE dpr_photos ADD COLUMN upload_path TEXT")
+                db.execSQL(
+                    "ALTER TABLE dpr_photos ADD COLUMN upload_policy TEXT NOT NULL DEFAULT 'legacy_original'",
+                )
+            }
+        }
+
         fun getInstance(
             context: Context,
             connectionNamespace: String,
@@ -39,7 +48,7 @@ abstract class DprPhotoQueueDatabase : RoomDatabase() {
                 DprPhotoQueueDatabase::class.java,
                 databaseName(connectionNamespace),
             )
-                .addMigrations(migration1To2)
+                .addMigrations(migration1To2, migration2To3)
                 .build()
                 .also { instances[connectionNamespace] = it }
         }
