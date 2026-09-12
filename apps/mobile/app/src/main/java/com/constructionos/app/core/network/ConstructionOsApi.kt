@@ -9,126 +9,35 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface ConstructionOsApi {
-    @GET("auth/native/providers")
-    suspend fun nativeProviders(): NativeProviderListResponse
-
-    @POST("auth/native/authenticate")
-    suspend fun authenticateNative(
-        @Body request: NativeAuthenticationRequest,
-    ): NativeAuthenticationResponse
-
-    @POST("auth/native/select-membership")
-    suspend fun selectMembership(
-        @Body request: NativeMembershipSelectionRequest,
-    ): NativeAuthenticationResponse
-
-    @GET("session/context")
-    suspend fun sessionContext(): SessionContextResponse
-
-    @POST("session/logout")
-    suspend fun logout(): Response<Unit>
-
-    @GET("projects")
-    suspend fun projects(): List<ProjectResponse>
-
-    @POST("offline/devices")
-    suspend fun registerDevice(
-        @Body request: DeviceRegistrationRequest,
-    ): ClientDeviceResponse
+    @GET("auth/native/providers") suspend fun nativeProviders(): NativeProviderListResponse
+    @POST("auth/native/authenticate") suspend fun authenticateNative(@Body request: NativeAuthenticationRequest): NativeAuthenticationResponse
+    @POST("auth/native/select-membership") suspend fun selectMembership(@Body request: NativeMembershipSelectionRequest): NativeAuthenticationResponse
+    @GET("session/context") suspend fun sessionContext(): SessionContextResponse
+    @POST("session/logout") suspend fun logout(): Response<Unit>
+    @GET("projects") suspend fun projects(): List<ProjectResponse>
+    @POST("offline/devices") suspend fun registerDevice(@Body request: DeviceRegistrationRequest): ClientDeviceResponse
 
     @GET("projects/{projectId}/workforce/attendance/roster")
-    suspend fun attendanceRoster(
-        @Path("projectId") projectId: String,
-        @Query("attendance_date") attendanceDate: String,
-    ): List<AttendanceRosterResponse>
+    suspend fun attendanceRoster(@Path("projectId") projectId: String, @Query("attendance_date") attendanceDate: String): List<AttendanceRosterResponse>
+    @GET("projects/{projectId}/workforce/attendance") suspend fun attendanceRegisters(@Path("projectId") projectId: String): List<AttendanceRegisterResponse>
+    @GET("projects/{projectId}/workforce/attendance/{registerId}") suspend fun attendanceRegister(@Path("projectId") projectId: String, @Path("registerId") registerId: String): AttendanceRegisterDetailResponse
+    @POST("projects/{projectId}/workforce/attendance/{registerId}/submit") suspend fun submitAttendance(@Path("projectId") projectId: String, @Path("registerId") registerId: String, @Body request: AttendanceVersionActionRequest): AttendanceRegisterResponse
+    @POST("projects/{projectId}/workforce/attendance/{registerId}/approve") suspend fun approveAttendance(@Path("projectId") projectId: String, @Path("registerId") registerId: String, @Body request: AttendanceVersionActionRequest): AttendanceRegisterResponse
+    @POST("projects/{projectId}/workforce/attendance/{registerId}/reject") suspend fun rejectAttendance(@Path("projectId") projectId: String, @Path("registerId") registerId: String, @Body request: AttendanceRequiredReasonActionRequest): AttendanceRegisterResponse
+    @POST("projects/{projectId}/workforce/attendance/{registerId}/reopen") suspend fun reopenAttendance(@Path("projectId") projectId: String, @Path("registerId") registerId: String, @Body request: AttendanceRequiredReasonActionRequest): AttendanceRegisterResponse
+    @POST("projects/{projectId}/workforce/attendance/offline/mutations") suspend fun submitAttendanceMutation(@Path("projectId") projectId: String, @Body request: AttendanceOfflineMutationRequest): Response<AttendanceOfflineMutationResponse>
 
-    @GET("projects/{projectId}/workforce/attendance")
-    suspend fun attendanceRegisters(
-        @Path("projectId") projectId: String,
-    ): List<AttendanceRegisterResponse>
-
-    @GET("projects/{projectId}/workforce/attendance/{registerId}")
-    suspend fun attendanceRegister(
-        @Path("projectId") projectId: String,
-        @Path("registerId") registerId: String,
-    ): AttendanceRegisterDetailResponse
-
-    @POST("projects/{projectId}/workforce/attendance/{registerId}/submit")
-    suspend fun submitAttendance(
-        @Path("projectId") projectId: String,
-        @Path("registerId") registerId: String,
-        @Body request: AttendanceVersionActionRequest,
-    ): AttendanceRegisterResponse
-
-    @POST("projects/{projectId}/workforce/attendance/{registerId}/approve")
-    suspend fun approveAttendance(
-        @Path("projectId") projectId: String,
-        @Path("registerId") registerId: String,
-        @Body request: AttendanceVersionActionRequest,
-    ): AttendanceRegisterResponse
-
-    @POST("projects/{projectId}/workforce/attendance/{registerId}/reject")
-    suspend fun rejectAttendance(
-        @Path("projectId") projectId: String,
-        @Path("registerId") registerId: String,
-        @Body request: AttendanceRequiredReasonActionRequest,
-    ): AttendanceRegisterResponse
-
-    @POST("projects/{projectId}/workforce/attendance/{registerId}/reopen")
-    suspend fun reopenAttendance(
-        @Path("projectId") projectId: String,
-        @Path("registerId") registerId: String,
-        @Body request: AttendanceRequiredReasonActionRequest,
-    ): AttendanceRegisterResponse
-
-    @POST("projects/{projectId}/workforce/attendance/offline/mutations")
-    suspend fun submitAttendanceMutation(
-        @Path("projectId") projectId: String,
-        @Body request: AttendanceOfflineMutationRequest,
-    ): Response<AttendanceOfflineMutationResponse>
-
-    @GET("projects/{projectId}/daily-reports")
-    suspend fun dailyReports(
-        @Path("projectId") projectId: String,
-    ): List<DailyReportResponse>
-
-    @POST("projects/{projectId}/daily-reports")
-    suspend fun createDailyReport(
-        @Path("projectId") projectId: String,
-        @Body request: DailyReportCreateRequest,
-    ): Response<DailyReportResponse>
-
-    @GET("projects/{projectId}/daily-reports/work-progress/references")
-    suspend fun dprWorkProgressReferences(
-        @Path("projectId") projectId: String,
-    ): DprWorkProgressReferenceResponse
-
-    @POST("projects/{projectId}/daily-reports/offline/mutations")
-    suspend fun submitDailyReportMutation(
-        @Path("projectId") projectId: String,
-        @Body request: DailyReportOfflineMutationRequest,
-    ): Response<DailyReportOfflineMutationResponse>
+    @GET("projects/{projectId}/daily-reports") suspend fun dailyReports(@Path("projectId") projectId: String): List<DailyReportResponse>
+    @POST("projects/{projectId}/daily-reports") suspend fun createDailyReport(@Path("projectId") projectId: String, @Body request: DailyReportCreateRequest): Response<DailyReportResponse>
+    @GET("projects/{projectId}/daily-reports/{reportId}/work-progress") suspend fun dprWorkProgress(@Path("projectId") projectId: String, @Path("reportId") reportId: String): List<DprWorkProgressResponse>
+    @GET("projects/{projectId}/daily-reports/work-progress/references") suspend fun dprWorkProgressReferences(@Path("projectId") projectId: String): DprWorkProgressReferenceResponse
+    @POST("projects/{projectId}/daily-reports/offline/mutations") suspend fun submitDailyReportMutation(@Path("projectId") projectId: String, @Body request: DailyReportOfflineMutationRequest): Response<DailyReportOfflineMutationResponse>
 }
 
-data class NativeProviderListResponse(
-    val providers: List<String> = emptyList(),
-)
-
-data class NativeAuthenticationRequest(
-    @SerializedName("provider_key") val providerKey: String,
-    val payload: Map<String, String>,
-)
-
-data class NativeMembershipSelectionRequest(
-    @SerializedName("grant_token") val grantToken: String,
-    @SerializedName("membership_id") val membershipId: String,
-)
-
-data class NativeMembershipOption(
-    @SerializedName("membership_id") val membershipId: String,
-    @SerializedName("organization_id") val organizationId: String,
-    @SerializedName("organization_name") val organizationName: String,
-)
+data class NativeProviderListResponse(val providers: List<String> = emptyList())
+data class NativeAuthenticationRequest(@SerializedName("provider_key") val providerKey: String, val payload: Map<String, String>)
+data class NativeMembershipSelectionRequest(@SerializedName("grant_token") val grantToken: String, @SerializedName("membership_id") val membershipId: String)
+data class NativeMembershipOption(@SerializedName("membership_id") val membershipId: String, @SerializedName("organization_id") val organizationId: String, @SerializedName("organization_name") val organizationName: String)
 
 data class NativeAuthenticationResponse(
     val status: String,
@@ -143,7 +52,6 @@ data class NativeAuthenticationResponse(
         require(tokenType.equals("Bearer", ignoreCase = true)) { "Unsupported token type" }
         return requireNotNull(accessToken).also { require(it.isNotBlank()) }
     }
-
     companion object {
         const val STATUS_AUTHENTICATED = "authenticated"
         const val STATUS_MEMBERSHIP_SELECTION = "membership_selection_required"
@@ -162,12 +70,9 @@ data class SessionContextResponse(
 )
 
 data class VisibleFeatureResponse(
-    val key: String,
-    val name: String,
-    val kind: String,
+    val key: String, val name: String, val kind: String,
     @SerializedName("parent_key") val parentKey: String? = null,
-    val route: String? = null,
-    val sensitivity: String,
+    val route: String? = null, val sensitivity: String,
     @SerializedName("display_order") val displayOrder: Int,
     @SerializedName("mobile_enabled") val mobileEnabled: Boolean,
     @SerializedName("offline_enabled") val offlineEnabled: Boolean,
@@ -177,11 +82,7 @@ data class VisibleFeatureResponse(
 data class ProjectResponse(
     val id: String,
     @SerializedName("organization_id") val organizationId: String,
-    val number: String,
-    val name: String,
-    val description: String? = null,
-    val status: String,
-    val revision: Int,
+    val number: String, val name: String, val description: String? = null, val status: String, val revision: Int,
     val timezone: String? = null,
     @SerializedName("currency_code") val currencyCode: String? = null,
     @SerializedName("unit_system") val unitSystem: String? = null,
@@ -189,27 +90,10 @@ data class ProjectResponse(
     @SerializedName("target_completion_date") val targetCompletionDate: String? = null,
     @SerializedName("address_line_1") val addressLine1: String? = null,
     @SerializedName("address_line_2") val addressLine2: String? = null,
-    val locality: String? = null,
-    val region: String? = null,
+    val locality: String? = null, val region: String? = null,
     @SerializedName("postal_code") val postalCode: String? = null,
     @SerializedName("country_code") val countryCode: String? = null,
 )
 
-data class DeviceRegistrationRequest(
-    @SerializedName("installation_id") val installationId: String,
-    val platform: String = "android",
-    @SerializedName("device_label") val deviceLabel: String? = null,
-    @SerializedName("app_version") val appVersion: String? = null,
-)
-
-data class ClientDeviceResponse(
-    val id: String,
-    @SerializedName("organization_id") val organizationId: String,
-    @SerializedName("user_id") val userId: String,
-    @SerializedName("installation_id") val installationId: String,
-    val platform: String,
-    @SerializedName("device_label") val deviceLabel: String? = null,
-    @SerializedName("app_version") val appVersion: String? = null,
-    @SerializedName("last_seen_at") val lastSeenAt: String? = null,
-    @SerializedName("revoked_at") val revokedAt: String? = null,
-)
+data class DeviceRegistrationRequest(@SerializedName("installation_id") val installationId: String, val platform: String = "android", @SerializedName("device_label") val deviceLabel: String? = null, @SerializedName("app_version") val appVersion: String? = null)
+data class ClientDeviceResponse(val id: String, @SerializedName("organization_id") val organizationId: String, @SerializedName("user_id") val userId: String, @SerializedName("installation_id") val installationId: String, val platform: String, @SerializedName("device_label") val deviceLabel: String? = null, @SerializedName("app_version") val appVersion: String? = null, @SerializedName("last_seen_at") val lastSeenAt: String? = null, @SerializedName("revoked_at") val revokedAt: String? = null)
