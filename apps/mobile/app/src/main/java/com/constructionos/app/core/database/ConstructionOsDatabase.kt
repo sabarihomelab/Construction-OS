@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import java.security.MessageDigest
 
 @Database(
     entities = [
@@ -33,8 +34,7 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
     abstract fun partyDao(): PartyDao
 
     companion object {
-        @Volatile
-        private var instance: ConstructionOsDatabase? = null
+        private val instances = mutableMapOf<String, ConstructionOsDatabase>()
 
         private val migration1To2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -337,22 +337,34 @@ abstract class ConstructionOsDatabase : RoomDatabase() {
             }
         }
 
-        fun getInstance(context: Context): ConstructionOsDatabase =
-            instance ?: synchronized(this) {
-                instance ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    ConstructionOsDatabase::class.java,
-                    "construction-os.db",
+        fun getInstance(
+            context: Context,
+            deploymentId: String,
+        ): ConstructionOsDatabase = synchronized(this) {
+            instances[deploymentId] ?: Room.databaseBuilder(
+                context.applicationContext,
+                ConstructionOsDatabase::class.java,
+                databaseName(deploymentId),
+            )
+                .addMigrations(
+                    migration1To2,
+                    migration2To3,
+                    migration3To4,
+                    migration4To5,
+                    migration5To6,
                 )
-                    .addMigrations(
-                        migration1To2,
-                        migration2To3,
-                        migration3To4,
-                        migration4To5,
-                        migration5To6,
-                    )
-                    .build()
-                    .also { instance = it }
+                .build()
+                .also { instances[deploymentId] = it }
+        }
+
+        private fun databaseName(deploymentId: String): String {
+            if (deploymentId == "local-development") return "construction-os.db"
+            val digest = MessageDigest.getInstance("SHA-256")
+                .digest(deploymentId.toByteArray(Charsets.UTF_8))
+            val suffix = digest.take(12).joinToString("") {
+                "%02x".format(it.toInt() and 0xff)
             }
+            return "construction-os-$suffix.db"
+        }
     }
 }
