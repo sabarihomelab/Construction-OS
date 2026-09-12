@@ -79,6 +79,7 @@ class AppContainer(
         api = dprLifecycleApi,
         dao = database.dprDao(),
         syncScheduler = syncScheduler,
+        cacheDir = applicationContext.cacheDir,
     )
 
     private val dprMutationSyncService = DprMutationSyncService(
