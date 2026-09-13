@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,11 +18,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,6 +50,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -52,6 +67,8 @@ import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.dpr.DprPhotoRepository
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.network.SessionContextResponse
+import com.constructionos.app.ui.design.CosStatusPill
+import com.constructionos.app.ui.design.CosStatusTone
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -211,46 +228,63 @@ fun DprPhotosScreen(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
-            Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
-                Text("DPR photos", style = MaterialTheme.typography.titleLarge)
-                Text(project.name, style = MaterialTheme.typography.bodySmall)
+            IconButton(onClick = onBack) {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
             }
-            OutlinedButton(
+            Column(modifier = Modifier.weight(1f)) {
+                Text("DPR photos", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    project.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(
                 onClick = { refreshSelected() },
                 enabled = selectedReport?.serverId != null && !refreshing,
             ) {
-                Text(if (refreshing) "Refreshing" else "Refresh")
+                Icon(Icons.Rounded.Refresh, contentDescription = "Refresh")
             }
         }
-        HorizontalDivider()
 
         if (!photosEnabled) {
-            Text(
-                "Photos are disabled by this project's Daily Report configuration.",
-                modifier = Modifier.padding(16.dp),
-            )
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) {
+                Text(
+                    "Photos are disabled by this project's Daily Report configuration.",
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
             return@Column
         }
 
         message?.let {
-            Text(
-                it,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-            )
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(10.dp))
+            }
         }
 
         if (reports.isEmpty()) {
             Text(
                 "Start a Daily Report before adding site photos.",
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(top = 18.dp),
             )
             return@Column
         }
@@ -258,57 +292,76 @@ fun DprPhotosScreen(
         Text(
             "Report",
             style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp),
+            modifier = Modifier.padding(top = 12.dp),
         )
-        reports.take(MAX_REPORT_CHOICES).forEach { report ->
-            OutlinedButton(
-                onClick = {
-                    selectedReportId = report.id
-                    message = null
-                },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp),
-            ) {
-                Text(
-                    "${reportDateLabel(report)} • ${report.status.replace('_', ' ')}${if (report.id == selectedReportId) " • selected" else ""}",
-                    modifier = Modifier.fillMaxWidth(),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            reports.take(MAX_REPORT_CHOICES).forEach { report ->
+                FilterChip(
+                    selected = report.id == selectedReportId,
+                    onClick = {
+                        selectedReportId = report.id
+                        message = null
+                    },
+                    label = {
+                        Text("${reportDateLabel(report)} • ${report.status.replace('_', ' ')}")
+                    },
                 )
             }
         }
 
-        val report = selectedReport
-        if (report == null) return@Column
+        val report = selectedReport ?: return@Column
 
         if (canAddPhoto) {
-            OutlinedTextField(
-                value = caption,
-                onValueChange = { if (it.length <= 1000) caption = it },
-                label = { Text("Photo caption (optional)") },
-                minLines = 2,
-                maxLines = 3,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
-                Button(
-                    onClick = { requestCameraCapture() },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Take photo")
-                }
-                OutlinedButton(
-                    onClick = { picker.launch("image/*") },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Choose photo")
+                Column(modifier = Modifier.padding(14.dp)) {
+                    OutlinedTextField(
+                        value = caption,
+                        onValueChange = { if (it.length <= 1000) caption = it },
+                        label = { Text("Caption (optional)") },
+                        minLines = 2,
+                        maxLines = 3,
+                        shape = MaterialTheme.shapes.large,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Button(
+                            onClick = { requestCameraCapture() },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Icon(Icons.Rounded.CameraAlt, contentDescription = null)
+                            Text("Take photo", modifier = Modifier.padding(start = 7.dp))
+                        }
+                        OutlinedButton(
+                            onClick = { picker.launch("image/*") },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Icon(Icons.Rounded.PhotoLibrary, contentDescription = null)
+                            Text("Choose", modifier = Modifier.padding(start = 7.dp))
+                        }
+                    }
+                    Text(
+                        "Saved privately first; resumable upload continues from the server-confirmed byte after interruptions.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 9.dp),
+                    )
                 }
             }
-            Text(
-                "Photos are copied into private app storage first. Camera permission is requested only when Take photo is used, and interrupted uploads resume from the last server-confirmed byte.",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-            )
         } else {
             val reason = when {
                 report.status != DprRepository.STATUS_DRAFT ->
@@ -319,29 +372,47 @@ fun DprPhotosScreen(
                     "Your current project permissions do not allow photo upload."
                 else -> "Photo upload is not available for this report."
             }
-            Text(
-                reason,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-            )
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                Text(reason, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(11.dp))
+            }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
-        Text(
-            "Photos (${photos.size})",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Photos", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            CosStatusPill("${photos.size}")
+        }
 
         if (photos.isEmpty()) {
-            Text(
-                "No photos attached to this Daily Report yet.",
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(
+                    Icons.Rounded.Image,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "No photos attached yet",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = 9.dp),
+                )
+            }
         } else {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
                 items(photos, key = { it.clientPhotoId }) { photo ->
-                    DprPhotoRow(
+                    DprPhotoCard(
                         photo = photo,
                         report = report,
                         onRetry = {
@@ -359,7 +430,6 @@ fun DprPhotosScreen(
                             }
                         },
                     )
-                    HorizontalDivider()
                 }
             }
         }
@@ -367,73 +437,94 @@ fun DprPhotosScreen(
 }
 
 @Composable
-private fun DprPhotoRow(
+private fun DprPhotoCard(
     photo: DprPhotoEntity,
     report: DprReportEntity,
     onRetry: () -> Unit,
     onDiscard: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        DprPhotoThumbnail(photo.thumbnailPath)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(photo.filename, style = MaterialTheme.typography.titleSmall)
-            photo.caption?.takeIf { it.isNotBlank() }?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
-            }
-            Text(
-                dprPhotoStateLabel(photo.state),
-                style = MaterialTheme.typography.labelMedium,
-                color = if (photo.state == DprPhotoState.NEEDS_ATTENTION) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            if (
-                photo.sizeBytes > 0 &&
-                photo.uploadedBytes > 0 &&
-                photo.state in setOf(DprPhotoState.UPLOADING, DprPhotoState.WAITING_FOR_NETWORK)
-            ) {
-                val percent = ((photo.uploadedBytes.coerceAtMost(photo.sizeBytes) * 100) / photo.sizeBytes).toInt()
-                Text(
-                    "$percent% • ${formatBytes(photo.uploadedBytes)} of ${formatBytes(photo.sizeBytes)} uploaded",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-            if (photo.state == DprPhotoState.CANCEL_REQUESTED) {
-                Text(
-                    "Cancellation is saved on this device and will be confirmed with the server when connectivity is available.",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 3.dp),
-                )
-            }
-            if (photo.state == DprPhotoState.NEEDS_ATTENTION) {
-                Text(
-                    if (report.syncState == DprSyncState.NEEDS_ATTENTION) {
-                        "Reconcile the Daily Report before retrying this photo."
-                    } else {
-                        "Upload needs attention${photo.errorCode?.let { " • $it" }.orEmpty()}."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 3.dp),
-                )
-                TextButton(
-                    onClick = onRetry,
-                    enabled = report.syncState != DprSyncState.NEEDS_ATTENTION,
-                ) { Text("Retry") }
-            }
-            val canDiscard = photo.serverAssetId == null &&
-                photo.state != DprPhotoState.CANCEL_REQUESTED
-            if (canDiscard) {
-                TextButton(onClick = onDiscard) {
-                    Text(if (photo.uploadSessionId == null) "Discard local photo" else "Cancel upload")
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DprPhotoThumbnail(photo.thumbnailPath)
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        photo.filename,
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 2,
+                    )
+                    CosStatusPill(
+                        dprPhotoStateLabel(photo.state),
+                        tone = photoStateTone(photo.state),
+                    )
+                }
+                photo.caption?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 5.dp),
+                    )
+                }
+                if (
+                    photo.sizeBytes > 0 &&
+                    photo.uploadedBytes > 0 &&
+                    photo.state in setOf(DprPhotoState.UPLOADING, DprPhotoState.WAITING_FOR_NETWORK)
+                ) {
+                    val progress = photo.uploadedBytes.coerceAtMost(photo.sizeBytes).toFloat() / photo.sizeBytes.toFloat()
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    )
+                    Text(
+                        "${(progress * 100).toInt()}% • ${formatBytes(photo.uploadedBytes)} of ${formatBytes(photo.sizeBytes)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+                if (photo.state == DprPhotoState.CANCEL_REQUESTED) {
+                    Text(
+                        "Cancellation is saved locally and will be confirmed with the server when connectivity returns.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 5.dp),
+                    )
+                }
+                if (photo.state == DprPhotoState.NEEDS_ATTENTION) {
+                    Text(
+                        if (report.syncState == DprSyncState.NEEDS_ATTENTION) {
+                            "Reconcile the Daily Report before retrying this photo."
+                        } else {
+                            "Upload needs attention${photo.errorCode?.let { " • $it" }.orEmpty()}."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 5.dp),
+                    )
+                    TextButton(
+                        onClick = onRetry,
+                        enabled = report.syncState != DprSyncState.NEEDS_ATTENTION,
+                    ) { Text("Retry") }
+                }
+                val canDiscard = photo.serverAssetId == null &&
+                    photo.state != DprPhotoState.CANCEL_REQUESTED
+                if (canDiscard) {
+                    TextButton(onClick = onDiscard) {
+                        Text(if (photo.uploadSessionId == null) "Discard" else "Cancel upload")
+                    }
                 }
             }
         }
@@ -455,16 +546,30 @@ private fun DprPhotoThumbnail(path: String?) {
             bitmap = image,
             contentDescription = "DPR photo thumbnail",
             contentScale = ContentScale.Crop,
-            modifier = Modifier.size(88.dp),
+            modifier = Modifier
+                .size(104.dp)
+                .clip(MaterialTheme.shapes.large),
         )
     } else {
-        Box(
-            modifier = Modifier.size(88.dp),
-            contentAlignment = Alignment.Center,
+        Surface(
+            modifier = Modifier.size(104.dp),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surface,
         ) {
-            Text("Photo", style = MaterialTheme.typography.labelMedium)
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Image, contentDescription = "Photo")
+            }
         }
     }
+}
+
+private fun photoStateTone(state: String): CosStatusTone = when (state) {
+    DprPhotoState.SYNCED -> CosStatusTone.SUCCESS
+    DprPhotoState.UPLOADING -> CosStatusTone.PRIMARY
+    DprPhotoState.WAITING_FOR_NETWORK,
+    DprPhotoState.CANCEL_REQUESTED -> CosStatusTone.WARNING
+    DprPhotoState.NEEDS_ATTENTION -> CosStatusTone.ERROR
+    else -> CosStatusTone.NEUTRAL
 }
 
 private fun reportDateLabel(report: DprReportEntity): String = runCatching {
@@ -472,12 +577,12 @@ private fun reportDateLabel(report: DprReportEntity): String = runCatching {
 }.getOrDefault(report.reportDate)
 
 private fun dprPhotoStateLabel(state: String): String = when (state) {
-    DprPhotoState.SAVED_ON_DEVICE -> "Saved on device"
-    DprPhotoState.WAITING_FOR_NETWORK -> "Waiting for network"
+    DprPhotoState.SAVED_ON_DEVICE -> "Saved"
+    DprPhotoState.WAITING_FOR_NETWORK -> "Offline"
     DprPhotoState.UPLOADING -> "Uploading"
-    DprPhotoState.CANCEL_REQUESTED -> "Cancelling upload"
+    DprPhotoState.CANCEL_REQUESTED -> "Cancelling"
     DprPhotoState.SYNCED -> "Synced"
-    DprPhotoState.NEEDS_ATTENTION -> "Needs attention"
+    DprPhotoState.NEEDS_ATTENTION -> "Attention"
     else -> state.replace('_', ' ')
 }
 
