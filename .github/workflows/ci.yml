@@ -64,16 +64,18 @@ jobs:
       - name: Validate PowerShell installer syntax
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path './setup.ps1'),
-            [ref]$tokens,
-            [ref]$errors
-          ) | Out-Null
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            exit 1
+          foreach ($path in @('./setup.ps1', './bootstrap-company.ps1', './bootstrap-demo-data.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$path - $($_.Message)" }
+              exit 1
+            }
           }
       - name: Prepare local environment
         run: cp .env.example .env
@@ -127,6 +129,21 @@ jobs:
           missing = sorted(required_paths - paths)
           assert not missing, f"Missing live API paths: {missing}"
           PY
+      - name: Validate development demo data bootstrap
+        run: |
+          docker compose exec -T api python -m app.runtime.bootstrap_company \
+            --company-name "CI Demo Construction" \
+            --company-slug "ci-demo" \
+            --admin-email "ci-demo@example.test" \
+            --admin-display-name "CI Demo Admin"
+          CREATED=$(docker compose exec -T api python -m app.runtime.bootstrap_demo_data \
+            --admin-email "ci-demo@example.test")
+          echo "$CREATED"
+          echo "$CREATED" | grep -q '"status": "created"'
+          EXISTING=$(docker compose exec -T api python -m app.runtime.bootstrap_demo_data \
+            --admin-email "ci-demo@example.test")
+          echo "$EXISTING"
+          echo "$EXISTING" | grep -q '"status": "exists"'
       - name: Validate background worker readiness
         run: |
           for attempt in $(seq 1 30); do
