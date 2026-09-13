@@ -136,11 +136,11 @@ jobs:
             --company-slug "ci-demo" \
             --admin-email "ci-demo@example.test" \
             --admin-display-name "CI Demo Admin"
-          CREATED=$(docker compose exec -T api python -m app.runtime.bootstrap_demo_data \
+          CREATED=$(docker compose exec -T api python -m app.runtime.bootstrap_demo \
             --admin-email "ci-demo@example.test")
           echo "$CREATED"
           echo "$CREATED" | grep -q '"status": "created"'
-          EXISTING=$(docker compose exec -T api python -m app.runtime.bootstrap_demo_data \
+          EXISTING=$(docker compose exec -T api python -m app.runtime.bootstrap_demo \
             --admin-email "ci-demo@example.test")
           echo "$EXISTING"
           echo "$EXISTING" | grep -q '"status": "exists"'
