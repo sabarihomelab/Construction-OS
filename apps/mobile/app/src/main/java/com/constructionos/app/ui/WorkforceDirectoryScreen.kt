@@ -6,16 +6,24 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -26,11 +34,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.database.WorkforceCrewDirectoryRow
 import com.constructionos.app.core.database.WorkforceWorkerDirectoryRow
 import com.constructionos.app.core.workforce.WorkforceRepository
+import com.constructionos.app.ui.design.CosStatusPill
+import com.constructionos.app.ui.design.CosStatusTone
 import kotlinx.coroutines.launch
 
 private enum class WorkforceDirectoryTab {
@@ -85,67 +96,96 @@ fun WorkforceDirectoryScreen(
         }
     }
 
-    LaunchedEffect(project.id, canViewWorkers, canViewCrews, canViewAssignments) {
-        refresh()
-    }
+    LaunchedEffect(project.id, canViewWorkers, canViewCrews, canViewAssignments) { refresh() }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
-            Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
-                Text("Workforce", style = MaterialTheme.typography.titleLarge)
-                Text(project.name, style = MaterialTheme.typography.bodySmall)
+            IconButton(onClick = onBack) {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
             }
-            OutlinedButton(onClick = { refresh() }, enabled = !refreshing) {
-                Text(if (refreshing) "Refreshing" else "Refresh")
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Workforce", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    project.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (refreshing) {
+                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+            } else {
+                IconButton(onClick = ::refresh) {
+                    Icon(Icons.Rounded.Refresh, contentDescription = "Refresh")
+                }
             }
         }
-        HorizontalDivider()
 
-        Text(
-            "Project workers and crews are cached for fast lookup. Worker commercial rates are not downloaded to this screen.",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-        )
-
-        refreshError?.let {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+        ) {
             Text(
-                it,
-                color = MaterialTheme.colorScheme.error,
+                "Project workers and crews are cached for fast field lookup. Commercial rates remain server-side.",
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.padding(12.dp),
             )
         }
 
+        refreshError?.let {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+            ) {
+                Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(10.dp))
+            }
+        }
+
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (canShowWorkers) {
-                if (selectedTab == WorkforceDirectoryTab.WORKERS) {
-                    Button(onClick = { selectedTab = WorkforceDirectoryTab.WORKERS }) { Text("Workers") }
-                } else {
-                    OutlinedButton(onClick = { selectedTab = WorkforceDirectoryTab.WORKERS }) { Text("Workers") }
-                }
+                FilterChip(
+                    selected = selectedTab == WorkforceDirectoryTab.WORKERS,
+                    onClick = { selectedTab = WorkforceDirectoryTab.WORKERS },
+                    label = { Text("Workers ${workers.size}") },
+                )
             }
             if (canViewCrews) {
-                if (selectedTab == WorkforceDirectoryTab.CREWS) {
-                    Button(onClick = { selectedTab = WorkforceDirectoryTab.CREWS }) { Text("Crews") }
-                } else {
-                    OutlinedButton(onClick = { selectedTab = WorkforceDirectoryTab.CREWS }) { Text("Crews") }
-                }
+                FilterChip(
+                    selected = selectedTab == WorkforceDirectoryTab.CREWS,
+                    onClick = { selectedTab = WorkforceDirectoryTab.CREWS },
+                    label = { Text("Crews ${crews.size}") },
+                )
             }
         }
 
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
-            label = { Text(if (selectedTab == WorkforceDirectoryTab.WORKERS) "Search workers" else "Search crews") },
+            placeholder = {
+                Text(if (selectedTab == WorkforceDirectoryTab.WORKERS) "Search workers" else "Search crews")
+            },
+            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
         )
 
         if (refreshing && workers.isEmpty() && crews.isEmpty()) {
@@ -159,93 +199,178 @@ fun WorkforceDirectoryScreen(
             }
         } else {
             when (selectedTab) {
-                WorkforceDirectoryTab.WORKERS -> WorkerList(workers)
-                WorkforceDirectoryTab.CREWS -> CrewList(crews)
+                WorkforceDirectoryTab.WORKERS -> WorkerList(workers, Modifier.weight(1f))
+                WorkforceDirectoryTab.CREWS -> CrewList(crews, Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-private fun WorkerList(rows: List<WorkforceWorkerDirectoryRow>) {
+private fun WorkerList(
+    rows: List<WorkforceWorkerDirectoryRow>,
+    modifier: Modifier = Modifier,
+) {
     if (rows.isEmpty()) {
-        Text(
+        EmptyWorkforceState(
             "No project workers match this search. If offline, the last saved project workforce is shown when available.",
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodyMedium,
+            modifier,
         )
         return
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyColumn(
+        modifier = modifier.padding(top = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         items(rows, key = { it.assignmentId }) { row ->
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(row.displayName, style = MaterialTheme.typography.titleMedium)
-                    Text(row.assignmentStatus.replace('_', ' '), style = MaterialTheme.typography.labelMedium)
-                }
-                Text(row.workerNumber, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 2.dp))
-                listOfNotNull(row.projectRole, row.trade, row.jobTitle)
-                    .distinct()
-                    .takeIf { it.isNotEmpty() }
-                    ?.let { Text(it.joinToString(" • "), modifier = Modifier.padding(top = 4.dp)) }
-                row.crewName?.let {
-                    Text("Crew: $it", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
-                }
-                row.engagementType?.let {
-                    Text("Engagement: ${it.replace('_', ' ')}", style = MaterialTheme.typography.bodySmall)
-                }
-                row.defaultCostCode?.let {
-                    Text("Default cost code: $it", style = MaterialTheme.typography.bodySmall)
-                }
-                if (row.startDate != null || row.endDate != null) {
-                    Text(
-                        "Assignment: ${row.startDate ?: "open"} → ${row.endDate ?: "open"}",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            ) {
+                Column(modifier = Modifier.padding(15.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                row.displayName,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                row.workerNumber,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                        CosStatusPill(
+                            row.assignmentStatus.replace('_', ' '),
+                            tone = if (row.assignmentStatus == "active") CosStatusTone.SUCCESS else CosStatusTone.NEUTRAL,
+                        )
+                    }
+                    val descriptors = listOfNotNull(row.projectRole, row.trade, row.jobTitle).distinct()
+                    if (descriptors.isNotEmpty()) {
+                        Text(
+                            descriptors.joinToString(" • "),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        row.crewName?.let { CosStatusPill("Crew: $it", tone = CosStatusTone.PRIMARY) }
+                        row.engagementType?.let { CosStatusPill(it.replace('_', ' ')) }
+                    }
+                    row.defaultCostCode?.let {
+                        Text(
+                            "Default cost code: $it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 7.dp),
+                        )
+                    }
+                    if (row.startDate != null || row.endDate != null) {
+                        Text(
+                            "Assignment: ${row.startDate ?: "open"} → ${row.endDate ?: "open"}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
                 }
             }
-            HorizontalDivider()
         }
     }
 }
 
 @Composable
-private fun CrewList(rows: List<WorkforceCrewDirectoryRow>) {
+private fun CrewList(
+    rows: List<WorkforceCrewDirectoryRow>,
+    modifier: Modifier = Modifier,
+) {
     if (rows.isEmpty()) {
-        Text(
+        EmptyWorkforceState(
             "No crews match this search. If offline, the last saved company crews are shown when available.",
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodyMedium,
+            modifier,
         )
         return
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyColumn(
+        modifier = modifier.padding(top = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         items(rows, key = { it.id }) { row ->
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(row.name, style = MaterialTheme.typography.titleMedium)
-                    Text(row.status.replace('_', ' '), style = MaterialTheme.typography.labelMedium)
-                }
-                Text(
-                    "${row.assignedCount} active project assignment${if (row.assignedCount == 1) "" else "s"}",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 3.dp),
-                )
-                row.supervisorName?.let {
-                    Text("Supervisor: $it", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            ) {
+                Column(modifier = Modifier.padding(15.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            row.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        CosStatusPill(
+                            row.status.replace('_', ' '),
+                            tone = if (row.status == "active") CosStatusTone.SUCCESS else CosStatusTone.NEUTRAL,
+                        )
+                    }
+                    Text(
+                        "${row.assignedCount} active project assignment${if (row.assignedCount == 1) "" else "s"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 7.dp),
+                    )
+                    row.supervisorName?.let {
+                        CosStatusPill(
+                            "Supervisor: $it",
+                            tone = CosStatusTone.PRIMARY,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
                 }
             }
-            HorizontalDivider()
         }
+    }
+}
+
+@Composable
+private fun EmptyWorkforceState(message: String, modifier: Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            Icons.Rounded.Groups,
+            contentDescription = null,
+            modifier = Modifier.size(38.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 10.dp),
+        )
     }
 }
