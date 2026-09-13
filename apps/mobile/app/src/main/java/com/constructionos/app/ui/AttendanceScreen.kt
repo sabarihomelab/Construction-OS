@@ -1,21 +1,39 @@
 package com.constructionos.app.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,6 +47,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.constructionos.app.core.attendance.AttendanceRepository
 import com.constructionos.app.core.authorization.hasProjectPermission
@@ -37,6 +57,9 @@ import com.constructionos.app.core.database.AttendanceRegisterEntity
 import com.constructionos.app.core.database.AttendanceSyncState
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.network.SessionContextResponse
+import com.constructionos.app.ui.design.CosMetricCard
+import com.constructionos.app.ui.design.CosStatusPill
+import com.constructionos.app.ui.design.CosStatusTone
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -100,71 +123,67 @@ fun AttendanceScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
+            IconButton(onClick = onBack) {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text("Attendance", style = MaterialTheme.typography.headlineSmall)
-                Text(project.name, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    project.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (register != null) {
+                CosStatusPill(
+                    text = syncStateLabel(register.syncState),
+                    tone = attendanceSyncTone(register.syncState),
+                )
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedButton(
-                onClick = { selectedDate = selectedLocalDate.minusDays(1).toString() },
-            ) { Text("‹") }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    selectedLocalDate.format(DateTimeFormatter.ofPattern("EEE, d MMM")),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(selectedDate, style = MaterialTheme.typography.labelSmall)
-            }
-            OutlinedButton(
-                onClick = { selectedDate = selectedLocalDate.plusDays(1).toString() },
-                enabled = selectedLocalDate < today,
-            ) { Text("›") }
-        }
+        AttendanceDatePicker(
+            date = selectedLocalDate,
+            today = today,
+            onPrevious = { selectedDate = selectedLocalDate.minusDays(1).toString() },
+            onNext = { selectedDate = selectedLocalDate.plusDays(1).toString() },
+            modifier = Modifier.padding(top = 8.dp),
+        )
 
         if (register != null) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
+                CosStatusPill(
                     text = register.status.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                    style = MaterialTheme.typography.labelLarge,
+                    tone = attendanceStatusTone(register.status),
                 )
-                Text(
-                    text = syncStateLabel(register.syncState),
-                    color = if (register.syncState == AttendanceSyncState.NEEDS_ATTENTION) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                    style = MaterialTheme.typography.labelLarge,
-                )
+                if (register.syncState == AttendanceSyncState.NEEDS_ATTENTION) {
+                    CosStatusPill("Needs attention", tone = CosStatusTone.ERROR)
+                }
             }
         }
 
-        if (message != null) {
-            Text(
-                message.orEmpty(),
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+        message?.let {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+            ) {
+                Text(it, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodyMedium)
+            }
         }
 
         if (register == null) {
@@ -209,6 +228,51 @@ fun AttendanceScreen(
 }
 
 @Composable
+private fun AttendanceDatePicker(
+    date: LocalDate,
+    today: LocalDate,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onPrevious) {
+                Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous day")
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    date.format(DateTimeFormatter.ofPattern("EEE, d MMM")),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    if (date == today) "Today" else date.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onNext, enabled = date < today) {
+                Icon(Icons.Rounded.ChevronRight, contentDescription = "Next day")
+            }
+        }
+    }
+}
+
+@Composable
 private fun AttendanceNotStarted(
     workerCount: Int,
     canCreate: Boolean,
@@ -217,23 +281,41 @@ private fun AttendanceNotStarted(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 20.dp),
+            .padding(top = 18.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            Text("Attendance not started", style = MaterialTheme.typography.titleMedium)
+        Column(modifier = Modifier.padding(20.dp)) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(52.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.Groups, contentDescription = null)
+                }
+            }
+            Text(
+                "Attendance not started",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(top = 16.dp),
+            )
             Text(
                 if (workerCount > 0) {
-                    "$workerCount active workers are saved for this date."
+                    "$workerCount active workers are ready for this date."
                 } else {
                     "No cached workers are available for this date yet."
                 },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
             )
             if (canCreate) {
                 Button(
                     onClick = onStart,
                     enabled = workerCount > 0,
-                    modifier = Modifier.padding(top = 16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 18.dp),
                 ) {
                     Text("Start attendance")
                 }
@@ -241,7 +323,7 @@ private fun AttendanceNotStarted(
                 Text(
                     "You have read-only access for attendance.",
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 12.dp),
+                    modifier = Modifier.padding(top = 14.dp),
                 )
             }
         }
@@ -283,12 +365,17 @@ private fun AttendanceRegisterBoard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp),
+                .padding(top = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            AttendanceCountCard("Total", entries.size, Modifier.weight(1f))
-            AttendanceCountCard("Marked", marked, Modifier.weight(1f))
-            AttendanceCountCard("Remaining", remaining, Modifier.weight(1f))
+            CosMetricCard(entries.size.toString(), "Total", Modifier.weight(1f))
+            CosMetricCard(marked.toString(), "Marked", Modifier.weight(1f), CosStatusTone.SUCCESS)
+            CosMetricCard(
+                remaining.toString(),
+                "Remaining",
+                Modifier.weight(1f),
+                if (remaining == 0) CosStatusTone.SUCCESS else CosStatusTone.WARNING,
+            )
         }
 
         Row(
@@ -308,11 +395,11 @@ private fun AttendanceRegisterBoard(
                             it.markStatus == AttendanceRepository.MARK_WEEKLY_OFF
                     }
                 }
-                if (tab == selectedTab) {
-                    Button(onClick = { onTabChange(tab) }) { Text("${tab.label} $count") }
-                } else {
-                    OutlinedButton(onClick = { onTabChange(tab) }) { Text("${tab.label} $count") }
-                }
+                FilterChip(
+                    selected = tab == selectedTab,
+                    onClick = { onTabChange(tab) },
+                    label = { Text("${tab.label} $count") },
+                )
             }
         }
 
@@ -320,16 +407,15 @@ private fun AttendanceRegisterBoard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(top = 8.dp),
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 AttendanceMoreStatus.entries.forEach { status ->
-                    if (status == selectedMoreStatus) {
-                        Button(onClick = { onMoreStatusChange(status) }) { Text(status.label) }
-                    } else {
-                        OutlinedButton(onClick = { onMoreStatusChange(status) }) { Text(status.label) }
-                    }
+                    FilterChip(
+                        selected = status == selectedMoreStatus,
+                        onClick = { onMoreStatusChange(status) },
+                        label = { Text(status.label) },
+                    )
                 }
             }
         }
@@ -337,11 +423,13 @@ private fun AttendanceRegisterBoard(
         OutlinedTextField(
             value = search,
             onValueChange = onSearchChange,
-            label = { Text("Search worker") },
+            placeholder = { Text("Search worker, number or trade") },
+            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
             singleLine = true,
+            shape = MaterialTheme.shapes.large,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 12.dp),
+                .padding(top = 8.dp),
         )
 
         if (editable && remaining > 0) {
@@ -370,6 +458,7 @@ private fun AttendanceRegisterBoard(
             Text(
                 "Read only unless an authorized user reopens this register.",
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 10.dp),
             )
         }
@@ -386,15 +475,21 @@ private fun AttendanceRegisterBoard(
             belongsToBucket && matchesSearch
         }
 
-        Text(
-            "${selectedTab.label} • ${visibleEntries.size} available",
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(top = 14.dp, bottom = 8.dp),
-        )
+        Row(
+            modifier = Modifier.padding(top = 12.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                selectedTab.label,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            CosStatusPill("${visibleEntries.size} available")
+        }
 
         LazyColumn(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             items(
                 items = visibleEntries.chunked(2),
@@ -402,11 +497,11 @@ private fun AttendanceRegisterBoard(
             ) { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(9.dp),
                 ) {
                     if (row.isNotEmpty()) {
                         val entry = row[0]
-                        WorkerAttendanceButton(
+                        WorkerAttendanceCard(
                             entry = entry,
                             targetStatus = targetStatus,
                             editable = editable,
@@ -434,7 +529,7 @@ private fun AttendanceRegisterBoard(
                     }
                     if (row.size > 1) {
                         val entry = row[1]
-                        WorkerAttendanceButton(
+                        WorkerAttendanceCard(
                             entry = entry,
                             targetStatus = targetStatus,
                             editable = editable,
@@ -501,133 +596,129 @@ private fun AttendanceWorkflowActions(
     val scope = rememberCoroutineScope()
     val serverReady = register.revision > 0 && register.syncState == AttendanceSyncState.SYNCED
 
-    Column(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 12.dp),
+            .padding(top = 10.dp),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        if (canShowSubmit) {
-            Button(
-                onClick = {
-                    scope.launch {
-                        busy = true
-                        onError(null)
-                        runCatching {
-                            repository.submitRegister(register.projectId, register.id)
-                        }.onFailure {
-                            onError(it.message ?: "Attendance could not be submitted")
-                        }
-                        busy = false
-                    }
-                },
-                enabled = remaining == 0 && serverReady && !busy,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Submit attendance")
-            }
-            when {
-                remaining > 0 -> Text(
-                    "$remaining worker${if (remaining == 1) " is" else "s are"} still unmarked.",
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-
-                !serverReady -> Text(
-                    "Saved. Submit becomes available after the register finishes syncing.",
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-        }
-
-        if (canShowReview || canShowReopen) {
-            OutlinedTextField(
-                value = reason,
-                onValueChange = { reason = it },
-                label = { Text(if (canShowReview) "Review note / reason" else "Reason for reopening") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-            )
-        }
-
-        if (canShowReview) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedButton(
-                    onClick = {
-                        scope.launch {
-                            busy = true
-                            onError(null)
-                            runCatching {
-                                repository.rejectRegister(register.projectId, register.id, reason)
-                            }.onSuccess { reason = "" }
-                                .onFailure { onError(it.message ?: "Attendance could not be rejected") }
-                            busy = false
-                        }
-                    },
-                    enabled = serverReady && reason.isNotBlank() && !busy,
-                    modifier = Modifier.weight(1f),
-                ) { Text("Reject") }
+        Column(modifier = Modifier.padding(12.dp)) {
+            if (canShowSubmit) {
                 Button(
                     onClick = {
                         scope.launch {
                             busy = true
                             onError(null)
                             runCatching {
-                                repository.approveRegister(register.projectId, register.id, reason)
-                            }.onSuccess { reason = "" }
-                                .onFailure { onError(it.message ?: "Attendance could not be approved") }
+                                repository.submitRegister(register.projectId, register.id)
+                            }.onFailure {
+                                onError(it.message ?: "Attendance could not be submitted")
+                            }
                             busy = false
                         }
                     },
-                    enabled = serverReady && !busy,
-                    modifier = Modifier.weight(1f),
-                ) { Text("Approve") }
+                    enabled = remaining == 0 && serverReady && !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Submit attendance")
+                }
+                when {
+                    remaining > 0 -> Text(
+                        "$remaining worker${if (remaining == 1) " is" else "s are"} still unmarked.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 5.dp),
+                    )
+                    !serverReady -> Text(
+                        "Saved locally. Submit unlocks after sync completes.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 5.dp),
+                    )
+                }
             }
-        }
 
-        if (canShowReopen) {
-            TextButton(
-                onClick = {
-                    scope.launch {
-                        busy = true
-                        onError(null)
-                        runCatching {
-                            repository.reopenRegister(register.projectId, register.id, reason)
-                        }.onSuccess { reason = "" }
-                            .onFailure { onError(it.message ?: "Attendance could not be reopened") }
-                        busy = false
-                    }
-                },
-                enabled = serverReady && reason.isNotBlank() && !busy,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Reopen for correction")
+            if (canShowReview || canShowReopen) {
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it },
+                    label = { Text(if (canShowReview) "Review note / reason" else "Reason for reopening") },
+                    shape = MaterialTheme.shapes.large,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                )
+            }
+
+            if (canShowReview) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                busy = true
+                                onError(null)
+                                runCatching {
+                                    repository.rejectRegister(register.projectId, register.id, reason)
+                                }.onSuccess { reason = "" }
+                                    .onFailure { onError(it.message ?: "Attendance could not be rejected") }
+                                busy = false
+                            }
+                        },
+                        enabled = serverReady && reason.isNotBlank() && !busy,
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Reject") }
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                busy = true
+                                onError(null)
+                                runCatching {
+                                    repository.approveRegister(register.projectId, register.id, reason)
+                                }.onSuccess { reason = "" }
+                                    .onFailure { onError(it.message ?: "Attendance could not be approved") }
+                                busy = false
+                            }
+                        },
+                        enabled = serverReady && !busy,
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Approve") }
+                }
+            }
+
+            if (canShowReopen) {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            onError(null)
+                            runCatching {
+                                repository.reopenRegister(register.projectId, register.id, reason)
+                            }.onSuccess { reason = "" }
+                                .onFailure { onError(it.message ?: "Attendance could not be reopened") }
+                            busy = false
+                        }
+                    },
+                    enabled = serverReady && reason.isNotBlank() && !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Reopen for correction")
+                }
             }
         }
     }
 }
 
 @Composable
-private fun AttendanceCountCard(label: String, count: Int, modifier: Modifier = Modifier) {
-    Card(modifier = modifier) {
-        Column(
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(count.toString(), style = MaterialTheme.typography.titleLarge)
-            Text(label, style = MaterialTheme.typography.labelSmall)
-        }
-    }
-}
-
-@Composable
-private fun WorkerAttendanceButton(
+private fun WorkerAttendanceCard(
     entry: AttendanceEntryEntity,
     targetStatus: String,
     editable: Boolean,
@@ -635,42 +726,88 @@ private fun WorkerAttendanceButton(
     modifier: Modifier = Modifier,
 ) {
     val selected = entry.markStatus == targetStatus
-    if (selected) {
-        Button(
-            onClick = onClick,
-            enabled = editable,
-            modifier = modifier,
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("✓ ${entry.workerName}")
-                if (!entry.trade.isNullOrBlank()) {
-                    Text(entry.trade, style = MaterialTheme.typography.labelSmall)
-                }
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && editable) 0.97f else 1f,
+        animationSpec = spring(stiffness = 700f, dampingRatio = 0.82f),
+        label = "attendance-worker-scale",
+    )
+
+    Card(
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
             }
-        }
-    } else {
-        OutlinedButton(
-            onClick = onClick,
-            enabled = editable,
-            modifier = modifier,
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(entry.workerName)
-                if (!entry.trade.isNullOrBlank()) {
-                    Text(entry.trade, style = MaterialTheme.typography.labelSmall)
-                }
+            .then(
+                if (editable) {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                },
+            ),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+            },
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = if (selected) "✓ ${entry.workerName}" else entry.workerName,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                maxLines = 2,
+            )
+            val secondary = listOfNotNull(
+                entry.workerNumber.takeIf { it.isNotBlank() },
+                entry.trade?.takeIf { it.isNotBlank() },
+            ).joinToString(" • ")
+            if (secondary.isNotBlank()) {
+                Text(
+                    secondary,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                    maxLines = 1,
+                )
             }
         }
     }
 }
 
+private fun attendanceSyncTone(syncState: String): CosStatusTone = when (syncState) {
+    AttendanceSyncState.SYNCED -> CosStatusTone.SUCCESS
+    AttendanceSyncState.NEEDS_ATTENTION -> CosStatusTone.ERROR
+    AttendanceSyncState.SYNCING -> CosStatusTone.PRIMARY
+    AttendanceSyncState.WAITING_FOR_NETWORK -> CosStatusTone.WARNING
+    else -> CosStatusTone.NEUTRAL
+}
+
+private fun attendanceStatusTone(status: String): CosStatusTone = when (status) {
+    AttendanceRepository.STATUS_APPROVED -> CosStatusTone.SUCCESS
+    AttendanceRepository.STATUS_REJECTED -> CosStatusTone.ERROR
+    AttendanceRepository.STATUS_IN_REVIEW,
+    AttendanceRepository.STATUS_SUBMITTED -> CosStatusTone.PRIMARY
+    else -> CosStatusTone.NEUTRAL
+}
+
 private fun syncStateLabel(syncState: String): String = when (syncState) {
-    AttendanceSyncState.SAVED_ON_DEVICE -> "Saved on device"
-    AttendanceSyncState.WAITING_FOR_NETWORK -> "Waiting for network"
+    AttendanceSyncState.SAVED_ON_DEVICE -> "Saved"
+    AttendanceSyncState.WAITING_FOR_NETWORK -> "Offline"
     AttendanceSyncState.SYNCING -> "Syncing"
-    AttendanceSyncState.NEEDS_ATTENTION -> "Needs attention"
+    AttendanceSyncState.NEEDS_ATTENTION -> "Attention"
     AttendanceSyncState.SYNCED -> "Synced"
-    else -> "Saved on device"
+    else -> "Saved"
 }
 
 private fun todayFor(project: ProjectEntity): LocalDate {
