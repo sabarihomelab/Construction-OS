@@ -61,6 +61,16 @@ def test_available_module_page_inherits_deployment_module_gate() -> None:
     assert "commercial.parties" in {feature.key for feature in with_commercial}
 
 
+def test_attendance_is_visible_from_attendance_permission_without_worker_admin_permission() -> None:
+    features = resolve_visible_features(
+        {"workforce.attendance.view"},
+        deployment_modules=frozenset({"workforce"}),
+    )
+    keys = {feature.key for feature in features}
+    assert "workforce.attendance" in keys
+    assert "workforce" not in keys
+
+
 def test_only_available_features_are_shown_by_default() -> None:
     permissions = set(PERMISSIONS_BY_KEY)
     visible = resolve_visible_features(permissions)
