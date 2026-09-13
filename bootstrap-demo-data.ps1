@@ -19,7 +19,7 @@ if (-not (Test-Path (Join-Path $PSScriptRoot '.env'))) {
 
 $args = @(
     '-m',
-    'app.runtime.bootstrap_demo_data',
+    'app.runtime.bootstrap_demo',
     '--admin-email', $AdminEmail,
     '--project-number', $ProjectNumber,
     '--project-name', $ProjectName
