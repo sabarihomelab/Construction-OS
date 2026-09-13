@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "construction-os-api"
+version = "0.2.0"
+description = "Construction OS API"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.141.1",
+  "uvicorn[standard]>=0.35,<1",
+  "sqlalchemy[asyncio]>=2.0,<3",
+  "asyncpg>=0.30,<1",
+  "pydantic-settings>=2.10,<3",
+  "email-validator>=2.2,<3",
+  "alembic>=1.16,<2",
+  "httpx>=0.28,<1",
+  "openpyxl>=3.1,<4",
+  "python-docx>=1.2,<2",
+  "reportlab>=4.4,<5"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.4,<9", "pytest-asyncio>=1.1,<2", "ruff>=0.12,<1"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["migrations*", "tests*"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint.per-file-ignores]
+"app/db/model_registry.py" = ["RUF022"]
+"app/modules/commercial/boq_service.py" = ["B023", "FURB157", "I001"]
+"app/modules/commercial/service.py" = ["FURB157", "I001"]
+"app/modules/configuration/registry.py" = ["FURB157"]
+"app/modules/estimating/governed_router.py" = ["FURB157", "I001"]
+"app/modules/estimating/governed_service.py" = ["F401", "FURB157", "I001"]
+"app/modules/scheduling/service.py" = ["SIM102"]
+"app/modules/workforce/attendance_service.py" = ["I001"]
+"app/modules/workforce/router.py" = ["I001"]

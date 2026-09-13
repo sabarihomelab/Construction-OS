@@ -1,0 +1,38 @@
+# Node
+node_modules/
+.next/
+out/
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Installation state and local backups
+.construction-os/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Android / Gradle
+.gradle/
+local.properties
+*.iml
+captures/
+
+# Build
+build/
+dist/
+*.egg-info/

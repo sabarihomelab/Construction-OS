@@ -1,0 +1,201 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - run: npm run build
+
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[dev]'
+      - run: ruff check app tests migrations
+      - run: python -m compileall app migrations
+      - run: pytest -q
+
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 15859902
+          packages: platform-tools
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0" --channel=3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Lint, test, and build debug APK
+        run: gradle :app:lintDebug :app:testDebugUnitTest :app:assembleDebug --stacktrace
+
+  local-stack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PowerShell installer syntax
+        shell: pwsh
+        run: |
+          foreach ($path in @('./setup.ps1', './bootstrap-company.ps1', './bootstrap-demo-data.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$path - $($_.Message)" }
+              exit 1
+            }
+          }
+      - name: Prepare local environment
+        run: cp .env.example .env
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Start complete local stack
+        run: |
+          if ! docker compose up -d --build; then
+            docker compose ps -a
+            docker compose logs --tail=200 postgres api worker web
+            exit 1
+          fi
+      - name: Wait for API
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:8000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps -a
+          docker compose logs --tail=200 api worker
+          exit 1
+      - name: Validate live API readiness and composition
+        run: |
+          EXPECTED_MODULES=$(docker compose exec -T api python -c 'import json; from app.core.config import get_settings; from app.runtime.deployment import build_runtime_plan; print(json.dumps(sorted(build_runtime_plan(get_settings()).module_keys)))')
+          export EXPECTED_MODULES
+          python - <<'PY'
+          import json
+          import os
+          from urllib.request import urlopen
+
+          expected_modules = set(json.loads(os.environ["EXPECTED_MODULES"]))
+
+          with urlopen("http://localhost:8000/health/ready", timeout=5) as response:
+              readiness = json.load(response)
+          assert readiness["status"] == "ready"
+          assert expected_modules == set(readiness["runtime_modules"])
+
+          with urlopen("http://localhost:8000/openapi.json", timeout=5) as response:
+              openapi = json.load(response)
+          paths = set(openapi["paths"])
+          required_paths = {
+              "/api/v1/projects",
+              "/api/v1/configuration/modules/{module_key}",
+              "/api/v1/safety/inspection-templates",
+              "/api/v1/equipment/assets",
+              "/api/v1/projects/{project_id}/meetings",
+              "/api/v1/projects/{project_id}/daily-reports/{report_id}/report-generation",
+          }
+          missing = sorted(required_paths - paths)
+          assert not missing, f"Missing live API paths: {missing}"
+          PY
+      - name: Validate development demo data bootstrap
+        run: |
+          docker compose exec -T api python -m app.runtime.bootstrap_company \
+            --company-name "CI Demo Construction" \
+            --company-slug "ci-demo" \
+            --admin-email "ci-demo@example.test" \
+            --admin-display-name "CI Demo Admin"
+          CREATED=$(docker compose exec -T api python -m app.runtime.bootstrap_demo \
+            --admin-email "ci-demo@example.test")
+          echo "$CREATED"
+          echo "$CREATED" | grep -q '"status": "created"'
+          EXISTING=$(docker compose exec -T api python -m app.runtime.bootstrap_demo \
+            --admin-email "ci-demo@example.test")
+          echo "$EXISTING"
+          echo "$EXISTING" | grep -q '"status": "exists"'
+      - name: Validate background worker readiness
+        run: |
+          for attempt in $(seq 1 30); do
+            if docker compose ps --services --status running | grep -qx worker && \
+               docker compose logs worker 2>&1 | grep -q "Starting worker"; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker compose ps -a
+              docker compose logs --tail=200 worker
+              exit 1
+            fi
+            sleep 2
+          done
+          docker compose exec -T worker python - <<'PY'
+          from app.core.config import get_settings
+          from app.modules.field.dpr_jobs import DPR_APPROVAL_JOB_TYPE
+          from app.modules.jobs.handlers import JobHandlerRegistry
+          from app.runtime.deployment import build_runtime_plan
+          from app.runtime.worker import register_runtime_handlers
+
+          plan = build_runtime_plan(get_settings())
+          registry = JobHandlerRegistry()
+          register_runtime_handlers(plan, registry)
+          enabled = set(
+              registry.enabled_job_types(
+                  worker_profiles=set(plan.worker_profiles),
+                  module_keys=set(plan.module_keys),
+              )
+          )
+          required = {
+              "search.index_entity",
+              "search.delete_entity",
+              DPR_APPROVAL_JOB_TYPE,
+          }
+          missing = sorted(required - enabled)
+          assert not missing, f"Worker is missing enabled handlers: {missing}"
+          PY
+          docker compose exec -T worker sh -c 'command -v soffice >/dev/null && soffice --version'
+      - name: Wait for web
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3000 >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps -a
+          docker compose logs --tail=200 web
+          exit 1
+      - name: Show local stack status
+        run: docker compose ps
+      - name: Stop local stack
+        if: always()
+        run: docker compose down -v --remove-orphans
