@@ -1,20 +1,31 @@
 package com.constructionos.app.ui
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,7 +39,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.constructionos.app.core.authorization.hasProjectPermission
 import com.constructionos.app.core.database.DprBoqReferenceEntity
@@ -42,6 +52,8 @@ import com.constructionos.app.core.dpr.DprDelayDraft
 import com.constructionos.app.core.dpr.DprRepository
 import com.constructionos.app.core.dpr.DprWorkProgressDraft
 import com.constructionos.app.core.network.SessionContextResponse
+import com.constructionos.app.ui.design.CosStatusPill
+import com.constructionos.app.ui.design.CosStatusTone
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -105,33 +117,53 @@ fun DailyReportScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
+            IconButton(onClick = onBack) {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+            }
             Column(modifier = Modifier.weight(1f)) {
-                Text("Daily report", style = MaterialTheme.typography.titleLarge)
-                Text(project.name, style = MaterialTheme.typography.bodySmall)
+                Text("Daily report", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    project.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            report?.let {
+                CosStatusPill(
+                    text = dprSyncStateLabel(it.syncState),
+                    tone = dprSyncTone(it.syncState),
+                )
             }
         }
 
-        DprTabs(
-            selected = DprTab.valueOf(selectedTab),
-            onSelect = { selectedTab = it.name },
-        )
+        Row(
+            modifier = Modifier.padding(top = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            DprTab.entries.forEach { tab ->
+                FilterChip(
+                    selected = DprTab.valueOf(selectedTab) == tab,
+                    onClick = { selectedTab = tab.name },
+                    label = { Text(tab.label) },
+                )
+            }
+        }
 
-        if (message != null) {
-            Text(
-                text = message.orEmpty(),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+        message?.let {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(10.dp))
+            }
         }
 
         when (DprTab.valueOf(selectedTab)) {
@@ -220,29 +252,6 @@ fun DailyReportScreen(
 }
 
 @Composable
-private fun DprTabs(
-    selected: DprTab,
-    onSelect: (DprTab) -> Unit,
-) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        DprTab.entries.forEach { tab ->
-            Column(modifier = Modifier.weight(1f)) {
-                TextButton(onClick = { onSelect(tab) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = tab.label,
-                        fontWeight = if (selected == tab) FontWeight.Bold else FontWeight.Normal,
-                    )
-                }
-                HorizontalDivider(
-                    thickness = if (selected == tab) 3.dp else 1.dp,
-                    color = if (selected == tab) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun DailyReportTodayContent(
     report: DprReportEntity?,
     selectedDate: String,
@@ -271,96 +280,125 @@ private fun DailyReportTodayContent(
     val date = LocalDate.parse(selectedDate)
 
     Column(modifier = modifier.verticalScroll(rememberScrollState())) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         ) {
-            OutlinedButton(onClick = onPreviousDay) { Text("‹") }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = date.format(DateTimeFormatter.ofPattern("EEE, d MMM")),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                if (date == today) Text("Today", style = MaterialTheme.typography.labelSmall)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onPreviousDay) {
+                    Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous day")
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        date.format(DateTimeFormatter.ofPattern("EEE, d MMM")),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        if (date == today) "Today • Day shift" else "Day shift",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = onNextDay, enabled = date < today) {
+                    Icon(Icons.Rounded.ChevronRight, contentDescription = "Next day")
+                }
             }
-            OutlinedButton(onClick = onNextDay, enabled = date < today) { Text("›") }
         }
 
-        HorizontalDivider()
-
         if (report == null) {
-            Text(
-                "No daily report yet",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 18.dp),
-            )
-            Text(
-                "Start with the minimum site information. The draft is saved on this device first.",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            if (canCreate) {
-                DprReportDetailsFields(
-                    weather = weather,
-                    notes = notes,
-                    showNotes = showNotes,
-                    onWeatherChange = onWeatherChange,
-                    onNotesChange = onNotesChange,
-                )
-                Button(
-                    onClick = onStart,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 14.dp),
-                ) {
-                    Text("Start report")
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("No daily report yet", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Start with the minimum site information. The draft is saved on this device first.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    if (canCreate) {
+                        DprReportDetailsFields(
+                            weather = weather,
+                            notes = notes,
+                            showNotes = showNotes,
+                            onWeatherChange = onWeatherChange,
+                            onNotesChange = onNotesChange,
+                        )
+                        Button(
+                            onClick = onStart,
+                            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                        ) {
+                            Text("Start report")
+                        }
+                    } else {
+                        Text(
+                            "You have view-only access for daily reports.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 14.dp),
+                        )
+                    }
                 }
-            } else {
-                Text(
-                    "You have view-only access for daily reports.",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 14.dp),
-                )
             }
             return
         }
 
         DailyReportStatus(report)
 
-        if (report.status == DprRepository.STATUS_DRAFT && canUpdate) {
-            DprReportDetailsFields(
-                weather = weather,
-                notes = notes,
-                showNotes = showNotes,
-                onWeatherChange = onWeatherChange,
-                onNotesChange = onNotesChange,
-            )
-            Button(
-                onClick = { onSaveDetails(report.id) },
-                enabled = report.canQueueHeaderEdit(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 14.dp),
-            ) {
-                Text("Save report details")
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+            shape = MaterialTheme.shapes.extraLarge,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        ) {
+            Column(modifier = Modifier.padding(15.dp)) {
+                if (report.status == DprRepository.STATUS_DRAFT && canUpdate) {
+                    DprReportDetailsFields(
+                        weather = weather,
+                        notes = notes,
+                        showNotes = showNotes,
+                        onWeatherChange = onWeatherChange,
+                        onNotesChange = onNotesChange,
+                    )
+                    Button(
+                        onClick = { onSaveDetails(report.id) },
+                        enabled = report.canQueueHeaderEdit(),
+                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                    ) {
+                        Text("Save report details")
+                    }
+                    Text(
+                        text = when {
+                            report.syncState == DprSyncState.NEEDS_ATTENTION ->
+                                "This report needs sync attention before another details change can be saved."
+                            !report.canQueueHeaderEdit() ->
+                                "Finish syncing the previous report change before saving details again."
+                            else ->
+                                "Saved on this device first and synced in the background."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                } else {
+                    DailyReportSummary(report, showNotes)
+                }
             }
-            Text(
-                text = when {
-                    report.syncState == DprSyncState.NEEDS_ATTENTION ->
-                        "This report needs sync attention before another details change can be saved."
-                    !report.canQueueHeaderEdit() ->
-                        "Finish syncing the previous report change before saving details again."
-                    else ->
-                        "Report details are saved on this device first and synced in the background."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-        } else {
-            DailyReportSummary(report, showNotes)
         }
 
         if (showWork) {
@@ -393,35 +431,24 @@ private fun DprReportDetailsFields(
     onWeatherChange: (String) -> Unit,
     onNotesChange: (String) -> Unit,
 ) {
-    Text(
-        "Report details",
-        style = MaterialTheme.typography.titleSmall,
-        modifier = Modifier.padding(top = 12.dp),
-    )
+    Text("Report details", style = MaterialTheme.typography.titleMedium)
     OutlinedTextField(
         value = weather,
         onValueChange = onWeatherChange,
         label = { Text("Weather (optional)") },
         singleLine = true,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
     )
     if (showNotes) {
-        Text(
-            "Notes",
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(top = 14.dp),
-        )
         OutlinedTextField(
             value = notes,
             onValueChange = onNotesChange,
             label = { Text("Site notes (optional)") },
             minLines = 3,
             maxLines = 6,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 6.dp),
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
         )
     }
 }
@@ -445,15 +472,15 @@ private fun DprWorkProgressSection(
     var progress by rememberSaveable(report.id) { mutableStateOf("") }
     var remarks by rememberSaveable(report.id) { mutableStateOf("") }
 
-    HorizontalDivider(modifier = Modifier.padding(top = 22.dp))
     Text(
         "Work progress",
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(top = 16.dp),
+        style = MaterialTheme.typography.titleLarge,
+        modifier = Modifier.padding(top = 20.dp),
     )
     Text(
         if (rows.isEmpty()) "No work progress recorded yet" else "${rows.size} work item${if (rows.size == 1) "" else "s"} recorded",
         style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 3.dp, bottom = 8.dp),
     )
 
@@ -465,210 +492,227 @@ private fun DprWorkProgressSection(
                 ?.let { "${it.code} • ${it.name}" }
             else -> null
         } ?: "Linked work item"
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp),
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         ) {
-            Text(reference, style = MaterialTheme.typography.labelLarge)
-            Text(row.description, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
-            val details = buildList {
-                row.quantity?.let { value -> add(value + row.unitCode?.let { " $it" }.orEmpty()) }
-                row.progressPercent?.let { add("$it%") }
-                row.location?.takeIf { it.isNotBlank() }?.let(::add)
-            }.joinToString(" • ")
-            if (details.isNotBlank()) {
-                Text(details, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
-            }
-            row.remarks?.takeIf { it.isNotBlank() }?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
-            }
-            if (editable) {
-                TextButton(
-                    onClick = { onSave(rows.filterNot { it.id == row.id }.map(DprWorkProgressEntity::toDraft)) },
-                ) {
-                    Text("Remove")
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(reference, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    row.progressPercent?.let { CosStatusPill("$it%", CosStatusTone.PRIMARY) }
+                }
+                Text(row.description, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 5.dp))
+                val details = buildList {
+                    row.quantity?.let { value -> add(value + row.unitCode?.let { " $it" }.orEmpty()) }
+                    row.location?.takeIf { it.isNotBlank() }?.let(::add)
+                }.joinToString(" • ")
+                if (details.isNotBlank()) {
+                    Text(
+                        details,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                row.remarks?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+                }
+                if (editable) {
+                    TextButton(
+                        onClick = { onSave(rows.filterNot { it.id == row.id }.map(DprWorkProgressEntity::toDraft)) },
+                    ) {
+                        Text("Remove")
+                    }
                 }
             }
         }
-        HorizontalDivider()
     }
 
     if (!editable) return
 
-    Text(
-        "Add work",
-        style = MaterialTheme.typography.titleSmall,
-        modifier = Modifier.padding(top = 18.dp),
-    )
-    OutlinedTextField(
-        value = search,
-        onValueChange = { search = it },
-        label = { Text("Find WBS or approved BOQ item") },
-        singleLine = true,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
-    )
-
-    val normalizedSearch = search.trim().lowercase()
-    val matchingWbs = wbsReferences.asSequence()
-        .filter {
-            normalizedSearch.isEmpty() ||
-                it.code.lowercase().contains(normalizedSearch) ||
-                it.name.lowercase().contains(normalizedSearch)
-        }
-        .take(4)
-        .toList()
-    val matchingBoq = boqReferences.asSequence()
-        .filter {
-            normalizedSearch.isEmpty() ||
-                it.boqCode.lowercase().contains(normalizedSearch) ||
-                it.itemCode.lowercase().contains(normalizedSearch) ||
-                it.description.lowercase().contains(normalizedSearch)
-        }
-        .take(4)
-        .toList()
-
-    if (matchingWbs.isNotEmpty()) {
-        Text("WBS / Cost Codes", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 10.dp))
-        matchingWbs.forEach { item ->
-            TextButton(
-                onClick = {
-                    selectedWbsId = item.id
-                    selectedBoqId = null
-                    search = "${item.code} • ${item.name}"
-                    if (description.isBlank()) description = item.name
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("${item.code} • ${item.name}", modifier = Modifier.fillMaxWidth())
-            }
-        }
-    }
-
-    if (matchingBoq.isNotEmpty()) {
-        Text("Approved BOQ", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
-        matchingBoq.forEach { item ->
-            TextButton(
-                onClick = {
-                    selectedBoqId = item.id
-                    selectedWbsId = item.wbsCodeId
-                    search = "${item.boqCode} • ${item.itemCode}"
-                    description = item.description
-                    unitCode = item.unitCode
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("${item.boqCode} • ${item.itemCode} — ${item.description}", modifier = Modifier.fillMaxWidth())
-            }
-        }
-    }
-
-    OutlinedTextField(
-        value = description,
-        onValueChange = { description = it },
-        label = { Text("Work description") },
-        minLines = 2,
-        maxLines = 4,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
-    )
-    OutlinedTextField(
-        value = location,
-        onValueChange = { location = it },
-        label = { Text("Location (optional)") },
-        singleLine = true,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
-    )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        OutlinedTextField(
-            value = quantity,
-            onValueChange = { quantity = it },
-            label = { Text("Quantity") },
-            singleLine = true,
-            modifier = Modifier.weight(1f),
-        )
-        OutlinedTextField(
-            value = unitCode,
-            onValueChange = { unitCode = it },
-            label = { Text("Unit") },
-            singleLine = true,
-            modifier = Modifier.weight(1f),
-        )
-    }
-    OutlinedTextField(
-        value = progress,
-        onValueChange = { progress = it },
-        label = { Text("Progress % (optional)") },
-        singleLine = true,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
-    )
-    OutlinedTextField(
-        value = remarks,
-        onValueChange = { remarks = it },
-        label = { Text("Remarks (optional)") },
-        minLines = 2,
-        maxLines = 4,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
-    )
-    Button(
-        onClick = {
-            val next = rows.map(DprWorkProgressEntity::toDraft) + DprWorkProgressDraft(
-                wbsCodeId = selectedWbsId,
-                boqItemId = selectedBoqId,
-                description = description,
-                location = location,
-                quantity = quantity,
-                unitCode = unitCode,
-                progressPercent = progress,
-                remarks = remarks,
+        Column(modifier = Modifier.padding(15.dp)) {
+            Text("Add work", style = MaterialTheme.typography.titleMedium)
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                label = { Text("Find WBS or approved BOQ item") },
+                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                singleLine = true,
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
-            onSave(next)
-            selectedWbsId = null
-            selectedBoqId = null
-            search = ""
-            description = ""
-            location = ""
-            quantity = ""
-            unitCode = ""
-            progress = ""
-            remarks = ""
-        },
-        enabled = (selectedWbsId != null || selectedBoqId != null) && description.isNotBlank(),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 24.dp),
-    ) {
-        Text("Add work progress")
+
+            val normalizedSearch = search.trim().lowercase()
+            val matchingWbs = wbsReferences.asSequence()
+                .filter {
+                    normalizedSearch.isEmpty() ||
+                        it.code.lowercase().contains(normalizedSearch) ||
+                        it.name.lowercase().contains(normalizedSearch)
+                }
+                .take(4)
+                .toList()
+            val matchingBoq = boqReferences.asSequence()
+                .filter {
+                    normalizedSearch.isEmpty() ||
+                        it.boqCode.lowercase().contains(normalizedSearch) ||
+                        it.itemCode.lowercase().contains(normalizedSearch) ||
+                        it.description.lowercase().contains(normalizedSearch)
+                }
+                .take(4)
+                .toList()
+
+            if (matchingWbs.isNotEmpty()) {
+                Text("WBS / Cost Codes", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    matchingWbs.forEach { item ->
+                        FilterChip(
+                            selected = selectedWbsId == item.id && selectedBoqId == null,
+                            onClick = {
+                                selectedWbsId = item.id
+                                selectedBoqId = null
+                                search = "${item.code} • ${item.name}"
+                                if (description.isBlank()) description = item.name
+                            },
+                            label = { Text("${item.code} • ${item.name}") },
+                        )
+                    }
+                }
+            }
+
+            if (matchingBoq.isNotEmpty()) {
+                Text("Approved BOQ", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    matchingBoq.forEach { item ->
+                        FilterChip(
+                            selected = selectedBoqId == item.id,
+                            onClick = {
+                                selectedBoqId = item.id
+                                selectedWbsId = item.wbsCodeId
+                                search = "${item.boqCode} • ${item.itemCode}"
+                                description = item.description
+                                unitCode = item.unitCode
+                            },
+                            label = { Text("${item.boqCode} • ${item.itemCode} — ${item.description}") },
+                        )
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Work description") },
+                minLines = 2,
+                maxLines = 4,
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+            OutlinedTextField(
+                value = location,
+                onValueChange = { location = it },
+                label = { Text("Location (optional)") },
+                singleLine = true,
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = quantity,
+                    onValueChange = { quantity = it },
+                    label = { Text("Quantity") },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.large,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = unitCode,
+                    onValueChange = { unitCode = it },
+                    label = { Text("Unit") },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.large,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            OutlinedTextField(
+                value = progress,
+                onValueChange = { progress = it },
+                label = { Text("Progress % (optional)") },
+                singleLine = true,
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+            OutlinedTextField(
+                value = remarks,
+                onValueChange = { remarks = it },
+                label = { Text("Remarks (optional)") },
+                minLines = 2,
+                maxLines = 4,
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+            Button(
+                onClick = {
+                    val next = rows.map(DprWorkProgressEntity::toDraft) + DprWorkProgressDraft(
+                        wbsCodeId = selectedWbsId,
+                        boqItemId = selectedBoqId,
+                        description = description,
+                        location = location,
+                        quantity = quantity,
+                        unitCode = unitCode,
+                        progressPercent = progress,
+                        remarks = remarks,
+                    )
+                    onSave(next)
+                    selectedWbsId = null
+                    selectedBoqId = null
+                    search = ""
+                    description = ""
+                    location = ""
+                    quantity = ""
+                    unitCode = ""
+                    progress = ""
+                    remarks = ""
+                },
+                enabled = (selectedWbsId != null || selectedBoqId != null) && description.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) {
+                Text("Add work progress")
+            }
+        }
     }
 }
 
 @Composable
 private fun DailyReportStatus(report: DprReportEntity) {
-    Text(
-        text = report.status.replace('_', ' ').replaceFirstChar { it.uppercase() },
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(top = 18.dp),
-    )
-    Text(
-        text = dprSyncStateLabel(report.syncState),
-        style = MaterialTheme.typography.labelMedium,
-        color = if (report.syncState == DprSyncState.NEEDS_ATTENTION) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        CosStatusPill(
+            text = report.status.replace('_', ' ').replaceFirstChar { it.uppercase() },
+            tone = dprStatusTone(report.status),
+        )
+        CosStatusPill(
+            text = dprSyncStateLabel(report.syncState),
+            tone = dprSyncTone(report.syncState),
+        )
+    }
 }
 
 @Composable
@@ -685,13 +729,18 @@ private fun DailyReportSummary(report: DprReportEntity, showNotes: Boolean) {
         if (showNotes) {
             DprSummaryRow("Notes", report.notes?.takeIf { it.isNotBlank() } ?: "No notes")
         }
-
         if (report.serverId == null) {
-            Text(
-                "Saved locally. Server creation will retry automatically when a connection is available.",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 14.dp),
-            )
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+            ) {
+                Text(
+                    "Saved locally. Server creation retries automatically when a connection is available.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(10.dp),
+                )
+            }
         }
     }
 }
@@ -699,15 +748,12 @@ private fun DailyReportSummary(report: DprReportEntity, showNotes: Boolean) {
 @Composable
 private fun DprSummaryRow(label: String, value: String) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(text = label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(0.34f))
         Text(text = value, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.66f))
     }
-    HorizontalDivider()
 }
 
 @Composable
@@ -717,9 +763,7 @@ private fun DailyReportHistoryContent(
 ) {
     if (reports.isEmpty()) {
         Column(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(top = 24.dp),
+            modifier = modifier.fillMaxWidth().padding(top = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text("No saved daily reports yet")
@@ -727,38 +771,52 @@ private fun DailyReportHistoryContent(
         return
     }
 
-    LazyColumn(modifier = modifier) {
+    LazyColumn(
+        modifier = modifier.padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         items(reports, key = { it.id }) { report ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        LocalDate.parse(report.reportDate).format(DateTimeFormatter.ofPattern("EEE, d MMM yyyy")),
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Text(report.status.replace('_', ' '), style = MaterialTheme.typography.labelMedium)
-                }
-                val detail = buildList {
-                    report.weatherCondition?.takeIf { it.isNotBlank() }?.let(::add)
-                    add(dprSyncStateLabel(report.syncState))
-                }.joinToString(" • ")
-                Text(detail, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
-                report.notes?.takeIf { it.isNotBlank() }?.let { note ->
-                    Text(
-                        note,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 2,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            LocalDate.parse(report.reportDate).format(DateTimeFormatter.ofPattern("EEE, d MMM yyyy")),
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        CosStatusPill(
+                            report.status.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                            dprStatusTone(report.status),
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.padding(top = 7.dp),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        report.weatherCondition?.takeIf { it.isNotBlank() }?.let { CosStatusPill(it) }
+                        CosStatusPill(dprSyncStateLabel(report.syncState), dprSyncTone(report.syncState))
+                    }
+                    report.notes?.takeIf { it.isNotBlank() }?.let { note ->
+                        Text(
+                            note,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 2,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
                 }
             }
-            HorizontalDivider()
         }
     }
 }
@@ -781,13 +839,29 @@ private fun DprReportEntity.canQueueHeaderEdit(): Boolean = when {
     else -> syncState == DprSyncState.SYNCED
 }
 
+private fun dprStatusTone(status: String): CosStatusTone = when (status) {
+    "approved" -> CosStatusTone.SUCCESS
+    "in_review", "submitted" -> CosStatusTone.PRIMARY
+    "rejected", "void" -> CosStatusTone.ERROR
+    "draft" -> CosStatusTone.WARNING
+    else -> CosStatusTone.NEUTRAL
+}
+
+private fun dprSyncTone(syncState: String): CosStatusTone = when (syncState) {
+    DprSyncState.SYNCED -> CosStatusTone.SUCCESS
+    DprSyncState.SYNCING -> CosStatusTone.PRIMARY
+    DprSyncState.WAITING_FOR_NETWORK -> CosStatusTone.WARNING
+    DprSyncState.NEEDS_ATTENTION -> CosStatusTone.ERROR
+    else -> CosStatusTone.NEUTRAL
+}
+
 private fun dprSyncStateLabel(syncState: String): String = when (syncState) {
-    DprSyncState.SAVED_ON_DEVICE -> "Saved on device"
-    DprSyncState.WAITING_FOR_NETWORK -> "Waiting for network"
+    DprSyncState.SAVED_ON_DEVICE -> "Saved"
+    DprSyncState.WAITING_FOR_NETWORK -> "Offline"
     DprSyncState.SYNCING -> "Syncing"
     DprSyncState.SYNCED -> "Synced"
     DprSyncState.NEEDS_ATTENTION -> "Needs attention"
-    else -> "Saved on device"
+    else -> "Saved"
 }
 
 private fun dprTodayFor(project: ProjectEntity): LocalDate {
