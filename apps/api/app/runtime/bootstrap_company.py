@@ -3,6 +3,7 @@ import asyncio
 import json
 from dataclasses import asdict
 
+from app.db import model_registry  # noqa: F401
 from app.db.session import SessionLocal
 from app.modules.organizations.bootstrap import CompanyBootstrapError, bootstrap_initial_company
 
