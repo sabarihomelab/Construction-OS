@@ -6,15 +6,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Business
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,6 +40,8 @@ import com.constructionos.app.core.database.PartyEntity
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.database.ProjectPartyAssignmentEntity
 import com.constructionos.app.core.parties.PartyRepository
+import com.constructionos.app.ui.design.CosStatusPill
+import com.constructionos.app.ui.design.CosStatusTone
 import kotlinx.coroutines.launch
 
 @Composable
@@ -67,19 +77,7 @@ fun PartyDirectoryScreen(
         }
     }
 
-    LaunchedEffect(organizationId, project.id) {
-        refreshing = true
-        refreshError = null
-        runCatching { repository.refresh(organizationId, project.id) }
-            .onFailure {
-                refreshError = if (parties.isEmpty()) {
-                    "Directory could not be loaded. Check the connection and try again."
-                } else {
-                    "Showing saved directory. Latest server data could not be refreshed."
-                }
-            }
-        refreshing = false
-    }
+    LaunchedEffect(organizationId, project.id) { refresh() }
 
     val rolesByParty = remember(assignments) {
         assignments.groupBy(ProjectPartyAssignmentEntity::partyId)
@@ -101,51 +99,57 @@ fun PartyDirectoryScreen(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
+            IconButton(onClick = onBack) {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+            }
             Column(modifier = Modifier.weight(1f)) {
-                Text("Party directory", style = MaterialTheme.typography.titleLarge)
-                Text(project.name, style = MaterialTheme.typography.bodySmall)
+                Text("Party directory", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    project.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             if (refreshing) {
-                CircularProgressIndicator(modifier = Modifier.padding(8.dp))
+                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+            } else {
+                IconButton(onClick = ::refresh) {
+                    Icon(Icons.Rounded.Refresh, contentDescription = "Refresh")
+                }
             }
         }
-        HorizontalDivider()
 
         OutlinedTextField(
             value = search,
             onValueChange = { search = it },
-            label = { Text("Search company, code or role") },
+            placeholder = { Text("Search company, code or role") },
+            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
             singleLine = true,
+            shape = MaterialTheme.shapes.large,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(top = 10.dp),
         )
 
         refreshError?.let { message ->
-            Row(
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                shape = MaterialTheme.shapes.medium,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(top = 8.dp),
             ) {
-                Text(
-                    message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedButton(onClick = ::refresh, enabled = !refreshing) {
-                    Text("Retry")
-                }
+                Text(message, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(10.dp))
             }
         }
 
@@ -153,19 +157,33 @@ fun PartyDirectoryScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
+                    .padding(top = 30.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(if (search.isBlank()) "No parties available" else "No matching parties")
+                Icon(
+                    Icons.Rounded.Business,
+                    contentDescription = null,
+                    modifier = Modifier.size(38.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    if (search.isBlank()) "No parties available" else "No matching parties",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
             }
         } else {
-            LazyColumn(modifier = Modifier.weight(1f)) {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(top = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 items(visibleParties, key = PartyEntity::id) { party ->
-                    PartyDirectoryRow(
+                    PartyDirectoryCard(
                         party = party,
                         projectRoles = rolesByParty[party.id].orEmpty(),
                     )
-                    HorizontalDivider()
                 }
             }
         }
@@ -173,75 +191,91 @@ fun PartyDirectoryScreen(
 }
 
 @Composable
-private fun PartyDirectoryRow(
+private fun PartyDirectoryCard(
     party: PartyEntity,
     projectRoles: List<String>,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                party.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                party.status.toDisplayLabel(),
-                style = MaterialTheme.typography.labelMedium,
-            )
-        }
-        Text(
-            "${party.code} • ${party.partyType.toDisplayLabel()}",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(top = 2.dp),
-        )
-        party.legalName?.takeIf { it.isNotBlank() && it != party.name }?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 2.dp))
-        }
+        Column(modifier = Modifier.padding(15.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        party.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "${party.code} • ${party.partyType.toDisplayLabel()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                CosStatusPill(
+                    party.status.toDisplayLabel(),
+                    tone = if (party.status.lowercase() == "active") CosStatusTone.SUCCESS else CosStatusTone.NEUTRAL,
+                )
+            }
 
-        Text(
-            if (projectRoles.isEmpty()) {
-                "Company directory"
-            } else {
-                "Project role: ${projectRoles.joinToString { it.toDisplayLabel() }}"
-            },
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(top = 8.dp),
-        )
+            party.legalName?.takeIf { it.isNotBlank() && it != party.name }?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 5.dp),
+                )
+            }
 
-        val contacts = listOfNotNull(
-            party.phone?.takeIf(String::isNotBlank),
-            party.email?.takeIf(String::isNotBlank),
-        )
-        if (contacts.isNotEmpty()) {
-            Text(
-                contacts.joinToString(" • "),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-        }
+            Row(
+                modifier = Modifier.padding(top = 9.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                if (projectRoles.isEmpty()) {
+                    CosStatusPill("Company directory")
+                } else {
+                    projectRoles.take(3).forEach { role ->
+                        CosStatusPill(role.toDisplayLabel(), tone = CosStatusTone.PRIMARY)
+                    }
+                }
+            }
 
-        val address = listOfNotNull(
-            party.addressLine1?.takeIf(String::isNotBlank),
-            party.addressLine2?.takeIf(String::isNotBlank),
-            party.locality?.takeIf(String::isNotBlank),
-            party.stateName?.takeIf(String::isNotBlank),
-            party.postalCode?.takeIf(String::isNotBlank),
-        ).joinToString(", ")
-        if (address.isNotBlank()) {
-            Text(
-                address,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 4.dp),
+            val contacts = listOfNotNull(
+                party.phone?.takeIf(String::isNotBlank),
+                party.email?.takeIf(String::isNotBlank),
             )
+            if (contacts.isNotEmpty()) {
+                Text(
+                    contacts.joinToString(" • "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 9.dp),
+                )
+            }
+
+            val address = listOfNotNull(
+                party.addressLine1?.takeIf(String::isNotBlank),
+                party.addressLine2?.takeIf(String::isNotBlank),
+                party.locality?.takeIf(String::isNotBlank),
+                party.stateName?.takeIf(String::isNotBlank),
+                party.postalCode?.takeIf(String::isNotBlank),
+            ).joinToString(", ")
+            if (address.isNotBlank()) {
+                Text(
+                    address,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
         }
     }
 }
