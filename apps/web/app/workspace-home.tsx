@@ -41,13 +41,21 @@ const primaryWorkspaces: Workspace[] = [
   },
 ];
 
-const supportingWorkspaces: Workspace[] = [
+const focusedWorkspaces: Workspace[] = [
+  {
+    eyebrow: "FIELD",
+    title: "Attendance",
+    detail: "Mark project crews, working hours and cost codes once, then reuse approved attendance in DPR.",
+    href: "/field/attendance",
+    code: "04",
+    meta: "Authoritative workforce record",
+  },
   {
     eyebrow: "COMMERCIAL",
     title: "BOQ",
     detail: "Open the focused BOQ workspace for quantity and rate management.",
     href: "/commercial/boq",
-    code: "04",
+    code: "05",
     meta: "Focused workspace",
   },
   {
@@ -55,7 +63,7 @@ const supportingWorkspaces: Workspace[] = [
     title: "Parties",
     detail: "Maintain clients, consultants, suppliers and subcontractors.",
     href: "/commercial/parties",
-    code: "05",
+    code: "06",
     meta: "Company directory",
   },
   {
@@ -63,15 +71,18 @@ const supportingWorkspaces: Workspace[] = [
     title: "WBS & cost codes",
     detail: "Maintain the project work breakdown and cost-code hierarchy.",
     href: "/commercial/wbs",
-    code: "06",
+    code: "07",
     meta: "Project structure",
   },
+];
+
+const adminWorkspaces: Workspace[] = [
   {
     eyebrow: "ADMIN",
     title: "Access management",
     detail: "Manage organization roles, permissions and user access.",
     href: "/admin/access",
-    code: "07",
+    code: "08",
     meta: "Security administration",
   },
   {
@@ -79,7 +90,7 @@ const supportingWorkspaces: Workspace[] = [
     title: "Project access",
     detail: "Control project memberships and project-scoped permissions.",
     href: "/admin/project-access",
-    code: "08",
+    code: "09",
     meta: "Project security",
   },
   {
@@ -87,7 +98,7 @@ const supportingWorkspaces: Workspace[] = [
     title: "Company settings",
     detail: "Configure company-level identity and product settings.",
     href: "/admin/company",
-    code: "09",
+    code: "10",
     meta: "Configuration",
   },
 ];
@@ -195,10 +206,10 @@ export default function WorkspaceHome() {
                 <p className={styles.eyebrow}>MODULES</p>
                 <h2>Focused work areas</h2>
               </div>
-              <p>Use a focused screen when the task does not require the full commercial control room.</p>
+              <p>Use focused screens for site and control tasks without opening a full workspace.</p>
             </div>
             <div className={styles.secondaryGrid}>
-              {supportingWorkspaces.slice(0, 3).map((workspace) => (
+              {focusedWorkspaces.map((workspace) => (
                 <WorkspaceCard key={workspace.href} workspace={workspace} />
               ))}
             </div>
@@ -213,7 +224,7 @@ export default function WorkspaceHome() {
               <p>Keep security and configuration separate from day-to-day project work.</p>
             </div>
             <div className={styles.secondaryGrid}>
-              {supportingWorkspaces.slice(3).map((workspace) => (
+              {adminWorkspaces.map((workspace) => (
                 <WorkspaceCard key={workspace.href} workspace={workspace} />
               ))}
             </div>
