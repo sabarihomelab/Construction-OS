@@ -6,13 +6,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -24,12 +34,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.constructionos.app.core.database.DprAttendanceSummaryEntity
 import com.constructionos.app.core.database.ProjectEntity
 import com.constructionos.app.core.dpr.DprAttendanceRefreshResult
 import com.constructionos.app.core.dpr.DprAttendanceSummaryRepository
+import com.constructionos.app.ui.design.CosMetricCard
+import com.constructionos.app.ui.design.CosStatusPill
+import com.constructionos.app.ui.design.CosStatusTone
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneId
@@ -73,95 +85,148 @@ fun DprAttendanceSummaryScreen(
 
     LaunchedEffect(project.id, selectedDate) { refresh() }
 
-    Column(modifier = modifier.fillMaxSize()) {
+    val date = LocalDate.parse(selectedDate)
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("Back") }
-            Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
-                Text("DPR crew", style = MaterialTheme.typography.titleLarge)
-                Text(project.name, style = MaterialTheme.typography.bodySmall)
+            IconButton(onClick = onBack) {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
             }
-            OutlinedButton(onClick = { refresh() }, enabled = !refreshing) {
-                Text(if (refreshing) "Refreshing" else "Refresh")
+            Column(modifier = Modifier.weight(1f)) {
+                Text("DPR crew", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    project.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = ::refresh, enabled = !refreshing) {
+                Icon(Icons.Rounded.Refresh, contentDescription = "Refresh")
             }
         }
-        HorizontalDivider()
 
-        val date = LocalDate.parse(selectedDate)
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         ) {
-            OutlinedButton(
-                onClick = {
-                    selectedDate = date.minusDays(1).toString()
-                    message = null
-                },
-            ) { Text("‹") }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    date.format(DateTimeFormatter.ofPattern("EEE, d MMM")),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    if (date == today) "Today • Day shift" else "Day shift",
-                    style = MaterialTheme.typography.labelSmall,
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(
+                    onClick = {
+                        selectedDate = date.minusDays(1).toString()
+                        message = null
+                    },
+                ) {
+                    Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous day")
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        date.format(DateTimeFormatter.ofPattern("EEE, d MMM")),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        if (date == today) "Today • Day shift" else "Day shift",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        selectedDate = date.plusDays(1).toString()
+                        message = null
+                    },
+                    enabled = date < today,
+                ) {
+                    Icon(Icons.Rounded.ChevronRight, contentDescription = "Next day")
+                }
             }
-            OutlinedButton(
-                onClick = {
-                    selectedDate = date.plusDays(1).toString()
-                    message = null
-                },
-                enabled = date < today,
-            ) { Text("›") }
         }
 
         message?.let { text ->
-            Text(
-                text = text,
+            Surface(
                 color = if (rows.isEmpty()) {
+                    MaterialTheme.colorScheme.surfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.errorContainer
+                },
+                contentColor = if (rows.isEmpty()) {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 } else {
-                    MaterialTheme.colorScheme.error
+                    MaterialTheme.colorScheme.onErrorContainer
                 },
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                Text(text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(10.dp))
+            }
         }
 
         if (rows.isEmpty()) {
-            Text(
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 30.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 if (refreshing) {
-                    "Checking the company server for approved attendance…"
+                    CircularProgressIndicator(modifier = Modifier.size(30.dp))
                 } else {
-                    "No approved attendance summary is cached on this device for this date."
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(16.dp),
-            )
+                    Icon(
+                        Icons.Rounded.Groups,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    if (refreshing) {
+                        "Checking approved attendance…"
+                    } else {
+                        "No approved crew summary cached"
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
         } else {
             val totals = remember(rows) { DprAttendanceTotals.from(rows) }
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(top = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
                 item(key = "summary") {
                     DprAttendanceTotalsCard(totals)
-                    Text(
-                        "This is a read-only projection of approved attendance. The server owns approval status and crew-hour calculations; this device only caches the returned summary.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    )
-                    HorizontalDivider()
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
+                        modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
+                    ) {
+                        Text(
+                            "Read-only projection of approved attendance. The server owns approval status and crew-hour calculations.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(11.dp),
+                        )
+                    }
                 }
                 items(
                     items = rows,
                     key = { "${it.registerId}:${it.groupKey}" },
                 ) { row ->
-                    DprAttendanceGroupRow(row)
-                    HorizontalDivider()
+                    DprAttendanceGroupCard(row)
                 }
             }
         }
@@ -170,57 +235,70 @@ fun DprAttendanceSummaryScreen(
 
 @Composable
 private fun DprAttendanceTotalsCard(totals: DprAttendanceTotals) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Text("Approved attendance", style = MaterialTheme.typography.titleMedium)
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            SummaryMetric("Workers", totals.workerCount.toString(), Modifier.weight(1f))
-            SummaryMetric("Present", totals.presentCount.toString(), Modifier.weight(1f))
-            SummaryMetric("Absent", totals.absentCount.toString(), Modifier.weight(1f))
-            SummaryMetric("Other", totals.otherCount.toString(), Modifier.weight(1f))
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            SummaryMetric("Regular", "${formatHours(totals.regularHours)} h", Modifier.weight(1f))
-            SummaryMetric("Overtime", "${formatHours(totals.overtimeHours)} h", Modifier.weight(1f))
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Approved attendance", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                CosStatusPill("Approved", CosStatusTone.SUCCESS)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CosMetricCard(totals.workerCount.toString(), "Workers", Modifier.weight(1f))
+                CosMetricCard(totals.presentCount.toString(), "Present", Modifier.weight(1f), CosStatusTone.SUCCESS)
+                CosMetricCard(totals.absentCount.toString(), "Absent", Modifier.weight(1f), CosStatusTone.ERROR)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CosMetricCard("${formatHours(totals.regularHours)} h", "Regular", Modifier.weight(1f))
+                CosMetricCard("${formatHours(totals.overtimeHours)} h", "Overtime", Modifier.weight(1f), CosStatusTone.WARNING)
+            }
         }
     }
 }
 
 @Composable
-private fun SummaryMetric(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.labelSmall)
-    }
-}
-
-@Composable
-private fun DprAttendanceGroupRow(row: DprAttendanceSummaryEntity) {
+private fun DprAttendanceGroupCard(row: DprAttendanceSummaryEntity) {
     val groupLabel = buildList {
         row.trade?.takeIf { it.isNotBlank() }?.let { add(it) }
         if (row.crewId != null) add("Crew")
         if (row.employerPartyId != null) add("Employer")
     }.joinToString(" • ").ifBlank { "General crew" }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Text(groupLabel, style = MaterialTheme.typography.titleSmall)
-        Text(
-            "${row.workerCount} workers • ${row.presentCount} present • ${row.absentCount} absent",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(top = 3.dp),
-        )
-        Text(
-            "${formatHours(row.regularHours.toBigDecimalOrNull() ?: BigDecimal.ZERO)} regular h • " +
-                "${formatHours(row.overtimeHours.toBigDecimalOrNull() ?: BigDecimal.ZERO)} OT h",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 2.dp),
-        )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(groupLabel, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                CosStatusPill("${row.workerCount} workers")
+            }
+            Text(
+                "${row.presentCount} present • ${row.absentCount} absent",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 7.dp),
+            )
+            Text(
+                "${formatHours(row.regularHours.toBigDecimalOrNull() ?: BigDecimal.ZERO)} regular h • " +
+                    "${formatHours(row.overtimeHours.toBigDecimalOrNull() ?: BigDecimal.ZERO)} OT h",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
     }
 }
 
