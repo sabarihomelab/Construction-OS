@@ -1,0 +1,452 @@
+.shell {
+  min-height: 100vh;
+  background: #f4f5f1;
+  color: #172018;
+  padding: 32px;
+}
+
+.loading {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px;
+  background: #fff;
+  border: 1px solid #dce1d7;
+  border-radius: 18px;
+}
+
+.header,
+.contextCard,
+.registerBar,
+.metrics,
+.board,
+.integrationCard,
+.historyCard,
+.startCard,
+.emptyCard,
+.footerNote,
+.errorBanner,
+.successBanner {
+  max-width: 1480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-end;
+  margin-bottom: 22px;
+}
+
+.header h1 {
+  margin: 4px 0 6px;
+  font-size: clamp(32px, 4vw, 54px);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+}
+
+.header p:not(.eyebrow) {
+  margin: 0;
+  max-width: 720px;
+  color: #5f685f;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #66715f;
+}
+
+.headerActions,
+.actions,
+.toolbarControls {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.contextCard,
+.registerBar,
+.board,
+.integrationCard,
+.historyCard,
+.startCard,
+.emptyCard {
+  background: #fff;
+  border: 1px solid #dce1d7;
+  border-radius: 18px;
+  box-shadow: 0 8px 28px rgba(34, 48, 34, 0.04);
+}
+
+.contextCard {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.5fr) minmax(160px, 0.7fr) minmax(130px, 0.55fr) auto;
+  gap: 14px;
+  align-items: end;
+  padding: 18px;
+  margin-bottom: 14px;
+}
+
+.contextCard label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 750;
+  color: #536052;
+}
+
+.contextCard input,
+.contextCard select,
+.board input,
+.board select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #ced5ca;
+  border-radius: 10px;
+  background: #fff;
+  color: #172018;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.contextCard input:focus,
+.contextCard select:focus,
+.board input:focus,
+.board select:focus {
+  outline: 2px solid #b9df2b;
+  outline-offset: 1px;
+  border-color: #8cae1f;
+}
+
+.contextCard button,
+.actions button,
+.board button,
+.startCard button,
+.secondaryButton,
+.dangerButton {
+  min-height: 40px;
+  border: 1px solid #172018;
+  border-radius: 10px;
+  background: #172018;
+  color: #fff;
+  padding: 9px 14px;
+  font: inherit;
+  font-weight: 750;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff !important;
+  color: #172018 !important;
+  border-color: #cbd2c7 !important;
+}
+
+.dangerButton {
+  background: #fff !important;
+  color: #a73b30 !important;
+  border-color: #e5b4ae !important;
+}
+
+.contextCard button:disabled,
+.actions button:disabled,
+.board button:disabled,
+.startCard button:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+}
+
+.errorBanner,
+.successBanner {
+  padding: 12px 16px;
+  border-radius: 12px;
+  margin-bottom: 14px;
+  font-weight: 650;
+}
+
+.errorBanner {
+  background: #fff0ed;
+  border: 1px solid #efbeb6;
+  color: #8f2f26;
+}
+
+.successBanner {
+  background: #eff8e5;
+  border: 1px solid #c9dfae;
+  color: #38611e;
+}
+
+.startCard,
+.emptyCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 30px;
+}
+
+.startCard h2,
+.emptyCard h2,
+.board h2,
+.integrationCard h2,
+.historyCard h2 {
+  margin: 4px 0 6px;
+}
+
+.startCard p:not(.eyebrow),
+.emptyCard p,
+.boardToolbar p,
+.integrationCard p:not(.eyebrow) {
+  margin: 0;
+  color: #687168;
+}
+
+.registerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  margin-bottom: 12px;
+}
+
+.registerBar > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #606a60;
+  font-size: 13px;
+}
+
+.status {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef0eb;
+  color: #445043;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status_approved { background: #e7f5d7; color: #315f17; }
+.status_in_review, .status_submitted { background: #e8f1fb; color: #285b88; }
+.status_rejected { background: #fff0ed; color: #94352a; }
+.status_draft { background: #f4f0df; color: #735f18; }
+.status_void { background: #eeeeee; color: #5b5b5b; }
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.metrics button {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  border: 1px solid #dce1d7;
+  border-radius: 14px;
+  background: #fff;
+  padding: 14px 16px;
+  color: #536052;
+  cursor: pointer;
+}
+
+.metrics strong {
+  font-size: 26px;
+  color: #182218;
+  line-height: 1;
+}
+
+.metrics span {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.metrics .metricActive {
+  border-color: #90aa38;
+  box-shadow: inset 0 0 0 1px #90aa38;
+  background: #f6faeb;
+}
+
+.metrics .metricWarn {
+  border-color: #e6b55d;
+  background: #fff8e8;
+}
+
+.board {
+  overflow: hidden;
+}
+
+.boardToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+  border-bottom: 1px solid #e4e7e1;
+}
+
+.toolbarControls input {
+  width: min(320px, 40vw);
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+.tableWrap table {
+  width: 100%;
+  min-width: 1260px;
+  border-collapse: collapse;
+}
+
+.tableWrap th,
+.tableWrap td {
+  padding: 11px 10px;
+  border-bottom: 1px solid #eceee9;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tableWrap th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8f9f6;
+  color: #687167;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tableWrap td {
+  font-size: 13px;
+}
+
+.tableWrap td:first-child strong,
+.tableWrap td:first-child small {
+  display: block;
+}
+
+.tableWrap td:first-child small {
+  margin-top: 3px;
+  color: #7a8279;
+}
+
+.hoursInput {
+  width: 76px !important;
+}
+
+.markGroup {
+  display: flex;
+  gap: 4px;
+  min-width: 214px;
+}
+
+.markGroup button {
+  min-width: 31px;
+  min-height: 31px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  border: 1px solid #d8ddd3;
+  background: #fff;
+  color: #687168;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.markGroup .markActive {
+  background: #172018;
+  color: #fff;
+  border-color: #172018;
+}
+
+.emptyCell {
+  padding: 28px !important;
+  text-align: center !important;
+  color: #788178;
+}
+
+.integrationCard,
+.historyCard {
+  margin-top: 12px;
+  padding: 22px;
+}
+
+.integrationCard {
+  display: grid;
+  gap: 16px;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.summaryGrid > div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #e0e5db;
+  background: #f9faf7;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.summaryGrid span,
+.summaryGrid small {
+  color: #626d61;
+}
+
+.historyList {
+  display: grid;
+  gap: 0;
+}
+
+.historyList > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eceee9;
+}
+
+.historyList > div:last-child { border-bottom: 0; }
+.historyList span { font-weight: 700; }
+.historyList small { color: #7a8279; }
+
+.footerNote {
+  padding: 16px 2px 4px;
+  color: #747d73;
+  font-size: 12px;
+}
+
+.muted { color: #788178; }
+
+@media (max-width: 980px) {
+  .shell { padding: 20px; }
+  .header { align-items: flex-start; flex-direction: column; }
+  .contextCard { grid-template-columns: 1fr 1fr; }
+  .metrics { grid-template-columns: repeat(3, 1fr); }
+  .boardToolbar { align-items: flex-start; flex-direction: column; }
+  .toolbarControls, .toolbarControls input { width: 100%; }
+}
+
+@media (max-width: 640px) {
+  .shell { padding: 14px; }
+  .contextCard, .metrics { grid-template-columns: 1fr; }
+  .startCard, .emptyCard, .registerBar { align-items: flex-start; flex-direction: column; }
+  .headerActions, .actions { width: 100%; }
+  .headerActions > *, .actions > * { flex: 1; }
+  .metrics button { grid-template-columns: auto 1fr; align-items: center; gap: 12px; }
+  .historyList > div { flex-direction: column; gap: 3px; }
+}
