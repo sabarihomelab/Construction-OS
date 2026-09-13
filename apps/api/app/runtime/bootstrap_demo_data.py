@@ -2,7 +2,7 @@ import argparse
 import asyncio
 import json
 from dataclasses import asdict, dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -117,14 +117,13 @@ async def _admin_context(
     *,
     admin_email: str,
 ) -> tuple[User, OrganizationMembership, Organization]:
-    normalized_email = admin_email.strip().lower()
     rows = (
         await db.execute(
             select(User, OrganizationMembership, Organization)
             .join(OrganizationMembership, OrganizationMembership.user_id == User.id)
             .join(Organization, Organization.id == OrganizationMembership.organization_id)
             .where(
-                func.lower(User.primary_email) == normalized_email,
+                func.lower(User.primary_email) == admin_email.strip().lower(),
                 User.is_active.is_(True),
                 OrganizationMembership.status == MembershipStatus.ACTIVE,
                 Organization.is_active.is_(True),
@@ -147,43 +146,53 @@ async def _admin_context(
     return rows[0]
 
 
+async def _count(db: AsyncSession, model, *conditions) -> int:
+    value = await db.scalar(select(func.count()).select_from(model).where(*conditions))
+    return int(value or 0)
+
+
 async def _existing_result(
     db: AsyncSession,
     *,
     organization_id,
     project: Project,
 ) -> DemoDataBootstrapResult:
-    async def count(model, *conditions) -> int:
-        value = await db.scalar(select(func.count()).select_from(model).where(*conditions))
-        return int(value or 0)
-
+    crew_count = await db.scalar(
+        select(func.count(func.distinct(ProjectWorkerAssignment.crew_id))).where(
+            ProjectWorkerAssignment.project_id == project.id,
+            ProjectWorkerAssignment.crew_id.is_not(None),
+        )
+    )
     return DemoDataBootstrapResult(
         status="exists",
         organization_id=str(organization_id),
         project_id=str(project.id),
         project_number=project.number,
         project_name=project.name,
-        parties=await count(ProjectPartyAssignment, ProjectPartyAssignment.project_id == project.id),
-        wbs_codes=await count(WBSCode, WBSCode.project_id == project.id),
-        boq_items=await count(BOQItem, BOQItem.project_id == project.id),
-        estimates=await count(ProjectEstimate, ProjectEstimate.project_id == project.id),
-        budgets=await count(ProjectBudget, ProjectBudget.project_id == project.id),
-        crews=await count(
+        parties=await _count(
+            db,
+            ProjectPartyAssignment,
+            ProjectPartyAssignment.project_id == project.id,
+        ),
+        wbs_codes=await _count(db, WBSCode, WBSCode.project_id == project.id),
+        boq_items=await _count(db, BOQItem, BOQItem.project_id == project.id),
+        estimates=await _count(db, ProjectEstimate, ProjectEstimate.project_id == project.id),
+        budgets=await _count(db, ProjectBudget, ProjectBudget.project_id == project.id),
+        crews=int(crew_count or 0),
+        workers=await _count(
+            db,
             ProjectWorkerAssignment,
             ProjectWorkerAssignment.project_id == project.id,
-            ProjectWorkerAssignment.crew_id.is_not(None),
         ),
-        workers=await count(
-            ProjectWorkerAssignment,
-            ProjectWorkerAssignment.project_id == project.id,
-        ),
-        approved_attendance_days=await count(
+        approved_attendance_days=await _count(
+            db,
             AttendanceRegister,
             AttendanceRegister.project_id == project.id,
             AttendanceRegister.status == AttendanceRegisterStatus.APPROVED,
         ),
-        daily_reports=await count(DailyReport, DailyReport.project_id == project.id),
-        custom_fields=await count(
+        daily_reports=await _count(db, DailyReport, DailyReport.project_id == project.id),
+        custom_fields=await _count(
+            db,
             CustomFieldDefinition,
             CustomFieldDefinition.organization_id == organization_id,
             CustomFieldDefinition.entity_type == "daily_report",
@@ -240,23 +249,18 @@ async def seed_demo_data(
     )
     db.add(project)
     await db.flush()
-
-    project_membership = ProjectMembership(
-        organization_id=organization.id,
-        project_id=project.id,
-        organization_membership_id=membership.id,
-        status=ProjectMembershipStatus.ACTIVE,
-        title="Company Administrator",
+    db.add(
+        ProjectMembership(
+            organization_id=organization.id,
+            project_id=project.id,
+            organization_membership_id=membership.id,
+            status=ProjectMembershipStatus.ACTIVE,
+            title="Company Administrator",
+        )
     )
-    db.add(project_membership)
 
     party_specs = [
-        (
-            "DEMO-CLIENT",
-            "Greenfield Developers Pvt Ltd",
-            PartyType.CLIENT,
-            ProjectPartyRole.CLIENT,
-        ),
+        ("DEMO-CLIENT", "Greenfield Developers Pvt Ltd", PartyType.CLIENT, ProjectPartyRole.CLIENT),
         (
             "DEMO-CONSULT",
             "Axis Design Consultants",
@@ -269,12 +273,7 @@ async def seed_demo_data(
             PartyType.LABOUR_CONTRACTOR,
             ProjectPartyRole.LABOUR_CONTRACTOR,
         ),
-        (
-            "DEMO-SUPPLIER",
-            "Kovai BuildMart",
-            PartyType.SUPPLIER,
-            ProjectPartyRole.SUPPLIER,
-        ),
+        ("DEMO-SUPPLIER", "Kovai BuildMart", PartyType.SUPPLIER, ProjectPartyRole.SUPPLIER),
         (
             "DEMO-MEP",
             "Apex MEP Services",
@@ -491,48 +490,20 @@ async def seed_demo_data(
             )
         )
 
-    worker_names = [
-        ("Arun", "Kumar"),
-        ("Bala", "Murugan"),
-        ("Chandru", "Raja"),
-        ("Dinesh", "Kannan"),
-        ("Elango", "Selvam"),
-        ("Feroz", "Khan"),
-        ("Ganesh", "Babu"),
-        ("Hari", "Prasad"),
-        ("Irfan", "Ali"),
-        ("Jagan", "Mohan"),
-        ("Karthik", "Ravi"),
-        ("Logesh", "Sankar"),
-        ("Mani", "Kumar"),
-        ("Naveen", "Raj"),
-        ("Prakash", "Velu"),
-        ("Ramesh", "Kumar"),
-        ("Saravanan", "Muthu"),
-        ("Senthil", "Kumar"),
-        ("Siva", "Raman"),
-        ("Vignesh", "Babu"),
-        ("Ajith", "Kumar"),
-        ("Bharath", "Raj"),
-        ("Deepak", "Selvan"),
-        ("Gokul", "Nathan"),
-        ("Kishore", "Kumar"),
-        ("Madhan", "Raj"),
-        ("Muthu", "Vel"),
-        ("Prabhu", "Kannan"),
-        ("Rajesh", "Kumar"),
-        ("Sathish", "Babu"),
-        ("Ashok", "Kumar"),
-        ("Balamurugan", "S"),
-        ("Gopi", "Nath"),
-        ("Jayakumar", "R"),
-        ("Kannan", "M"),
-        ("Manoj", "Kumar"),
-        ("Nandha", "Kumar"),
-        ("Prem", "Kumar"),
-        ("Ravi", "Shankar"),
-        ("Vijay", "Kumar"),
+    first_names = [
+        "Arun",
+        "Bala",
+        "Chandru",
+        "Dinesh",
+        "Elango",
+        "Feroz",
+        "Ganesh",
+        "Hari",
+        "Irfan",
+        "Jagan",
     ]
+    last_names = ["Kumar", "Murugan", "Raja", "Selvam"]
+    worker_names = [(first, last) for last in last_names for first in first_names]
     crew_specs = [
         ("Civil Crew A", "Masonry", "03.03"),
         ("Steel & Formwork Crew", "Reinforcement", "03.02"),
@@ -626,16 +597,16 @@ async def seed_demo_data(
         for index, assignment in enumerate(assignments):
             if index % 17 == 0:
                 mark = AttendanceMarkStatus.ABSENT
-                regular_hours = Decimal("0")
-                overtime_hours = Decimal("0")
+                regular_hours = Decimal(0)
+                overtime_hours = Decimal(0)
             elif index % 11 == 0:
                 mark = AttendanceMarkStatus.HALF_DAY
-                regular_hours = Decimal("4")
-                overtime_hours = Decimal("0")
+                regular_hours = Decimal(4)
+                overtime_hours = Decimal(0)
             else:
                 mark = AttendanceMarkStatus.PRESENT
-                regular_hours = Decimal("8")
-                overtime_hours = Decimal("1") if index % 5 == 0 else Decimal("0")
+                regular_hours = Decimal(8)
+                overtime_hours = Decimal(1) if index % 5 == 0 else Decimal(0)
             crew_index = index // 10
             db.add(
                 AttendanceEntry(
@@ -764,11 +735,14 @@ async def seed_demo_data(
             revision=revision,
             prepared_by_membership_id=membership.id,
             weather_condition=weather,
-            temperature_low=Decimal("24"),
-            temperature_high=Decimal("32"),
+            temperature_low=Decimal(24),
+            temperature_high=Decimal(32),
             temperature_unit="C",
             notes=notes,
             configuration_context={"source": "demo_data"},
+            submitted_at=(now - timedelta(days=2, hours=2))
+            if status == DailyReportStatus.REJECTED
+            else None,
             rejected_at=(now - timedelta(days=2)) if status == DailyReportStatus.REJECTED else None,
             created_by_user_id=user.id,
         )
@@ -801,37 +775,36 @@ async def seed_demo_data(
                     location=f"Tower A - Level {item_index + 2}",
                     quantity=Decimal("18.5") * item_index,
                     unit_code=boq_item.unit_code,
-                    progress_percent=Decimal("55") + Decimal(item_index * 10),
+                    progress_percent=Decimal(55) + Decimal(item_index * 10),
                     source_type=DPRWorkProgressSourceType.MANUAL,
                     remarks="Seeded work-progress entry",
                 )
             )
-        db.add(
-            CustomFieldValue(
-                organization_id=organization.id,
-                definition_id=custom_site_condition.id,
-                entity_id=report.id,
-                definition_version=1,
-                text_value="normal",
-                updated_by_user_id=user.id,
-            )
-        )
-        db.add(
-            CustomFieldValue(
-                organization_id=organization.id,
-                definition_id=custom_toolbox.id,
-                entity_id=report.id,
-                definition_version=1,
-                boolean_value=True,
-                updated_by_user_id=user.id,
-            )
+        db.add_all(
+            [
+                CustomFieldValue(
+                    organization_id=organization.id,
+                    definition_id=custom_site_condition.id,
+                    entity_id=report.id,
+                    definition_version=1,
+                    text_value="normal",
+                    updated_by_user_id=user.id,
+                ),
+                CustomFieldValue(
+                    organization_id=organization.id,
+                    definition_id=custom_toolbox.id,
+                    entity_id=report.id,
+                    definition_version=1,
+                    boolean_value=True,
+                    updated_by_user_id=user.id,
+                ),
+            ]
         )
 
-    draft_report = reports[-1]
     db.add(
         DailyReportDelayEntry(
             organization_id=organization.id,
-            daily_report_id=draft_report.id,
+            daily_report_id=reports[-1].id,
             category="Delivery",
             description="Reinforcement truck delayed at site access gate.",
             lost_hours=Decimal("1.5"),
