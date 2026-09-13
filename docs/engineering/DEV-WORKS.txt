@@ -1,0 +1,158 @@
+Construction OS - Development Works / Continuation Notes
+Updated: 2026-09-13
+Branch: build/platform-foundation
+
+Purpose
+-------
+This file is the working continuation note for upcoming development chats and implementation work. It records current findings, required fixes, rollout/operations work, and the planned build order so work can continue without losing context.
+
+Current state
+-------------
+- FastAPI backend, web shell, and native Android app are running locally.
+- Android Modules 1-6 are functionally implemented: Party Directory, WBS/Cost Codes, BOQ, Estimate/Budget, Workforce/Attendance, and DPR.
+- Demo data bootstrap is available and DEMO-001 can be loaded for self-testing.
+- Android local development connection works through ADB reverse using http://127.0.0.1:8000.
+- Development login works.
+- Current Android experience still needs usability/performance work before it can be considered field-ready.
+
+Important findings from first Android self-test
+-----------------------------------------------
+1. Mobile local cache/offline behavior must be tested on a real physical phone, not judged only from the emulator. The purpose is to verify that operational data is really cached locally on the device and survives app close/reopen, temporary network loss, and later synchronization.
+2. Attendance/UI responsiveness needs work. Some items appear selectable but do not open/respond consistently when tapped. Screen transitions and touch behavior must be tested as real user flows, not only by checking that screens compile.
+3. App performance currently feels laggy in emulator. Separate emulator/debug-build slowness from genuine app/API slowness before optimizing.
+4. Bootstrap company admin is an administrator but does not automatically have every project operational permission. For development/demo self-testing, provide a deliberate full-access test/admin path without weakening production least-privilege authorization.
+5. Identity must not create duplicate employees just because a person signs in differently. One employee/person record must be able to link multiple approved login identities, such as Google/Gmail, mobile number/OTP, company email, and future providers. All linked identities must open the same employee profile, memberships, permissions, project access, attendance history, DPR history, etc.
+
+Required platform/operations work
+---------------------------------
+1. Replace manual PowerShell-based runtime startup for installed customer deployments with managed services.
+   - API service.
+   - Worker/background service(s) where required.
+   - Web service/static hosting as appropriate.
+   - Automatic start after machine reboot.
+   - Health checks and controlled restart.
+   - PowerShell scripts can remain as development/setup helpers, but normal customer operation should not depend on manually opening terminals.
+
+2. Custom endpoint/domain support.
+   - Customer-configurable API/web hostname/domain.
+   - HTTPS/TLS in production.
+   - Avoid hard-coded localhost or emulator addresses outside development.
+   - Installation/configuration flow should validate the configured endpoint.
+
+3. Setup, installation, and upgrade recovery.
+   - If setup/install/upgrade fails, show the failed step and allow Retry/Restart instead of forcing the administrator to repeat everything manually.
+   - Operations/admin UI should expose safe service restart where appropriate.
+   - Setup should be resumable/idempotent where practical.
+   - Include reset options for development/test/demo environments.
+   - Production destructive reset must be protected, explicit, audited, and separate from normal recovery.
+
+4. Backup before every rollout/upgrade.
+   - Take PostgreSQL database backup before schema/application rollout.
+   - Record backup file, timestamp, application version, database migration version, result, and operator.
+   - Do not continue a risky migration if required backup fails.
+   - Define rollback/recovery procedure.
+
+5. Database export/import features.
+   - Admin-controlled database export/backup feature.
+   - Admin-controlled restore/import feature with validation and confirmation.
+   - Import should not blindly overwrite incompatible schema versions.
+   - Maintain audit trail for export/import/restore operations.
+   - Prefer standard PostgreSQL backup/restore internally rather than inventing a custom database format.
+
+6. Legacy data migration/import utility.
+   - After a new customer installation is ready, provide a migration/import executable or guided tool to ingest legacy customer data.
+   - Support mapping/validation before final import.
+   - Produce import summary, rejected rows/errors, and reconciliation counts.
+   - Keep this separate from full database restore: legacy migration is business-data ingestion; database restore is disaster recovery/backup restoration.
+
+7. Logging is required.
+   Maintain separate categories instead of one giant log file:
+   - Application/API logs.
+   - Background worker/job logs.
+   - Installation/setup/upgrade logs.
+   - Database migration logs.
+   - Backup/restore/import/export logs.
+   - Integration/synchronization logs.
+   - Security/audit events for privileged user actions.
+   - Mobile synchronization diagnostics appropriate for support, without logging secrets/tokens or unnecessary personal data.
+   Logs should have timestamps, level, component, correlation/request/job identifier where useful, and safe retention/rotation.
+
+8. Operations controls.
+   - Service status/health.
+   - Restart failed services/jobs.
+   - Retry failed jobs where safe.
+   - Database/backup status.
+   - Storage status.
+   - Integration/sync status.
+   - Clear errors that explain the next action rather than generic failure messages.
+
+Product build order from here
+-----------------------------
+PHASE A - Platform hardening needed before customer rollout
+- Managed services instead of manual startup.
+- Configurable endpoint/domain + production HTTPS.
+- Install/setup/upgrade retry/restart/recovery.
+- Logging and operational diagnostics.
+- Backup-before-rollout.
+- Database export/import/restore.
+- Legacy migration/import tooling.
+- Full-access development test role/path.
+- Multi-identity-per-employee account model.
+
+PHASE B - Complete remaining backend/domain modules
+- Continue implementing the remaining planned Construction OS modules and their APIs, workflows, permissions, data model, auditing, and tests.
+- Do not spend the next cycle repeatedly redesigning Android screens while the product domain is incomplete.
+
+PHASE C - Build the full web application
+- Build web UI for every implemented module (current product scope is roughly 36 modules/features; use the authoritative module registry rather than relying on this approximate number).
+- Make shared web components/patterns consistent: lists, forms, approvals, status chips, filters, search, attachments, audit/history, permissions, validation, errors, responsive layout, and admin operations.
+- Use completion of one strong shared UX pattern to accelerate the rest instead of individually redesigning every module.
+
+PHASE D - Return to Android/mobile UX customization
+- Once backend workflows and web patterns are stable, revisit Android comprehensively.
+- Apply the same proven domain/UX patterns while keeping mobile field-first rather than copying desktop screens.
+- Test on a real Android phone for touch size, responsiveness, keyboard, camera/gallery, offline cache, force-close/reopen, poor network, sync conflicts, upload interruption/resume, battery/data usage, and outdoor readability.
+- Fix Attendance/DPR touch and responsiveness issues found during current self-testing.
+
+Mobile/offline acceptance requirements
+--------------------------------------
+- Operational field data required for the current user's authorized projects should cache locally on the phone according to offline policy.
+- Previously loaded permitted data should remain usable during temporary loss of network where offline operation is supported.
+- Offline edits must queue locally and synchronize after reconnection.
+- Sync must be idempotent: no duplicate attendance, DPR, upload, or work-progress records after retry/reconnect.
+- Force-closing and reopening the app must not lose committed local work.
+- Authentication/security/financial authority that is intentionally online-only must remain online-only.
+- Provide understandable pending/synced/failed state to the user.
+
+Identity/account requirement
+----------------------------
+- Separate Person/Employee/Worker from Login Identity.
+- One person may link multiple verified authentication identities.
+- Example identities: Google account, mobile number/OTP, company email, future SSO.
+- Do not create a second worker/employee automatically when the same person uses another sign-in provider.
+- Linking/unlinking identities must be controlled and audited.
+- Permissions and memberships belong to the Construction OS person/membership context, not independently to each external login identity.
+
+Development/testing rule
+------------------------
+A module is not considered usable merely because API tests and Android/web builds pass. For user-facing workflows, test the complete task from the user's perspective and record friction such as dead taps, lag, excessive steps, unclear messages, lost state, poor offline behavior, or difficult recovery.
+
+Suggested continuation order for the next development session
+-------------------------------------------------------------
+1. Review this file and current branch state.
+2. Decide whether to implement platform hardening first or continue remaining domain modules; do not start another Android visual redesign yet.
+3. Preserve current Android usability findings as open work.
+4. Complete remaining backend modules.
+5. Build corresponding web modules using shared patterns.
+6. Return to Android for the dedicated real-device/offline/usability pass.
+
+Development work log
+--------------------
+2026-09-13
+- Local Windows setup completed.
+- Demo bootstrap completed.
+- Android Gradle setup/build completed.
+- Emulator connected to API using ADB reverse.
+- Deployment bootstrap and development login verified.
+- First Android self-test identified lag/responsiveness and authorization/test-role concerns.
+- Captured requirements for real-device local caching, multi-login identity linking, managed services, custom domains, recovery/restart, rollout backups, database export/import, legacy migration, operational logging, remaining modules, full web build, and later Android UX refinement.
