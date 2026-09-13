@@ -1,5 +1,5 @@
-import ConstructionApp from "./construction-app";
+import WorkspaceHome from "./workspace-home";
 
 export default function Home() {
-  return <ConstructionApp />;
+  return <WorkspaceHome />;
 }
