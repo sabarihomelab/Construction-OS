@@ -81,10 +81,14 @@ def _category_allowed(category: str, permissions: set[str]) -> bool:
         return "admin.operations.security.view" in permissions
     if "integration" in normalized or "connector" in normalized or "sync" in normalized:
         return "admin.operations.integrations.view" in permissions
+    if "job" in normalized or "background" in normalized:
+        return "admin.operations.jobs.view" in permissions
+    if "audit" in normalized:
+        return "admin.operations.audit.view" in permissions
     return True
 
 
-def _overall_state(rows: list[OperationsHealthRead], current: datetime) -> str:
+def _overall_state(rows: list[OperationsHealthRead]) -> str:
     rank = {
         HealthState.UNKNOWN.value: 0,
         HealthState.HEALTHY.value: 1,
@@ -213,7 +217,7 @@ async def get_operations_summary(
             ],
         )
 
-    overall = _overall_state(health, current)
+    overall = _overall_state(health)
     return OperationsSummaryRead(
         generated_at=current,
         overall_state=overall,
