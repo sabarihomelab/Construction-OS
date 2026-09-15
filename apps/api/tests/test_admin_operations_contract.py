@@ -5,7 +5,7 @@ from app.modules.operations.router import OperationsHealthRead, _category_allowe
 
 
 def test_operations_summary_route_is_mounted() -> None:
-    assert "/api/v1/admin/operations/summary" in {route.path for route in app.routes}
+    assert "/api/v1/admin/operations/summary" in app.openapi()["paths"]
 
 
 def test_operations_category_visibility_requires_sensitive_permissions() -> None:
