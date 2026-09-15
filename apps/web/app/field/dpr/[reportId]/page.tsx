@@ -1,3 +1,4 @@
+import DPRFieldExtensions from "../../../dpr-field-extensions";
 import DPRGovernancePanel from "../../../dpr-governance-panel";
 import DPRWorkspace from "../../../dpr-workspace";
 
@@ -12,6 +13,9 @@ export default async function DPRDetailPage({
   const { project } = await searchParams;
   return <>
     <DPRWorkspace initialProjectId={project} initialReportId={reportId} />
-    {project && <main className="workspace-shell"><DPRGovernancePanel projectId={project} reportId={reportId} /></main>}
+    {project && <main className="workspace-shell">
+      <DPRFieldExtensions projectId={project} reportId={reportId} />
+      <DPRGovernancePanel projectId={project} reportId={reportId} />
+    </main>}
   </>;
 }
