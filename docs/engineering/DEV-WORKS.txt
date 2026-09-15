@@ -1,0 +1,1441 @@
+Construction OS - Complete Development Continuation / Scope / Status / Pending Work
+Updated: 2026-09-13
+Repository: sabarihomelab/Construction-OS
+Working branch: build/platform-foundation
+
+PURPOSE OF THIS FILE
+====================
+This is the canonical continuation document for Construction OS development.
+
+It exists so a future development session can open ONE file and understand:
+- what Construction OS is,
+- who it is for,
+- the Release 1 scope,
+- the architecture and deployment direction,
+- what has already been built,
+- what has already been tested,
+- what problems were found,
+- what is still pending,
+- the required product behavior,
+- the installation/operations requirements,
+- the web and Android direction,
+- the expected development order,
+- testing and rollout requirements,
+- and the important decisions that must not be lost or accidentally reversed.
+
+This file is a continuation/work tracker. Detailed authoritative contracts still remain in the corresponding product, architecture, module and operations documents. If this file conflicts with a newer authoritative product contract, update this file immediately so it remains useful.
+
+
+1. PRODUCT IDENTITY AND GOAL
+============================
+Construction OS is an India-first construction operating platform for small and mid-sized civil/general contractors, builders, MEP contractors and specialty subcontractors.
+
+Core product principle:
+
+    Complex underneath. Simple on top.
+
+Construction OS should connect the contractor's project operating workflow rather than behave like many disconnected mini-apps.
+
+The integrated business direction is:
+
+    Company
+      -> Project
+      -> Party / Business Partner
+      -> WBS / Cost Codes
+      -> BOQ
+      -> Estimate / Rate Analysis
+      -> Budget
+      -> Workforce / Crews / Attendance
+      -> DPR / Work Quantity / Progress
+      -> Material Requirement / Indent
+      -> Approval
+      -> RFQ
+      -> Vendor Quotes
+      -> Comparison
+      -> Purchase Order
+      -> Delivery / Challan / GRN
+      -> Site / Store Inventory
+      -> Material Issue / Consumption
+      -> Equipment Usage
+      -> Measurement / Certification
+      -> Subcontract / Work Order
+      -> Subcontractor RA Bill
+      -> Client Measurement / RA Bill
+      -> Job Cost / Planned vs Actual
+      -> Dashboard / Reports
+      -> Excel / Accounting / Tally bridge
+      -> Closeout basics
+
+The final Release 1 test is not "how many modules exist?".
+The final test is:
+
+    Can one real Indian contractor run one real project through Construction OS
+    from BOQ and site execution through procurement, measurement, RA billing,
+    cost control and management visibility without manual database edits,
+    fake UI-only data, dead controls or broken workflow stages?
+
+
+2. TARGET USERS AND PERSONAS
+============================
+Primary target organizations:
+- Small and mid-sized Indian civil/general contractors.
+- Builders.
+- MEP contractors.
+- Specialty subcontractors.
+- Multi-site contracting businesses that currently rely heavily on Excel, WhatsApp, manual attendance, paper/site records and separate accounting tools.
+
+Important user/persona examples:
+- Company Owner / Director / Management.
+- Company Administrator.
+- Project Manager.
+- Site Engineer.
+- Site Supervisor / Foreman.
+- QS / Billing Engineer.
+- Planning Engineer.
+- Procurement Engineer.
+- Store Keeper.
+- Safety / EHS Officer.
+- QA / QC Engineer.
+- Document Controller.
+- Accounts / Finance.
+- Client / PMC Reviewer.
+- Consultant Engineer.
+- Subcontractor Engineer.
+- Labour Contractor Supervisor.
+
+Field UX must be significantly simpler than back-office/admin UX.
+A normal supervisor should not need to understand commercial/security/platform internals just to mark attendance, update work, receive/use material, record equipment, add a photo, report an issue or finish a DPR.
+
+
+3. RELEASE 1 SCOPE
+==================
+Release 1 is India-first. Foreign construction products can be studied as references, but US/UK terminology, accounting or compliance must not define Release 1.
+
+Release 1 must cover the connected contractor workflow including:
+- Company and project configuration.
+- Shared Party / Business Partner directory.
+- WBS / Cost Code hierarchy.
+- BOQ hierarchy/items/revisions/mappings.
+- Estimate / Rate Analysis.
+- Budget baseline and controlled revisions.
+- Workforce, crews, worker assignments and attendance.
+- Structured work quantity / progress.
+- DPR aggregation.
+- Materials, site/store inventory and traceable stock movement.
+- Procurement: Indent -> Approval -> RFQ -> Quotes -> Comparison -> PO -> GRN.
+- Equipment assignment, usage, breakdown/maintenance basics and cost allocation.
+- Quality / Safety / Punch integration.
+- Subcontract / Work Order.
+- Reusable Measurement / Certification engine.
+- Subcontractor RA Billing.
+- Basic planning / scheduling / lookahead.
+- Job Cost / Commercial Control.
+- Client Contract / Client Measurement / Client RA Billing / certification.
+- India tax / withholding / invoice metadata foundation.
+- Accounting export and Tally integration surface.
+- Correspondence / Meetings / Approvals where needed.
+- Reporting / dashboards / portfolio visibility.
+- Closeout basics.
+- Integrated demo data.
+- Web and mobile integration.
+- Offline / low-bandwidth hardening.
+- Security / performance / reliability / operations readiness.
+
+Release 1 is NOT intended to fully replace:
+- Tally or a complete general ledger/accounting suite.
+- Primavera P6 or MS Project.
+- AutoCAD/BIM authoring tools.
+- Full statutory payroll processing.
+- Full GST-return filing software.
+- Property sales/CRM/facility management platforms.
+- Advanced autonomous AI.
+
+
+4. IMPORTANT DOMAIN RULES THAT MUST NOT BE LOST
+===============================================
+4.1 Party model
+One reusable Party / Business Partner foundation must represent roles such as client, vendor, supplier, subcontractor, consultant and service provider. Do not create unrelated duplicate masters for the same organization.
+
+4.2 WBS vs BOQ
+WBS / Cost Codes are the internal project control and cost structure.
+BOQ is the contractual quantity/rate/billing structure.
+They are related but are NOT the same object.
+
+4.3 Worker is not User
+A labourer/worker can exist without owning an application login.
+Supervisor-driven bulk attendance is a core workflow.
+
+4.4 Employee / Person is not Login Identity
+One real employee/person can have multiple verified login identities linked to the same Construction OS person/profile.
+Examples:
+- Google / Gmail account.
+- Mobile number / OTP.
+- Company email.
+- Future SSO identity.
+
+Using a second login provider must NOT create a second employee automatically.
+All linked identities must resolve to the same person, memberships, permissions, project access, attendance/DPR history and business context.
+Linking/unlinking identities must be controlled and audited.
+
+4.5 Quantities and money
+Authoritative quantities and money use Decimal/Numeric semantics.
+Do not store authoritative values only as descriptive text.
+Incompatible units must never be silently converted.
+
+4.6 Inventory
+Stock is derived from traceable transactions, not manually edited balances.
+Examples include opening balance, GRN receipt, issue, consumption, transfer, return, rejection, wastage, damage and controlled adjustment.
+
+4.7 Measurement
+Measurement/certification is a reusable business engine.
+Preserve separate states such as executed, measured, submitted, certified, billed and paid quantities.
+
+4.8 RA billing
+RA billing is cumulative.
+Previous/current/cumulative quantities and amounts must remain reproducible.
+Deductions/additions such as retention, advance recovery, material recovery, penalties, withholding and tax must be configurable/effective-dated rather than hardcoded forever.
+
+4.9 India commercial/compliance
+GST/TDS/withholding/e-invoice architecture must be jurisdiction-aware, versioned and effective-dated.
+Historical approved/certified/posted records retain the exact applied rule version.
+
+4.10 Accounting
+Construction OS owns operational and construction-commercial truth.
+Accounting remains adapter-driven.
+Initial adoption priority is controlled Excel/CSV, then Tally integration.
+
+
+5. HIGH-LEVEL ARCHITECTURE
+==========================
+Current foundation:
+- apps/web: Next.js web application.
+- apps/api: FastAPI backend.
+- PostgreSQL: primary application database.
+- apps/mobile: native Android application using Kotlin / Jetpack Compose.
+- PowerShell: local Windows setup/development helpers.
+- Docker Compose: optional infrastructure/deployment path.
+- GitHub Actions: build/lint/test validation.
+
+Shared platform foundations already exist or are being reused for:
+- Organization / tenant isolation.
+- Projects.
+- Identity.
+- Authentication and sessions.
+- Authorization / Roles / Permissions.
+- Feature Registry.
+- Configuration.
+- Metadata / Custom Fields.
+- Workflow / Approvals.
+- Audit / History.
+- Files / Media.
+- Notifications.
+- Search.
+- Realtime / Outbox.
+- Offline / Sync.
+- Background Jobs.
+- Reporting.
+- Integrations / Mapping.
+- Setup / Templates.
+- Retention / Governance.
+- Help / Knowledge.
+- Health / Diagnostics.
+
+Production direction:
+- One dedicated customer/company environment per installation.
+- Customer may be hosted cloud or on-premises.
+- organization_id / tenant isolation remains as defense in depth even in dedicated deployments.
+
+Deployment layers should remain conceptually separated:
+
+    Infrastructure profile
+      -> Runtime modules / workers
+      -> Company configuration
+      -> Project configuration
+      -> User experience
+
+
+6. INDIA DEFAULTS
+=================
+New India company defaults currently expected:
+- Country: IN.
+- Locale: en-IN.
+- Timezone: Asia/Kolkata.
+- Currency: INR.
+- Unit system: Metric.
+- Indian financial-year capable.
+- Indian address capable.
+
+These are defaults, not hard global restrictions. The architecture should remain localization-capable.
+
+
+7. CURRENT REPOSITORY / BRANCH / LOCAL STATE
+=============================================
+Repository:
+    sabarihomelab/Construction-OS
+
+Current development branch used throughout this work:
+    build/platform-foundation
+
+Do NOT create a new branch unless explicitly requested.
+Continue work on build/platform-foundation unless a future instruction changes this.
+
+Local Windows clone used during current testing:
+    C:\Users\LENOVO\Documents\Construction-OS
+
+Current local development addresses:
+- Web: http://localhost:3000
+- API: http://localhost:8000
+- Readiness: http://localhost:8000/health/ready
+- API docs: http://localhost:8000/docs
+
+Android emulator/USB-development connection can use ADB reverse and:
+    http://127.0.0.1:8000
+
+Android emulator direct host alias can normally use:
+    http://10.0.2.2:8000
+
+Do not hardcode these development addresses into production behavior.
+
+
+8. WORK COMPLETED SO FAR
+========================
+8.1 India-first product refit
+Completed direction change from a broad/global feature-parity approach to the India-first integrated contractor flow.
+Existing valid generic platform capability is preserved and reused rather than unnecessarily rewritten.
+
+8.2 Platform foundations
+The repository already contains broad platform foundations for identity/auth, permissions, configuration, workflow, audit, files, events/jobs, offline/realtime, reporting, integrations and diagnostics.
+
+8.3 Android functional modules currently implemented
+Android Modules 1-6 are functionally implemented:
+1. Party Directory.
+2. WBS / Cost Codes.
+3. BOQ.
+4. Estimate / Budget.
+5. Workforce / Attendance.
+6. DPR / Daily Report.
+
+"Functionally implemented" does NOT mean final field usability is approved. The first self-test found responsiveness, permissions and UX issues that remain open.
+
+8.4 DPR capability implemented so far
+DPR work includes concepts such as:
+- core daily report data,
+- structured sections,
+- WBS/BOQ work progress links,
+- crew/attendance summary integration,
+- delay/blocker capture,
+- custom fields,
+- photo/upload support,
+- review lifecycle,
+- report issue/download flow.
+
+8.5 Demo data bootstrap
+Development-only demo seed exists.
+Current demo project:
+    DEMO-001 - Riverside Residency - Phase 1
+
+Demo data currently includes realistic seeded records such as:
+- parties,
+- WBS/cost codes,
+- BOQ items,
+- estimate/budget data,
+- crews,
+- workers,
+- historical attendance,
+- historical DPRs,
+- WBS/BOQ progress,
+- delay/blocker sample,
+- DPR custom fields.
+
+The demo intentionally leaves today's Attendance and today's DPR for the tester to create.
+Demo bootstrap is intended to be idempotent for an existing seeded demo project.
+
+8.6 Windows setup completed
+setup-local.ps1 was successfully used on Windows.
+PostgreSQL local baseline was configured and migrations completed.
+Web dependencies and API environment were installed.
+
+8.7 Initial company bootstrap completed
+A first company/admin bootstrap was completed successfully.
+Bootstrap is intentionally first-run only and cannot simply be rerun on a database that already contains an organization.
+
+8.8 Admin email correction during test
+The initial local admin email was changed in PostgreSQL for the development environment after bootstrap.
+This was a development test adjustment, not the desired long-term admin-management UX.
+
+8.9 Demo bootstrap timezone fix
+bootstrap-demo-data.ps1 initially failed on Windows because Python zoneinfo could not find Asia/Kolkata.
+The API project was missing tzdata.
+The repo was updated to include tzdata.
+Known fix commit:
+    4b68772a661bfe10fd93aa257aeb0f92c8b31ad0
+
+8.10 Android Gradle bootstrap fix
+apps/mobile did not contain local Gradle wrapper files although CI installed Gradle explicitly.
+A helper setup-android.ps1 was added to generate the wrapper locally using Gradle 9.6.0 and JDK 17.
+Known commit:
+    c37e0cd71bb8f8d18a30ee13cee0f6c0fc419d65
+
+8.11 Android toolchain verified
+Android Studio was configured to use JDK 17.
+The Android project successfully completed a debug Gradle build.
+Warnings about deprecated Compose icons were non-blocking.
+
+8.12 Android emulator connection debugged
+The app initially failed company-server verification.
+The API deployment bootstrap endpoint was proven healthy:
+    GET /api/v1/deployment/bootstrap
+
+Local development response showed:
+- deployment_id = local-development
+- dedicated_company = false
+- environment = development
+- environment_name = India Local Development
+- api_path = /api/v1/
+
+ADB reverse was configured successfully for tcp:8000.
+After connection correction, the Android app reached the login screen.
+
+8.13 Development login verified
+The Android app successfully moved from company connection to the development-login screen.
+Do not commit actual secrets into documentation; development auth secrets belong in local environment configuration.
+
+8.14 First Android self-test started
+The first real interactive test exposed usability/authorization/performance findings documented below.
+
+8.15 Development continuation document created
+Initial DEV-WORKS.txt was committed to preserve the findings.
+Initial commit:
+    89c81898374b185a32f10f74990c52ef45f0cfd9
+
+
+9. CURRENT PRODUCT STATUS - WHAT IS DONE VS NOT DONE
+===================================================
+Status labels used below:
+- FOUNDATION: existing reusable platform/business foundation exists.
+- FUNCTIONAL: meaningful backend/mobile functionality exists, but may still need full UX/integration hardening.
+- PARTIAL: some foundation/code exists but Release 1 workflow is incomplete.
+- PENDING: still requires major implementation.
+- DEPRIORITIZED: preserve existing foundation, but deeper work is not on the critical path before the integrated demo.
+
+9.1 Current India critical path
+
+Party / Business Directory
+    Status: FUNCTIONAL for current mobile/demo path.
+    Still requires full web UX, identity/business refinements where applicable, complete integration and release hardening.
+
+WBS / Cost Codes
+    Status: FUNCTIONAL for current mobile/demo path.
+    Still requires full web UX, deeper downstream linkage and release hardening.
+
+BOQ
+    Status: FUNCTIONAL for current mobile/demo path.
+    Still requires controlled import/export, complete revision/mapping behavior, full web UX and downstream measurement/billing integration.
+
+Estimate / Rate Analysis / Budget
+    Status: FUNCTIONAL/PARTIAL.
+    Estimate/Budget exists for current demo/mobile workflow.
+    Complete Rate Analysis, approved budget revision governance, full web UX and downstream cost integration still need verification/completion.
+
+Workforce / Crews / Attendance
+    Status: FUNCTIONAL but field usability still OPEN.
+    Backend/mobile capability exists.
+    Current first self-test exposed permission and touch/responsiveness concerns.
+    Real-device/offline validation remains mandatory.
+
+DPR / Daily Report
+    Status: FUNCTIONAL but field usability still OPEN.
+    Current implementation exists with structured field capabilities.
+    Needs real-device/offline, performance, review/approval and complete authoritative-data integration testing.
+
+Materials / Material Master / Site Store / Inventory
+    Status: PARTIAL / PENDING Release 1 completion.
+    Existing material foundations should be reused.
+    Need full transaction-ledger inventory, stores, requirements, receipts, issues, consumption, wastage, transfers and WBS/BOQ/activity links.
+
+Procurement
+    Status: PENDING major integrated Release 1 flow.
+    Required flow:
+        Indent -> Approval -> RFQ -> Quotes -> Comparison -> Vendor selection -> PO -> GRN.
+    Must preserve revisions/history/audit and link to Parties, Materials, Projects, WBS/cost where applicable.
+
+Equipment
+    Status: FOUNDATION / PARTIAL.
+    Existing equipment capability should be reused.
+    Need Release 1 usage, idle/operating hours, fuel, breakdown/maintenance, hire/cost and WBS/activity allocation.
+
+Quality / Safety / Punch
+    Status: FOUNDATION / PARTIAL.
+    Preserve existing practical basics.
+    Need India integrated demo linkage and field UX where required.
+
+Subcontract / Work Order
+    Status: PENDING major Release 1 domain completion.
+
+Measurement / Certification engine
+    Status: PENDING major reusable Release 1 engine.
+    Critical prerequisite for subcontract and client RA Billing.
+
+Subcontractor RA Billing
+    Status: PENDING major Release 1 domain completion.
+
+Planning / Scheduling / Lookahead
+    Status: FOUNDATION/PARTIAL.
+    Release 1 requires practical activities, hierarchy, dependencies, baseline/lookahead, progress and delay linkage, not a Primavera clone.
+
+Job Cost / Commercial Control
+    Status: PENDING major integrated Release 1 capability.
+    Must combine labour + materials + equipment + subcontract + other direct costs.
+
+Client Contract / Measurement / RA Billing / Certification / Receivable
+    Status: PENDING major Release 1 domain completion.
+
+India Tax / Withholding / Invoice metadata foundation
+    Status: PENDING/needs complete release contract implementation.
+    Must remain versioned/effective-dated and must not hardcode current statutory values forever.
+
+Accounting export / Tally integration
+    Status: PENDING integrated Release 1 surface.
+    Controlled Excel/CSV first, then Tally adapter.
+
+Correspondence / Meetings / Approvals
+    Status: FOUNDATION / LOWER PRIORITY unless required by a critical path flow.
+
+Reporting / Dashboards / Portfolio
+    Status: FOUNDATION/PARTIAL.
+    Needs India contractor dashboards and drilldown to source transactions.
+
+Closeout
+    Status: PENDING basics for integrated demo.
+
+Integrated India demo data
+    Status: PARTIAL.
+    Existing demo covers Modules 1-6.
+    Must expand as downstream modules are completed so the final demo can run end to end.
+
+
+10. PRESERVED / DEPRIORITIZED EXISTING BUSINESS FOUNDATIONS
+===========================================================
+Do not delete useful foundations just because they are not the current critical path.
+
+Projects
+    KEEP and extend progressively.
+
+Documents / Specifications
+    KEEP.
+    Connect to PO/GRN/work order/measurement/bill/certification over time.
+
+Drawings
+    KEEP core revision/markup capability.
+    Advanced BIM/CAD/GIS intelligence is DEPRIORITIZED before integrated India demo.
+
+RFIs
+    KEEP backend/core capability.
+    Deep Procore-style RFI behavior is DEPRIORITIZED before BOQ/procurement/measurement/RA billing completion.
+
+Submittals
+    KEEP backend/core capability.
+    Deep foreign-style workflow is DEPRIORITIZED unless required by the India project flow.
+
+Meetings
+    KEEP but lower priority than commercial execution.
+
+
+11. FIRST ANDROID SELF-TEST FINDINGS - OPEN
+===========================================
+These findings are product defects/usability requirements, not just emulator notes.
+
+11.1 App feels laggy
+The Android debug/emulator experience currently feels laggy.
+Possible contributing factors include emulator image, debug build and host load, but genuine app/API/UI inefficiency must not be dismissed.
+
+Required later:
+- Profile actual screen/navigation/network/database behavior.
+- Distinguish UI rendering lag from API latency and local database work.
+- Test release-like build on a physical phone.
+- Avoid accepting field screens that visibly lag.
+
+11.2 Touch / responsiveness problems
+Some UI items appear tappable but do not consistently open/respond.
+Attendance was specifically observed as a flow where taps/actions did not always behave as expected.
+
+Requirement:
+A module is not "done" because its screen renders. All important buttons/cards/rows must respond immediately and clearly.
+
+11.3 Admin cannot automatically perform every project operation
+The bootstrap company administrator currently does not automatically get every project-scoped operational permission.
+Attendance and DPR use independent action permissions such as create/update/submit/approve.
+
+Production principle:
+Keep least-privilege authorization.
+
+Development/demo requirement:
+Provide a deliberate full-access development/test admin path so the bootstrap tester can exercise every demo workflow without manually assembling many roles.
+Do NOT weaken production security to solve a development inconvenience.
+
+11.4 Real local caching must be proven on an actual phone
+The requirement is not merely "the emulator runs offline".
+Operational field data must truly cache locally on the physical Android device, survive app close/reopen and sync correctly after connectivity returns.
+
+11.5 Real-device usability is mandatory
+A final mobile UX judgement cannot be made only from emulator screenshots.
+Real-phone testing must cover:
+- touch responsiveness,
+- scroll behavior,
+- keyboard behavior,
+- camera/gallery,
+- app background/foreground,
+- force-close/reopen,
+- low/poor connectivity,
+- offline work,
+- sync recovery,
+- interrupted uploads,
+- battery/data behavior,
+- outdoor readability,
+- one-handed/site usage where realistic.
+
+
+12. MOBILE / OFFLINE ACCEPTANCE REQUIREMENTS
+============================================
+Offline/low-bandwidth is a Release 1 baseline for field-critical workflows.
+
+Operational data in scope includes, where safe/authorized:
+- Attendance.
+- DPR.
+- Work progress / quantities.
+- Photos/media metadata and durable upload state.
+- Material transactions.
+- Equipment usage.
+- Issues.
+- Inspections.
+- Safe measurement capture.
+
+Required behavior:
+- Local save must be immediate and visible.
+- Previously loaded permitted data remains usable during temporary network loss where offline operation is allowed.
+- Offline mutations are durably queued on the device.
+- Retry uses backoff and idempotent identifiers.
+- Reconnection must not create duplicate attendance/DPR/progress/upload records.
+- Force-close/reopen must not lose committed local work.
+- Pending/synced/failed states must be understandable to the user.
+- Conflicts must surface explicitly rather than silently overwrite authoritative data.
+- Authentication/security/financial authority intentionally designated online-only remains online-only.
+
+Real phone validation must prove that the local cache is genuinely stored on the device and is not only a temporary emulator/server artifact.
+
+
+13. IDENTITY / ACCOUNT REQUIREMENT - OPEN DESIGN/IMPLEMENTATION
+===============================================================
+Separate these concepts:
+
+    Person / Employee / Worker
+
+from:
+
+    Authentication Identity / Login Provider
+
+A person may have multiple verified identities.
+Example:
+    Employee Sabari
+      -> Google identity A
+      -> verified mobile number
+      -> company email identity
+
+All identities must resolve to the same Construction OS person context.
+
+Required properties:
+- No duplicate employee automatically created when a new provider is used.
+- Controlled identity linking.
+- Controlled unlinking.
+- Strong verification before linking.
+- Audit record for identity changes.
+- Conflict handling if a provider identity is already linked elsewhere.
+- Recovery path if a user loses one provider.
+- Permissions belong to membership/role context, not separately to Gmail/mobile identities.
+- Worker records may continue to exist without any app account.
+
+This requirement must be included in the identity/auth architecture before production rollout.
+
+
+14. INSTALLATION / RUNTIME / SERVICE REQUIREMENTS - PENDING
+===========================================================
+Current development startup uses PowerShell scripts such as start-local.ps1.
+This is fine for development but NOT the desired normal customer runtime operation.
+
+14.1 Managed services
+Installed customer deployments must run as managed services/processes rather than requiring the user to manually keep PowerShell terminals open.
+
+Required managed runtime components as applicable:
+- API service.
+- Background worker/job service(s).
+- Web/static hosting service.
+- Supporting scheduler/worker processes as the platform grows.
+
+Required behavior:
+- Start automatically after machine/server reboot.
+- Stop/start/restart cleanly.
+- Expose health/readiness.
+- Restart safely after recoverable failure.
+- Record service status and relevant failures.
+- Upgrade process can stop, migrate and restart services in a controlled sequence.
+
+Do not lock into a Windows service implementation technology until the deployment design is reviewed, but normal operation must not depend on manually launching PowerShell.
+
+14.2 Custom endpoint/domain
+Each customer installation must support configurable endpoints/domain names.
+Requirements:
+- Customer-configurable web hostname/domain.
+- Customer-configurable API hostname/domain if separately exposed.
+- Production HTTPS/TLS.
+- Certificate configuration/renewal plan.
+- Environment-aware CORS / trusted origins.
+- Mobile connection must use the configured deployment endpoint.
+- No production hardcoding of localhost, 10.0.2.2 or 127.0.0.1.
+- Installer validates endpoint reachability/health before completing setup where practical.
+
+14.3 Setup/install/upgrade recovery
+Setup must not become "rerun random commands until it works".
+
+Requirements:
+- Clear step-by-step installer stages.
+- Persist setup progress/state.
+- If a step fails, show the exact failed step.
+- Provide Retry for safe retryable steps.
+- Provide Restart/Resume for the installer workflow.
+- Make setup idempotent where practical.
+- Validate dependencies before destructive work.
+- Do not silently ignore partial failures.
+- Produce supportable setup logs.
+
+14.4 Reset / recovery options
+Need reset/recovery features with clear environment boundaries.
+
+Development/test/demo:
+- Reset demo data.
+- Reset test company/workspace where explicitly requested.
+- Recreate seed data.
+- Restart local services.
+
+Production:
+- No casual destructive reset.
+- Explicit confirmation.
+- Strong authorization.
+- Audit event.
+- Backup requirement before destructive action.
+- Clear scope: cache reset vs service restart vs data reset must not be confused.
+
+14.5 In-app/admin recovery controls
+Operations/admin UI should eventually support safe controls such as:
+- View service health.
+- Restart safe application service/process where permitted.
+- Retry failed background job.
+- Refresh integration.
+- View backup status.
+- View storage status.
+- View database readiness.
+- See actionable failure message and recommended next step.
+
+
+15. LOGGING / OBSERVABILITY REQUIREMENTS - PENDING/HARDENING
+===========================================================
+Yes, logging is required.
+Do not create one huge undifferentiated log.
+
+Required categories:
+1. Application/API logs.
+2. Web/runtime logs as needed.
+3. Background worker/job logs.
+4. Installation/setup logs.
+5. Upgrade logs.
+6. Database migration logs.
+7. Backup/restore logs.
+8. Database import/export logs.
+9. Legacy-data migration/import logs.
+10. Integration/synchronization logs.
+11. Security/audit events.
+12. Mobile sync diagnostics appropriate for support.
+13. File/storage processing diagnostics.
+14. Report/export generation diagnostics.
+
+Log properties:
+- Timestamp.
+- Severity/level.
+- Component/service.
+- Correlation/request/job identifier where useful.
+- Deployment/environment context where safe.
+- Action/result.
+- Error details sufficient for support without exposing sensitive values.
+
+Never log:
+- passwords,
+- auth secrets,
+- access/refresh tokens,
+- unnecessary personal data,
+- raw sensitive identifiers without a legitimate support reason.
+
+Operational requirements:
+- log rotation,
+- retention policy,
+- bounded disk use,
+- searchable diagnostics,
+- support bundle/export later if useful,
+- audit logs separated conceptually from normal diagnostic logs.
+
+
+16. DATABASE BACKUP / EXPORT / IMPORT / ROLLBACK - PENDING/HARDENING
+==================================================================
+16.1 Backup before every rollout/upgrade
+Before a risky application/schema rollout:
+- verify database connectivity,
+- take a PostgreSQL backup/snapshot,
+- verify backup completion,
+- record timestamp,
+- record app version/commit/release,
+- record DB migration version,
+- record operator/system action,
+- retain backup according to policy.
+
+If the required backup fails, the migration/upgrade must not continue as if everything is safe.
+
+16.2 Rollback/recovery
+Define deterministic recovery:
+- application rollback strategy,
+- schema migration compatibility rules,
+- database restore procedure,
+- file/storage compatibility considerations,
+- service restart order,
+- health validation after recovery.
+
+Do not promise automatic rollback if the underlying schema migration is irreversible. Irreversible changes must be explicitly designed/flagged.
+
+16.3 Database export feature
+Admin-controlled export/backup is required.
+Possible outputs should use standard PostgreSQL backup mechanisms internally rather than inventing an opaque proprietary database format.
+
+Required:
+- authorization,
+- progress/result,
+- checksum/integrity information where useful,
+- audit trail,
+- secure storage/download handling,
+- version metadata.
+
+16.4 Database import/restore feature
+Admin-controlled restore/import is required.
+Requirements:
+- validate backup format/version,
+- show target deployment/database,
+- explicit confirmation,
+- compatibility check,
+- protect against blindly restoring incompatible schema,
+- audit the action,
+- verify post-restore health.
+
+16.5 Database restore vs legacy import are different
+Database restore:
+    Disaster recovery / full environment data restoration.
+
+Legacy import:
+    Mapping a customer's previous Excel/database/software data into Construction OS business records.
+
+These must remain separate tools/workflows.
+
+
+17. LEGACY CUSTOMER DATA MIGRATION TOOL - PENDING
+=================================================
+After installing Construction OS for a new customer, a guided import/migration executable/tool is required so the customer's legacy data can be brought into the product safely.
+
+Requirements:
+- configurable source mapping,
+- Excel/CSV first where practical,
+- future database/source connectors if justified,
+- preview before commit,
+- validation,
+- duplicate detection,
+- row-level errors,
+- reference/master-data mapping,
+- tenant/project safety,
+- dry-run mode where useful,
+- import summary,
+- reconciliation totals,
+- rejected-row output,
+- audit trail,
+- resumability/idempotency where possible.
+
+The import utility should never silently create inconsistent master data merely to make the import "succeed".
+
+
+18. WEB APPLICATION DIRECTION - MAJOR PENDING WORK
+=================================================
+The next major product stage is to build the complete web application across all required modules/workflows.
+
+The web application must not remain only a shell/status page.
+
+Required shared web UX patterns:
+- App shell/navigation.
+- Project/company switching where applicable.
+- Role-aware navigation.
+- Lists/tables.
+- Search.
+- Filters/sorting.
+- Pagination/virtualization where required.
+- Create/edit forms.
+- Validation.
+- Draft/submit/approve/reject lifecycle.
+- Status chips.
+- Attachments/files.
+- Activity/audit/history.
+- Comments/notes where relevant.
+- Custom fields.
+- Responsive layout.
+- Empty/loading/error/conflict states.
+- Permission-denied states that explain the issue.
+- Export/report actions.
+- Consistent confirmation for destructive actions.
+- Admin/operations screens.
+
+The exact number of user-visible modules/features should be taken from the authoritative runtime/product registry rather than a remembered count such as "36".
+The user expectation is nevertheless clear: build the complete web product for the full Release 1 module set, not just the first six Android modules.
+
+Build one strong reusable pattern and reuse it instead of redesigning every module independently.
+
+
+19. ANDROID / MOBILE DIRECTION AFTER WEB + DOMAIN COMPLETION
+===========================================================
+Do NOT spend the next cycle repeatedly redesigning Android screens while the core product scope is incomplete.
+
+After remaining domain modules and a strong full web application are stable, return to Android for a dedicated mobile product pass.
+
+Android should remain field-first rather than becoming a small copy of the desktop web UI.
+
+Future dedicated mobile pass must cover:
+- real physical phone testing,
+- performance profiling,
+- touch targets,
+- navigation speed,
+- keyboard handling,
+- offline/local Room behavior,
+- sync conflict behavior,
+- photo/camera/gallery,
+- upload interruption/resume,
+- background/foreground,
+- force-close/reopen,
+- low-bandwidth mode,
+- outdoor readability,
+- role-aware field home/actions,
+- minimal typing,
+- bulk actions,
+- carry-forward/recent values,
+- error/retry behavior,
+- battery/data use,
+- accessibility basics.
+
+Current Attendance and DPR mobile usability findings remain OPEN until this pass is completed.
+
+
+20. AUTHORIZATION / ROLES REQUIREMENTS
+======================================
+Backend/server remains authoritative for permissions.
+Never rely only on hidden buttons in the UI.
+
+Authorization can differ by:
+- organization/company,
+- project,
+- resource,
+- action,
+- role/membership,
+- workflow state.
+
+Examples of independent Attendance actions already represented in the permission model include concepts such as:
+- view,
+- create,
+- update,
+- submit,
+- approve.
+
+DPR similarly separates create/update/submit/approve/manage behavior.
+
+Production:
+- Maintain least privilege.
+- Admin/security role does not automatically imply every business action unless product policy explicitly says so.
+
+Development/demo:
+- Add an intentional full-access testing capability so a developer/admin can test the integrated demo end to end.
+- This must be clearly development/demo scoped or implemented as a deliberate all-business-permissions test role.
+- Never achieve this by bypassing authorization checks globally.
+
+
+21. DATA / SECURITY / PRIVACY BASELINES
+=======================================
+Every module must preserve:
+- organization/tenant isolation,
+- project scope,
+- server-side authorization,
+- validation,
+- audit where required,
+- deterministic business rules,
+- transactional writes,
+- idempotency for retried critical mutations,
+- secure file access,
+- sensitive logging restrictions,
+- controlled configuration/history,
+- safe migrations.
+
+Privileged/financial/security actions should create audit events.
+
+Production authentication must use strong verified providers and proper session/token handling.
+The current local development login is only for development.
+
+
+22. CONFIGURATION / CUSTOMIZATION REQUIREMENTS
+==============================================
+Construction OS should be configurable without forking core code for every customer.
+
+Expected configuration areas include:
+- Company identity/branding.
+- India defaults / localization.
+- Domain / endpoint.
+- Enabled runtime/business modules.
+- Workflow approvals.
+- Role/permission presets.
+- Project settings.
+- Custom fields.
+- Terminology where appropriate.
+- Report templates.
+- Numbering conventions.
+- Commercial rule versions.
+- Integration endpoints/mappings.
+- Storage configuration.
+- Email/notification providers.
+
+Configuration changes that affect historical reproducibility should be versioned/effective-dated rather than destructively overwritten.
+
+
+23. REPORTING / EXPORT REQUIREMENTS
+===================================
+Release 1 requires useful PDF/Excel/CSV outputs.
+Reports should be generated from authoritative persisted data and provide drilldown/source traceability where practical.
+
+Likely report families include:
+- Attendance/labour.
+- DPR.
+- BOQ/budget/estimate.
+- Procurement/PO/GRN.
+- Inventory/material consumption.
+- Equipment usage.
+- Measurement.
+- Subcontract/client RA billing.
+- Job cost / planned vs actual.
+- Pending approvals/issues.
+- Management/project dashboards.
+
+Controlled Excel/CSV is a first-class adoption surface, not an afterthought.
+
+
+24. AI / ASSISTANT BOUNDARY
+===========================
+AI is optional and comes after authoritative structured data.
+
+Valid early assistant purposes:
+- product help,
+- setup/configuration explanation,
+- release notes,
+- upgrade readiness,
+- rollback guidance,
+- evidence-based retrieval over permitted knowledge.
+
+Possible future insights:
+- over-budget explanation,
+- material overconsumption,
+- productivity patterns,
+- unbilled work,
+- pending certification,
+- stock shortage,
+- delayed activities.
+
+AI must NOT be authoritative for:
+- measurement,
+- billing,
+- tax,
+- withholding,
+- payment,
+- budget approval,
+- certification,
+- workflow approvals,
+- installer migrations,
+- rollback execution.
+
+Deterministic application services and explicit users remain authoritative.
+
+
+25. QUALITY / DEFINITION OF DONE
+================================
+A route/model/screen/button existing is NOT enough.
+
+A capability is complete only when applicable requirements are satisfied across:
+
+Functional
+- End-to-end real user workflow works.
+- Canonical data is persisted.
+- Validation/business rules are server-enforced.
+- Loading/empty/success/error/conflict states are handled.
+
+Security/privacy
+- Authentication/authorization enforced.
+- Tenant/project isolation tested.
+- Sensitive values kept out of logs.
+- Audit where appropriate.
+
+Reliability
+- Transaction boundaries are correct.
+- Critical retries are idempotent.
+- Long-running effects use durable jobs/outbox where appropriate.
+- Failure modes are observable.
+
+Quality
+- Domain unit tests.
+- API/integration tests.
+- CI lint/type/build.
+- Migrations included and safe.
+- Contracts/documentation updated.
+
+UX
+- Target-device usability verified.
+- Field actions minimize typing.
+- Destructive actions protected.
+- No fake/placeholder controls shipped as complete.
+- No dead taps.
+- No unexplained generic errors where an actionable message is possible.
+
+Operations
+- Required configuration documented.
+- Health/readiness defined.
+- Backup/restore impact understood.
+- Important failures observable.
+
+Documentation/support
+- Admin/user behavior documented.
+- Troubleshooting guidance exists.
+
+
+26. ENGINEERING CHANGE SAFETY
+=============================
+Continue using change classifications where applicable:
+- PRESENTATION.
+- METADATA.
+- BUSINESS_RULE.
+- WORKFLOW.
+- FINANCIAL.
+- SECURITY.
+
+Historically meaningful configuration/business records should be retired/versioned rather than destructively deleted when reproducibility matters.
+Examples:
+- approved measurements,
+- certified bills,
+- PO revisions,
+- work orders,
+- budget versions,
+- posted financial records.
+
+Before changing a shared API/model/table:
+- inspect current contracts,
+- identify consumers,
+- preserve backward compatibility where required,
+- use additive migration when possible,
+- include tests,
+- update docs.
+
+
+27. DEVELOPMENT / CI GATES
+==========================
+For meaningful implementation work, keep the project validation discipline:
+
+1. API lint/compile/tests.
+2. Web build/lint/tests as configured.
+3. Full local stack / important workflow validation.
+4. Android lintDebug + testDebugUnitTest + assembleDebug when Android-impacting work is touched.
+
+Do not claim the repository is fully green if the relevant gate was not actually run/checked.
+
+Small cohesive commits are preferred.
+
+
+28. INSTALLATION / UPGRADE TARGET EXPERIENCE
+============================================
+Long-term customer experience should look approximately like this:
+
+NEW INSTALLATION
+1. Run installer/setup.
+2. Validate machine prerequisites.
+3. Choose/configure deployment profile.
+4. Configure database.
+5. Configure endpoint/domain and HTTPS.
+6. Configure file storage.
+7. Install/initialize services.
+8. Apply migrations.
+9. Bootstrap company/admin.
+10. Configure enabled modules.
+11. Start services.
+12. Run health/readiness validation.
+13. Optionally launch legacy import/migration tool.
+14. Complete setup and show admin URL/status.
+
+UPGRADE
+1. Read current installation state/version.
+2. Validate prerequisites/free space/DB connectivity.
+3. Create and verify database backup.
+4. Stop controlled services as required.
+5. Apply application update.
+6. Apply safe migrations.
+7. Start services.
+8. Health/readiness validation.
+9. Run post-upgrade checks.
+10. Record result/version/backup details.
+11. Provide rollback guidance if validation fails.
+
+FAILED INSTALL/UPGRADE
+- Show failed stage.
+- Preserve prior completed stages.
+- Offer Retry/Resume/Restart where safe.
+- Preserve logs.
+- Do not leave the user guessing which PowerShell command to run next.
+
+
+29. OPERATIONS / ADMIN CONSOLE TARGET
+=====================================
+Future admin/operations surfaces should make customer support manageable.
+
+Possible sections:
+- Environment/deployment identity.
+- Application version.
+- Database migration version.
+- Service status.
+- Worker/job health.
+- Database health.
+- Storage health/capacity.
+- Integration status.
+- Backup history/status.
+- Restore/import/export history.
+- Failed jobs.
+- Audit events.
+- Security posture summary.
+- Configuration validation.
+- Retry/restart actions with proper permissions.
+
+The goal is to avoid needing shell/SQL access for normal support and routine operations.
+
+
+30. WHAT SHOULD BE BUILT NEXT - CURRENT DEVELOPMENT ORDER
+=========================================================
+Current preferred order:
+
+PHASE A - Platform hardening needed to safely keep building and eventually deploy
+- Multi-identity-per-person design/implementation.
+- Full-access development/demo test role/path.
+- Managed runtime/service design instead of manual PowerShell operation.
+- Configurable domain/endpoint + production HTTPS design.
+- Installer retry/resume/restart.
+- Development/test reset/reseed controls.
+- Logging/diagnostics structure.
+- Backup-before-upgrade.
+- Database export/import/restore.
+- Legacy migration/import tool framework.
+
+PHASE B - Complete the remaining India-first domain modules
+Recommended dependency path:
+- Materials / inventory / store.
+- Procurement.
+- Equipment Release 1 completion.
+- Quality/safety/punch integration.
+- Subcontract/work order.
+- Measurement/certification engine.
+- Subcontractor RA billing.
+- Planning/lookahead integration.
+- Job cost/commercial control.
+- Client contract/client RA billing.
+- India tax/withholding/invoice metadata foundation.
+- Accounting export / Tally adapter.
+- Reporting/dashboards.
+- Closeout basics.
+- Expand integrated demo data continuously.
+
+PHASE C - Build the complete web product
+- Implement web UI for the full authoritative Release 1 module registry.
+- Reuse consistent shared UX patterns.
+- Ensure all major workflows can be operated from web.
+- Build admin/operations/configuration surfaces.
+
+PHASE D - Return to Android for a dedicated real-device field UX pass
+- Do not merely port web screens.
+- Optimize field-first tasks.
+- Fix current lag/dead-tap problems.
+- Prove local cache/offline/sync on a real phone.
+- Perform performance/usability polish.
+
+PHASE E - Integrated demo / installation / rollout hardening
+- One-click/managed customer install path.
+- Backup/restore drills.
+- Legacy import rehearsal.
+- Expanded demo dataset covering the full journey.
+- Real multi-role workflow test.
+- Performance/security/reliability checks.
+- Customer demo rehearsal without manual DB edits.
+
+
+31. IMMEDIATE OPEN WORK / BACKLOG SUMMARY
+=========================================
+OPEN - Product/domain
+- Materials/inventory/store full Release 1 flow.
+- Procurement full Release 1 flow.
+- Equipment Release 1 enhancement.
+- Subcontract/work orders.
+- Measurement/certification.
+- Subcontractor RA billing.
+- Client contract/client RA billing.
+- Job cost.
+- India tax/withholding metadata.
+- Tally/accounting export.
+- Dashboards/reporting completion.
+- Closeout.
+
+OPEN - Web
+- Build complete operational web application for all Release 1 modules.
+- Build consistent shared components/patterns.
+- Build admin/operations/configuration UX.
+
+OPEN - Android
+- Lag/performance investigation.
+- Dead/nonresponsive taps.
+- Attendance end-to-end field usability.
+- DPR end-to-end field usability.
+- Real-device offline/local-cache proof.
+- Sync/error/conflict UX.
+- Later full mobile field refinement.
+
+OPEN - Identity/security
+- Multi-login identity per employee/person.
+- Development full-access test/admin role.
+- Confirm production role presets and project scopes.
+
+OPEN - Installer/operations
+- Managed Windows/server services.
+- Custom endpoint/domain.
+- HTTPS/certificates.
+- Installer state/retry/resume.
+- Safe reset/recovery.
+- Backup-before-upgrade.
+- DB export/import/restore.
+- Legacy migration tool.
+- Logging/rotation/support diagnostics.
+- Operations dashboard/restart/retry controls.
+
+OPEN - Release/readiness
+- Expand demo data across remaining modules.
+- Physical-phone validation.
+- Full multi-role demo.
+- Real install/upgrade/rollback rehearsal.
+- Production performance/security hardening.
+
+
+32. THINGS NOT TO DO
+====================
+- Do not create a new branch unless explicitly requested.
+- Do not throw away existing valid platform modules just because the India roadmap changed.
+- Do not build duplicate masters when a shared authoritative object should be reused.
+- Do not make Worker equal User.
+- Do not create duplicate employees for Gmail vs mobile login.
+- Do not bypass authorization globally just to simplify development testing.
+- Do not let the production app depend on manually running PowerShell terminals.
+- Do not hardcode local emulator/localhost URLs into production.
+- Do not upgrade/migrate production without a verified backup policy.
+- Do not confuse DB restore with legacy customer-data import.
+- Do not create a single unbounded log file.
+- Do not silently log secrets/tokens/passwords.
+- Do not accept a screen as complete merely because it compiles.
+- Do not ignore dead taps, lag or confusing error messages.
+- Do not make Android a mini desktop app.
+- Do not let advanced BIM/AI/RFI depth displace the India core critical path before the integrated demo.
+- Do not hardcode current GST/TDS rates as permanent unversioned business logic.
+- Do not silently overwrite historical approved commercial values.
+
+
+33. CURRENT SELF-TEST / DEVELOPMENT REFERENCE
+=============================================
+Current Android test setup used:
+- Android Studio.
+- JDK 17.
+- Gradle 9.6 wrapper generated locally by setup-android.ps1.
+- Pixel emulator used during first test.
+- API/Web running from local Windows machine.
+- ADB reverse tcp:8000 -> tcp:8000 used successfully.
+- Company server during ADB reverse test: http://127.0.0.1:8000
+
+Current demo project expected after successful login:
+    DEMO-001 - Riverside Residency - Phase 1
+
+Current future mobile test order after returning to mobile:
+1. Project selection/loading.
+2. Party.
+3. WBS.
+4. BOQ.
+5. Estimate/Budget.
+6. Workforce.
+7. Today's Attendance.
+8. Offline/close/reopen/reconnect attendance test.
+9. Today's DPR.
+10. Photos/uploads.
+11. Submit/review/approve/issue/report.
+12. Offline/poor-network/recovery tests.
+
+Do not store local development passwords/secrets in this file.
+
+
+34. DEVELOPMENT HISTORY LOG
+===========================
+2026-09-09 to 2026-09-10
+- Construction OS side project scope developed around replacing fragmented construction PM/daily/accounting workflows with one lightweight contractor operating system.
+- Dedicated deployment and India-first direction became the primary product direction.
+
+2026-09-12
+- Android DPR/mobile implementation work continued.
+
+2026-09-13
+- Windows local setup completed.
+- PostgreSQL/API/web local environment reached running state.
+- Initial company/admin bootstrap completed.
+- Demo-data bootstrap initially failed on missing Asia/Kolkata tzdata.
+- tzdata dependency added and demo bootstrap succeeded.
+- Android project local Gradle wrapper gap identified.
+- setup-android.ps1 added to generate wrapper and align local development with CI Gradle 9.6/JDK 17.
+- Android Gradle debug build completed successfully.
+- Emulator eventually booted and app installed.
+- Company-server connection initially failed.
+- Deployment bootstrap endpoint was inspected and proven healthy.
+- ADB reverse was configured successfully.
+- Android company verification proceeded to login.
+- First Android self-test identified lag/responsiveness concerns.
+- Attendance/business actions exposed admin-vs-project-permission confusion.
+- Requirement captured for development/demo full-access test path while preserving production least privilege.
+- Requirement captured for one person/employee linked to multiple auth identities (Gmail/mobile/company email) without duplicate employee creation.
+- Requirement confirmed that actual local caching/offline behavior must be tested on a real phone.
+- Product direction updated: finish platform hardening + remaining modules + full web application, then return for dedicated Android real-device customization/usability pass.
+- Operations requirements captured: managed services, custom endpoint/domain, installer recovery/restart/reset, rollout backups, DB export/import/restore, legacy import tool, structured logs and admin operations controls.
+- DEV-WORKS.txt created, then expanded into this full A-to-Z continuation document.
+
+
+35. CONTINUATION INSTRUCTIONS FOR THE NEXT CHAT / DEVELOPMENT SESSION
+====================================================================
+When continuing this project:
+
+1. Open this file first.
+2. Confirm current branch is build/platform-foundation unless the user explicitly changes it.
+3. Check repository HEAD/current changes before modifying code.
+4. Treat current Android lag/dead-tap/offline findings as OPEN, not solved.
+5. Do not start another mobile visual redesign unless the user explicitly asks; current broader priority is platform hardening + remaining modules + full web.
+6. Inspect existing contracts/models/APIs before creating new ones.
+7. Reuse shared platform services rather than building module-specific duplicates.
+8. Keep server authoritative for permissions/business rules.
+9. Extend the integrated demo data whenever a new critical-path module becomes functional.
+10. Keep this DEV-WORKS.txt updated after significant implementation/decision changes so continuation remains accurate.
+
+The product goal remains one coherent India contractor operating system, not a collection of screens.
