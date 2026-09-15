@@ -14,15 +14,21 @@ def test_operations_category_visibility_requires_sensitive_permissions() -> None
     assert not _category_allowed("storage", base)
     assert not _category_allowed("security_posture", base)
     assert not _category_allowed("integration_sync", base)
+    assert not _category_allowed("background_jobs", base)
+    assert not _category_allowed("audit_events", base)
 
     elevated = base | {
         "admin.operations.storage.view",
         "admin.operations.security.view",
         "admin.operations.integrations.view",
+        "admin.operations.jobs.view",
+        "admin.operations.audit.view",
     }
     assert _category_allowed("storage", elevated)
     assert _category_allowed("security_posture", elevated)
     assert _category_allowed("integration_sync", elevated)
+    assert _category_allowed("background_jobs", elevated)
+    assert _category_allowed("audit_events", elevated)
 
 
 def test_operations_overall_state_ignores_stale_snapshots() -> None:
@@ -50,4 +56,4 @@ def test_operations_overall_state_ignores_stale_snapshots() -> None:
         ),
     ]
 
-    assert _overall_state(rows, current) == "healthy"
+    assert _overall_state(rows) == "healthy"
