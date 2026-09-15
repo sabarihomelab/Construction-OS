@@ -1,4 +1,3 @@
-from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
@@ -51,7 +50,7 @@ def test_quotation_line_rejects_non_positive_quantity() -> None:
         QuotationLineCreate(
             rfq_line_id=uuid4(),
             line_number=1,
-            quantity=Decimal("0"),
+            quantity=Decimal(0),
             unit_price=Decimal("100.00"),
         )
 
@@ -60,13 +59,12 @@ def test_quotation_line_preserves_explicit_tax_snapshot_fields() -> None:
     payload = QuotationLineCreate(
         rfq_line_id=uuid4(),
         line_number=1,
-        quantity=Decimal("10"),
+        quantity=Decimal(10),
         unit_price=Decimal("125.50"),
         tax_code="GST-INPUT",
-        tax_rate=Decimal("18"),
+        tax_rate=Decimal(18),
         lead_time_days=7,
     )
-    assert payload.tax_rate == Decimal("18")
+    assert payload.tax_rate == Decimal(18)
     assert payload.tax_code == "GST-INPUT"
     assert payload.lead_time_days == 7
-    assert date.today() is not None

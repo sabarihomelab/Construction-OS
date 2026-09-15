@@ -10,11 +10,11 @@ from app.modules.procurement.schemas import PurchaseOrderRead
 from app.modules.procurement.service import ProcurementConflictError, ProcurementValidationError
 from app.modules.procurement.sourcing_models import (
     PurchaseOrderSource,
+    RequestForQuotation,
+    RequestForQuotationLine,
     RFQStatus,
     RFQVendorInvitation,
     RFQVendorSelection,
-    RequestForQuotation,
-    RequestForQuotationLine,
     VendorQuotation,
     VendorQuotationLine,
     VendorQuotationStatus,
