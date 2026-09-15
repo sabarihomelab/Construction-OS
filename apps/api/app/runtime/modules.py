@@ -117,7 +117,7 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
         name="Procurement / Purchase Orders / GRN",
         dependencies=("commercial",),
         integrates_with=("equipment", "estimating"),
-        api_router="app.modules.procurement.router:router",
+        api_router="app.modules.procurement.api:router",
         search_provider_module="app.modules.procurement.search",
     ),
     ModuleManifest(
