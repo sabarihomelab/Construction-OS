@@ -1,5 +1,5 @@
-import ConstructionApp from "../../construction-app";
+import { redirect } from "next/navigation";
 
 export default function CommercialControlRoomPage() {
-  return <ConstructionApp />;
+  redirect("/commercial/boq");
 }
