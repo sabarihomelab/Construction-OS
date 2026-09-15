@@ -53,9 +53,9 @@ export default function DPRVoidControl({ projectId, reportId }: { projectId: str
     }).catch((caught) => setError(caught instanceof Error ? caught.message : String(caught)));
   }, [projectId, reportId]);
 
-  if (!context || !report || !canManage(context, projectId) || report.status === "void") return null;
-
   async function voidReport() {
+    const currentReport = report;
+    if (!currentReport) return;
     const reason = window.prompt("Reason for voiding this DPR")?.trim();
     if (!reason) return;
     if (!window.confirm("Void this DPR? It will remain in history and cannot be treated as an active report.")) return;
@@ -63,7 +63,7 @@ export default function DPRVoidControl({ projectId, reportId }: { projectId: str
     try {
       await api<Report>(`/projects/${projectId}/daily-reports/${reportId}/void`, {
         method: "POST",
-        body: JSON.stringify({ expected_revision: report.revision, reason }),
+        body: JSON.stringify({ expected_revision: currentReport.revision, reason }),
       });
       window.location.reload();
     } catch (caught) {
@@ -75,6 +75,8 @@ export default function DPRVoidControl({ projectId, reportId }: { projectId: str
       setBusy(false);
     }
   }
+
+  if (!context || !report || !canManage(context, projectId) || report.status === "void") return null;
 
   return <section className="workspace-card">
     <div className="section-heading">
