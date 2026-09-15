@@ -100,6 +100,17 @@ const focusedWorkspaces: Workspace[] = [
     featureKeys: ["commercial.wbs"],
     permissionKeys: ["commercial.wbs.view"],
   },
+  {
+    eyebrow: "GUIDANCE",
+    title: "Help & workflows",
+    detail: "Search permission-aware guidance for the India-first workflows released in this build.",
+    href: "/help",
+    code: "H",
+    meta: "Product guidance",
+    featureKeys: ["help"],
+    permissionKeys: ["help.content.view"],
+    organizationOnly: true,
+  },
 ];
 
 const adminWorkspaces: Workspace[] = [
@@ -132,6 +143,17 @@ const adminWorkspaces: Workspace[] = [
     meta: "Configuration",
     featureKeys: ["admin.company"],
     permissionKeys: ["admin.settings.view"],
+    organizationOnly: true,
+  },
+  {
+    eyebrow: "ADMIN",
+    title: "Operations Center",
+    detail: "Review tenant health, operational events and background job failures without exposing infrastructure secrets.",
+    href: "/admin/operations",
+    code: "11",
+    meta: "Operational health",
+    featureKeys: ["admin.operations"],
+    permissionKeys: ["admin.operations.view"],
     organizationOnly: true,
   },
 ];
@@ -264,20 +286,20 @@ export default function WorkspaceHome() {
               <p className={styles.eyebrow}>YOUR WORKSPACE</p>
               <h1>Project operations, without the clutter.</h1>
               <p className={styles.heroCopy}>
-                Construction OS now builds this web workspace from your company and project access. Modules you cannot use are kept out of the way.
+                Construction OS builds this web workspace from your company and project access. Planned modules stay hidden until their release state changes.
               </p>
             </div>
             <div className={styles.heroAside}>
               <span>Access model</span>
               <strong>Role & project aware</strong>
-              <small>Server permissions remain authoritative. Navigation only exposes the work areas available to this membership.</small>
+              <small>Server permissions remain authoritative. Navigation only exposes released work areas available to this membership.</small>
             </div>
           </section>
 
           {allVisible.length === 0 ? (
             <section className={styles.emptyState}>
               <span>NO ACCESSIBLE WORKSPACES</span>
-              <h2>Your account is active, but no project module is available yet.</h2>
+              <h2>Your account is active, but no released project module is available yet.</h2>
               <p>Ask a company administrator to assign the required company or project role. The backend continues to enforce access even when navigation is hidden.</p>
             </section>
           ) : (
@@ -306,7 +328,7 @@ export default function WorkspaceHome() {
                       <p className={styles.eyebrow}>QUICK ACCESS</p>
                       <h2>Focused work areas</h2>
                     </div>
-                    <p>Go directly to a task without opening a larger control workspace.</p>
+                    <p>Go directly to a released task or product guide without opening a larger parent workspace.</p>
                   </div>
                   <div className={styles.secondaryGrid}>
                     {focused.map((workspace) => (
@@ -321,9 +343,9 @@ export default function WorkspaceHome() {
                   <div className={styles.sectionHeading}>
                     <div>
                       <p className={styles.eyebrow}>ADMINISTRATION</p>
-                      <h2>Company & access</h2>
+                      <h2>Company, access & operations</h2>
                     </div>
-                    <p>Security and configuration appear only for memberships with administrative access.</p>
+                    <p>Security, configuration and operational health appear only for memberships with the matching administrative capability.</p>
                   </div>
                   <div className={styles.secondaryGrid}>
                     {admin.map((workspace) => (
