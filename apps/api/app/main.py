@@ -12,6 +12,7 @@ from app.modules.events.router import router as realtime_router
 from app.modules.health.router import router as health_router
 from app.modules.help.router import router as help_router
 from app.modules.offline.router import router as offline_router
+from app.modules.operations.router import router as operations_router
 from app.modules.organizations.router import router as organization_router
 from app.modules.sessions.router import router as session_router
 from app.runtime.bootstrap import mount_runtime_routers, register_runtime_search_providers
@@ -47,6 +48,7 @@ def create_app() -> FastAPI:
     application.include_router(organization_router, prefix="/api/v1")
     application.include_router(authorization_router, prefix="/api/v1")
     application.include_router(help_router, prefix="/api/v1")
+    application.include_router(operations_router, prefix="/api/v1")
     mount_runtime_routers(application, runtime_plan)
     return application
 
