@@ -38,6 +38,15 @@ type Assignment = {
   updated_at: string;
 };
 
+class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 const PARTY_TYPES = [
   "client",
@@ -86,7 +95,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
       const body = (await response.json()) as { detail?: unknown };
       if (body.detail) message = String(body.detail);
     } catch {}
-    throw new Error(message);
+    throw new ApiError(response.status, message);
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
@@ -100,13 +109,22 @@ function Status({ value }: { value: string }) {
   );
 }
 
+function textValue(form: FormData, name: string): string | null {
+  const value = String(form.get(name) || "").trim();
+  return value || null;
+}
+
 export default function PartyDirectoryWorkspace({ partyId }: { partyId?: string }) {
   const [context, setContext] = useState<AccessContext | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [party, setParty] = useState<Party | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [query, setQuery] = useState("");
+  const [partyType, setPartyType] = useState("all");
+  const [partyStatus, setPartyStatus] = useState("all");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
   const canOrg = useCallback(
@@ -172,25 +190,63 @@ export default function PartyDirectoryWorkspace({ partyId }: { partyId?: string 
     return grouped;
   }, [assignments]);
 
+  const filteredParties = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return parties.filter((item) => {
+      const matchesQuery =
+        !normalizedQuery ||
+        [
+          item.code,
+          item.name,
+          item.legal_name,
+          item.gstin,
+          item.pan,
+          item.email,
+          item.phone,
+          item.locality,
+          item.state_name,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+      const matchesType = partyType === "all" || item.party_type === partyType;
+      const matchesStatus = partyStatus === "all" || item.status === partyStatus;
+      return matchesQuery && matchesType && matchesStatus;
+    });
+  }, [parties, partyStatus, partyType, query]);
+
   const createParty = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const element = event.currentTarget;
     const form = new FormData(element);
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       await api<Party>("/commercial/parties", {
         method: "POST",
         body: JSON.stringify({
-          code: form.get("code"),
-          name: form.get("name"),
+          code: String(form.get("code") || "").trim(),
+          name: String(form.get("name") || "").trim(),
+          legal_name: textValue(form, "legal_name"),
           party_type: form.get("party_type"),
-          gstin: form.get("gstin") || null,
-          pan: form.get("pan") || null,
-          phone: form.get("phone") || null,
+          gstin: textValue(form, "gstin"),
+          pan: textValue(form, "pan"),
+          email: textValue(form, "email"),
+          phone: textValue(form, "phone"),
+          address_line_1: textValue(form, "address_line_1"),
+          address_line_2: textValue(form, "address_line_2"),
+          locality: textValue(form, "locality"),
+          state_name: textValue(form, "state_name"),
+          state_code: textValue(form, "state_code"),
+          postal_code: textValue(form, "postal_code"),
+          payment_terms_days: form.get("payment_terms_days")
+            ? Number(form.get("payment_terms_days"))
+            : null,
+          notes: textValue(form, "notes"),
         }),
       });
       element.reset();
+      setNotice("Party created successfully.");
       await load();
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -205,34 +261,42 @@ export default function PartyDirectoryWorkspace({ partyId }: { partyId?: string 
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       await api<Party>(`/commercial/parties/${party.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           expected_revision: party.revision,
-          name: form.get("name"),
-          legal_name: form.get("legal_name") || null,
+          name: String(form.get("name") || "").trim(),
+          legal_name: textValue(form, "legal_name"),
           party_type: form.get("party_type"),
           status: form.get("status"),
-          gstin: form.get("gstin") || null,
-          pan: form.get("pan") || null,
-          email: form.get("email") || null,
-          phone: form.get("phone") || null,
-          address_line_1: form.get("address_line_1") || null,
-          locality: form.get("locality") || null,
-          state_name: form.get("state_name") || null,
-          state_code: form.get("state_code") || null,
-          postal_code: form.get("postal_code") || null,
+          gstin: textValue(form, "gstin"),
+          pan: textValue(form, "pan"),
+          email: textValue(form, "email"),
+          phone: textValue(form, "phone"),
+          address_line_1: textValue(form, "address_line_1"),
+          address_line_2: textValue(form, "address_line_2"),
+          locality: textValue(form, "locality"),
+          state_name: textValue(form, "state_name"),
+          state_code: textValue(form, "state_code"),
+          postal_code: textValue(form, "postal_code"),
           payment_terms_days: form.get("payment_terms_days")
             ? Number(form.get("payment_terms_days"))
             : null,
-          notes: form.get("notes") || null,
+          notes: textValue(form, "notes"),
           reason: "Updated from Party Directory",
         }),
       });
+      setNotice("Party details saved.");
       await load();
     } catch (requestError) {
-      setError((requestError as Error).message);
+      if (requestError instanceof ApiError && requestError.status === 409) {
+        await load();
+        setError("This party changed after you opened it. The latest revision has been loaded; review the values and save again.");
+      } else {
+        setError((requestError as Error).message);
+      }
     } finally {
       setBusy(false);
     }
@@ -245,11 +309,13 @@ export default function PartyDirectoryWorkspace({ partyId }: { partyId?: string 
     const projectId = String(form.get("project_id") || "");
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       await api<Assignment>(`/projects/${projectId}/commercial/parties`, {
         method: "POST",
         body: JSON.stringify({ party_id: party.id, role: form.get("role") }),
       });
+      setNotice("Project role assigned.");
       await load();
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -261,6 +327,7 @@ export default function PartyDirectoryWorkspace({ partyId }: { partyId?: string 
   const setAssignmentActive = async (assignment: Assignment, active: boolean) => {
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       await api<Assignment>(
         `/projects/${assignment.project_id}/commercial/party-assignments/${assignment.id}`,
@@ -275,9 +342,15 @@ export default function PartyDirectoryWorkspace({ partyId }: { partyId?: string 
           }),
         },
       );
+      setNotice(active ? "Project role reactivated." : "Project role deactivated.");
       await load();
     } catch (requestError) {
-      setError((requestError as Error).message);
+      if (requestError instanceof ApiError && requestError.status === 409) {
+        await load();
+        setError("This project assignment changed after you opened it. The latest state has been loaded; try the action again if it is still required.");
+      } else {
+        setError((requestError as Error).message);
+      }
     } finally {
       setBusy(false);
     }
@@ -299,32 +372,86 @@ export default function PartyDirectoryWorkspace({ partyId }: { partyId?: string 
               <strong>Action not completed</strong><span>{error}</span>
             </div>
           )}
-          {canOrg("commercial.party.manage") && (
-            <form className="quick-form" onSubmit={createParty}>
-              <input name="code" placeholder="Code" required />
-              <input name="name" placeholder="Party name" required />
-              <select name="party_type" defaultValue="supplier">
+          {notice && (
+            <div className="success-banner">
+              <strong>Saved</strong><span>{notice}</span>
+            </div>
+          )}
+          <section className="workflow-card">
+            <div>
+              <p className="eyebrow">FIND A PARTY</p>
+              <h2>Directory</h2>
+              <small>{filteredParties.length} of {parties.length} parties shown</small>
+            </div>
+            <div className="quick-form">
+              <input
+                aria-label="Search parties"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search code, name, GSTIN, PAN, email, phone or location"
+                type="search"
+                value={query}
+              />
+              <select aria-label="Filter by party type" onChange={(event) => setPartyType(event.target.value)} value={partyType}>
+                <option value="all">All types</option>
                 {PARTY_TYPES.map((value) => (
                   <option key={value} value={value}>{value.replaceAll("_", " ")}</option>
                 ))}
               </select>
-              <input name="gstin" placeholder="GSTIN" minLength={15} maxLength={15} />
-              <input name="pan" placeholder="PAN" minLength={10} maxLength={10} />
-              <input name="phone" placeholder="Phone" />
-              <button disabled={busy}>Add party</button>
-            </form>
+              <select aria-label="Filter by party status" onChange={(event) => setPartyStatus(event.target.value)} value={partyStatus}>
+                <option value="all">All statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </section>
+          {canOrg("commercial.party.manage") && (
+            <section className="workflow-card">
+              <div>
+                <p className="eyebrow">NEW PARTY</p>
+                <h2>Create business partner</h2>
+                <small>Create the reusable company master once, then assign project roles from its detail page.</small>
+              </div>
+              <form className="quick-form" onSubmit={createParty}>
+                <input name="code" placeholder="Code" required />
+                <input name="name" placeholder="Party name" required />
+                <input name="legal_name" placeholder="Legal name" />
+                <select name="party_type" defaultValue="supplier">
+                  {PARTY_TYPES.map((value) => (
+                    <option key={value} value={value}>{value.replaceAll("_", " ")}</option>
+                  ))}
+                </select>
+                <input name="gstin" placeholder="GSTIN" minLength={15} maxLength={15} />
+                <input name="pan" placeholder="PAN" minLength={10} maxLength={10} />
+                <input name="email" placeholder="Email" type="email" />
+                <input name="phone" placeholder="Phone" />
+                <input name="address_line_1" placeholder="Address line 1" />
+                <input name="address_line_2" placeholder="Address line 2" />
+                <input name="locality" placeholder="City / locality" />
+                <input name="state_name" placeholder="State" />
+                <input name="state_code" placeholder="State code" minLength={2} maxLength={2} />
+                <input name="postal_code" placeholder="PIN code" />
+                <input name="payment_terms_days" type="number" min="0" max="3650" placeholder="Payment terms days" />
+                <input name="notes" placeholder="Notes" />
+                <button disabled={busy}>{busy ? "Saving…" : "Add party"}</button>
+              </form>
+            </section>
           )}
           {parties.length === 0 ? (
             <div className="empty-state">
               <strong>No parties yet</strong>
               <p>Add the first real client, supplier, subcontractor, consultant or labour contractor.</p>
             </div>
+          ) : filteredParties.length === 0 ? (
+            <div className="empty-state">
+              <strong>No matching parties</strong>
+              <p>Change the search text or filters to see other business partners.</p>
+            </div>
           ) : (
             <div className="data-table">
               <div className="table-head">
                 <span>Code</span><span>Name</span><span>Type</span><span>GSTIN</span><span>Status</span>
               </div>
-              {parties.map((item) => (
+              {filteredParties.map((item) => (
                 <div className="table-row" key={item.id}>
                   <strong>{item.code}</strong>
                   <span><Link href={`/commercial/parties/${item.id}`}>{item.name}</Link></span>
@@ -356,6 +483,11 @@ export default function PartyDirectoryWorkspace({ partyId }: { partyId?: string 
             <strong>Action not completed</strong><span>{error}</span>
           </div>
         )}
+        {notice && (
+          <div className="success-banner">
+            <strong>Saved</strong><span>{notice}</span>
+          </div>
+        )}
         {!party ? (
           <div className="empty-state"><strong>Loading party…</strong></div>
         ) : (
@@ -382,14 +514,15 @@ export default function PartyDirectoryWorkspace({ partyId }: { partyId?: string 
                 <input name="pan" defaultValue={party.pan || ""} placeholder="PAN" minLength={10} maxLength={10} disabled={!canOrg("commercial.party.manage") || busy} />
                 <input name="email" type="email" defaultValue={party.email || ""} placeholder="Email" disabled={!canOrg("commercial.party.manage") || busy} />
                 <input name="phone" defaultValue={party.phone || ""} placeholder="Phone" disabled={!canOrg("commercial.party.manage") || busy} />
-                <input name="address_line_1" defaultValue={party.address_line_1 || ""} placeholder="Address" disabled={!canOrg("commercial.party.manage") || busy} />
+                <input name="address_line_1" defaultValue={party.address_line_1 || ""} placeholder="Address line 1" disabled={!canOrg("commercial.party.manage") || busy} />
+                <input name="address_line_2" defaultValue={party.address_line_2 || ""} placeholder="Address line 2" disabled={!canOrg("commercial.party.manage") || busy} />
                 <input name="locality" defaultValue={party.locality || ""} placeholder="City / locality" disabled={!canOrg("commercial.party.manage") || busy} />
                 <input name="state_name" defaultValue={party.state_name || ""} placeholder="State" disabled={!canOrg("commercial.party.manage") || busy} />
-                <input name="state_code" defaultValue={party.state_code || ""} placeholder="State code" maxLength={2} disabled={!canOrg("commercial.party.manage") || busy} />
+                <input name="state_code" defaultValue={party.state_code || ""} placeholder="State code" minLength={2} maxLength={2} disabled={!canOrg("commercial.party.manage") || busy} />
                 <input name="postal_code" defaultValue={party.postal_code || ""} placeholder="PIN code" disabled={!canOrg("commercial.party.manage") || busy} />
-                <input name="payment_terms_days" type="number" min="0" defaultValue={party.payment_terms_days ?? ""} placeholder="Payment terms days" disabled={!canOrg("commercial.party.manage") || busy} />
+                <input name="payment_terms_days" type="number" min="0" max="3650" defaultValue={party.payment_terms_days ?? ""} placeholder="Payment terms days" disabled={!canOrg("commercial.party.manage") || busy} />
                 <input name="notes" defaultValue={party.notes || ""} placeholder="Notes" disabled={!canOrg("commercial.party.manage") || busy} />
-                <button disabled={!canOrg("commercial.party.manage") || busy}>Save party</button>
+                <button disabled={!canOrg("commercial.party.manage") || busy}>{busy ? "Saving…" : "Save party"}</button>
               </form>
             </section>
             <section className="workflow-card">
@@ -412,7 +545,7 @@ export default function PartyDirectoryWorkspace({ partyId }: { partyId?: string 
                       <option key={value} value={value}>{value.replaceAll("_", " ")}</option>
                     ))}
                   </select>
-                  <button disabled={busy || party.status !== "active"}>Assign role</button>
+                  <button disabled={busy || party.status !== "active"}>{busy ? "Saving…" : "Assign role"}</button>
                 </form>
               )}
               {assignments.length === 0 ? (
@@ -436,6 +569,7 @@ export default function PartyDirectoryWorkspace({ partyId }: { partyId?: string 
                               className="secondary"
                               disabled={busy}
                               onClick={() => void setAssignmentActive(assignment, !assignment.active)}
+                              type="button"
                             >
                               {assignment.active ? "Deactivate" : "Reactivate"}
                             </button>
