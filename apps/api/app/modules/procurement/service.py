@@ -480,14 +480,6 @@ async def add_purchase_order_line(
     if po.status != PurchaseOrderStatus.DRAFT:
         raise ProcurementValidationError("Only draft purchase orders can be edited")
     data = dict(values)
-    await _validate_line_refs(
-        db,
-        organization_id=organization_id,
-        project_id=project_id,
-        material_id=data.get("material_id") if isinstance(data.get("material_id"), UUID) else None,
-        wbs_code_id=data.get("wbs_code_id") if isinstance(data.get("wbs_code_id"), UUID) else None,
-        boq_item_id=None,
-    )
     req_line_id = data.get("requisition_line_id")
     if isinstance(req_line_id, UUID):
         req_line = await db.scalar(
@@ -499,6 +491,23 @@ async def add_purchase_order_line(
         )
         if req_line is None:
             raise ProcurementValidationError("Requisition line was not found in this project")
+        if po.requisition_id is not None and req_line.requisition_id != po.requisition_id:
+            raise ProcurementValidationError("Requisition line does not belong to this purchase order requisition")
+        supplied_boq_item_id = data.get("boq_item_id")
+        if (
+            isinstance(supplied_boq_item_id, UUID)
+            and supplied_boq_item_id != req_line.boq_item_id
+        ):
+            raise ProcurementValidationError("BOQ item must match the source requisition line")
+        data["boq_item_id"] = req_line.boq_item_id
+    await _validate_line_refs(
+        db,
+        organization_id=organization_id,
+        project_id=project_id,
+        material_id=data.get("material_id") if isinstance(data.get("material_id"), UUID) else None,
+        wbs_code_id=data.get("wbs_code_id") if isinstance(data.get("wbs_code_id"), UUID) else None,
+        boq_item_id=data.get("boq_item_id") if isinstance(data.get("boq_item_id"), UUID) else None,
+    )
     quantity = Decimal(data.get("quantity") or 0)
     unit_price = money(Decimal(data.get("unit_price") or 0))
     taxable = money(quantity * unit_price)
