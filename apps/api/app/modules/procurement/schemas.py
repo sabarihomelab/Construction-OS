@@ -100,6 +100,7 @@ class PurchaseOrderLineCreate(BaseModel):
     requisition_line_id: UUID | None = None
     material_id: UUID | None = None
     wbs_code_id: UUID | None = None
+    boq_item_id: UUID | None = None
     description: str = Field(min_length=1)
     unit_code: str = Field(min_length=1, max_length=24)
     quantity: Decimal = Field(gt=0)
@@ -118,6 +119,7 @@ class PurchaseOrderLineRead(BaseModel):
     requisition_line_id: UUID | None
     material_id: UUID | None
     wbs_code_id: UUID | None
+    boq_item_id: UUID | None
     description: str
     unit_code: str
     quantity: Decimal
