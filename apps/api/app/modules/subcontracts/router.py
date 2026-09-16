@@ -7,6 +7,7 @@ from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
 from app.modules.projects.access import project_permission_is_allowed
 from app.modules.sessions.deps import CsrfProtected, CurrentSession
+from app.modules.subcontracts.claim_service import add_claim_line, certify_claim
 from app.modules.subcontracts.models import (
     Subcontract,
     SubcontractClaim,
@@ -31,9 +32,7 @@ from app.modules.subcontracts.schemas import (
 from app.modules.subcontracts.service import (
     SubcontractConflictError,
     SubcontractValidationError,
-    add_claim_line,
     add_subcontract_line,
-    certify_claim,
     create_claim,
     create_subcontract,
     record_claim_payment,
