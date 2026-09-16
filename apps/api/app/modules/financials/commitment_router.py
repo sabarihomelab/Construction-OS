@@ -5,7 +5,10 @@ from sqlalchemy import select
 
 from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
-from app.modules.financials.commitment_feeds import post_purchase_order_commitment
+from app.modules.financials.commitment_feeds import (
+    post_purchase_order_commitment,
+    post_subcontract_commitment,
+)
 from app.modules.financials.commitment_models import ProjectCommitmentAllocation
 from app.modules.financials.commitment_schemas import (
     ProjectCommitmentAllocationRead,
@@ -104,29 +107,37 @@ async def list_project_commitments(
     ]
 
 
-@router.post(
-    "/projects/{project_id}/financials/commitments/from-purchase-orders/{purchase_order_id}",
-    response_model=ProjectCommitmentDetailRead,
-)
-async def post_purchase_order_project_commitment(
+async def _post_commitment(
+    *,
     project_id: UUID,
-    purchase_order_id: UUID,
+    source_id: UUID,
+    source_kind: str,
     db: DbSession,
     session: CurrentSession,
-    _csrf: CsrfProtected,
 ) -> ProjectCommitmentDetailRead:
     context = await build_access_context(db, session.membership_id)
     _require_project_permission(context, project_id, "financials.project_cost.post")
     try:
-        row = await post_purchase_order_commitment(
-            db,
-            organization_id=context.organization_id,
-            project_id=project_id,
-            purchase_order_id=purchase_order_id,
-            membership_id=context.membership_id,
-            actor_user_id=session.user_id,
-            session_id=session.id,
-        )
+        if source_kind == "purchase_order":
+            row = await post_purchase_order_commitment(
+                db,
+                organization_id=context.organization_id,
+                project_id=project_id,
+                purchase_order_id=source_id,
+                membership_id=context.membership_id,
+                actor_user_id=session.user_id,
+                session_id=session.id,
+            )
+        else:
+            row = await post_subcontract_commitment(
+                db,
+                organization_id=context.organization_id,
+                project_id=project_id,
+                subcontract_id=source_id,
+                membership_id=context.membership_id,
+                actor_user_id=session.user_id,
+                session_id=session.id,
+            )
         await db.commit()
         await db.refresh(row)
         return await _detail(
@@ -144,3 +155,43 @@ async def post_purchase_order_project_commitment(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
+
+
+@router.post(
+    "/projects/{project_id}/financials/commitments/from-purchase-orders/{purchase_order_id}",
+    response_model=ProjectCommitmentDetailRead,
+)
+async def post_purchase_order_project_commitment(
+    project_id: UUID,
+    purchase_order_id: UUID,
+    db: DbSession,
+    session: CurrentSession,
+    _csrf: CsrfProtected,
+) -> ProjectCommitmentDetailRead:
+    return await _post_commitment(
+        project_id=project_id,
+        source_id=purchase_order_id,
+        source_kind="purchase_order",
+        db=db,
+        session=session,
+    )
+
+
+@router.post(
+    "/projects/{project_id}/financials/commitments/from-subcontracts/{subcontract_id}",
+    response_model=ProjectCommitmentDetailRead,
+)
+async def post_subcontract_project_commitment(
+    project_id: UUID,
+    subcontract_id: UUID,
+    db: DbSession,
+    session: CurrentSession,
+    _csrf: CsrfProtected,
+) -> ProjectCommitmentDetailRead:
+    return await _post_commitment(
+        project_id=project_id,
+        source_id=subcontract_id,
+        source_kind="subcontract",
+        db=db,
+        session=session,
+    )
