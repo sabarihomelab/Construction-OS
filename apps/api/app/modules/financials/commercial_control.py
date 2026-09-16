@@ -4,7 +4,14 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.commercial.models import BOQ, BOQItem, BOQStatus
+from app.modules.commercial.models import (
+    BOQ,
+    BOQItem,
+    BOQStatus,
+    RABill,
+    RABillLine,
+    RABillStatus,
+)
 from app.modules.financials.commitment_models import ProjectCommitmentAllocation
 from app.modules.financials.commercial_control_schemas import (
     BOQCommercialControlLine,
@@ -98,11 +105,31 @@ async def build_boq_commercial_control(
         for boq_item_id, amount in actual_rows.all()
     }
 
+    billed_rows = await db.execute(
+        select(
+            RABillLine.boq_item_id,
+            func.coalesce(func.sum(RABillLine.gross_amount), 0),
+        )
+        .join(RABill, RABill.id == RABillLine.ra_bill_id)
+        .where(
+            RABillLine.organization_id == organization_id,
+            RABillLine.project_id == project_id,
+            RABill.status.in_({RABillStatus.CERTIFIED, RABillStatus.PAID}),
+            RABill.currency_code == currency_code,
+        )
+        .group_by(RABillLine.boq_item_id)
+    )
+    billed = {
+        boq_item_id: _money(Decimal(amount))
+        for boq_item_id, amount in billed_rows.all()
+    }
+
     lines: list[BOQCommercialControlLine] = []
     for item in boq_items:
         boq_amount = _money(item.amount)
         committed_amount = commitments.get(item.id, Decimal("0.00"))
         actual_cost = actuals.get(item.id, Decimal("0.00"))
+        certified_billed_amount = billed.get(item.id, Decimal("0.00"))
         lines.append(
             BOQCommercialControlLine(
                 boq_item_id=item.id,
@@ -117,9 +144,11 @@ async def build_boq_commercial_control(
                 boq_amount=boq_amount,
                 committed_amount=committed_amount,
                 actual_cost=actual_cost,
+                certified_billed_amount=certified_billed_amount,
                 uncommitted_budget=_money(boq_amount - committed_amount),
                 commitment_remaining=_money(committed_amount - actual_cost),
                 budget_remaining=_money(boq_amount - actual_cost),
+                unbilled_boq_value=_money(boq_amount - certified_billed_amount),
             )
         )
 
@@ -131,6 +160,9 @@ async def build_boq_commercial_control(
             sum((line.committed_amount for line in lines), Decimal(0))
         ),
         total_actual_cost=_money(sum((line.actual_cost for line in lines), Decimal(0))),
+        total_certified_billed_amount=_money(
+            sum((line.certified_billed_amount for line in lines), Decimal(0))
+        ),
         total_uncommitted_budget=_money(
             sum((line.uncommitted_budget for line in lines), Decimal(0))
         ),
@@ -139,6 +171,9 @@ async def build_boq_commercial_control(
         ),
         total_budget_remaining=_money(
             sum((line.budget_remaining for line in lines), Decimal(0))
+        ),
+        total_unbilled_boq_value=_money(
+            sum((line.unbilled_boq_value for line in lines), Decimal(0))
         ),
         lines=lines,
     )
