@@ -8,7 +8,7 @@ from app.modules.financials.feed_router import router as feed_router
 from app.modules.financials.mapping_router import router as mapping_router
 from app.modules.financials.material_feed_router import router as material_feed_router
 from app.modules.financials.payables_router import router as payables_router
-from app.modules.financials.receivable_router import router as receivable_router
+from app.modules.financials.receivable_api import router as receivable_router
 from app.modules.financials.router import router as core_router
 from app.modules.financials.subcontract_feed_router import router as subcontract_feed_router
 
