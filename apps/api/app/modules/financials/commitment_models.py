@@ -41,6 +41,16 @@ class ProjectCommitmentAllocation(UUIDTimestampMixin, Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
+            ["subcontract_line_id", "project_id", "organization_id"],
+            [
+                "subcontract_lines.id",
+                "subcontract_lines.project_id",
+                "subcontract_lines.organization_id",
+            ],
+            name="fk_project_commitment_allocations_subcontract_line_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
             ["wbs_code_id", "project_id", "organization_id"],
             [
                 "project_wbs_codes.id",
@@ -76,6 +86,16 @@ class ProjectCommitmentAllocation(UUIDTimestampMixin, Base):
             "source_line_id",
             name="uq_project_commitment_allocations_source_line",
         ),
+        UniqueConstraint(
+            "commitment_id",
+            "subcontract_line_id",
+            name="uq_project_commitment_allocations_subcontract_line",
+        ),
+        CheckConstraint(
+            "(source_line_id IS NOT NULL AND subcontract_line_id IS NULL) OR "
+            "(source_line_id IS NULL AND subcontract_line_id IS NOT NULL)",
+            name="ck_project_commitment_allocations_source_line_choice",
+        ),
         CheckConstraint("quantity > 0", name="ck_project_commitment_allocations_quantity"),
         CheckConstraint(
             "committed_amount >= 0",
@@ -103,7 +123,8 @@ class ProjectCommitmentAllocation(UUIDTimestampMixin, Base):
     project_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     commitment_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     line_number: Mapped[int] = mapped_column(Integer)
-    source_line_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    source_line_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    subcontract_line_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     wbs_code_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     boq_item_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     material_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
