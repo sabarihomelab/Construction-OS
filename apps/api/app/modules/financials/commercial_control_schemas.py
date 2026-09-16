@@ -15,19 +15,20 @@ class BOQCommercialControlLine(BaseModel):
     boq_quantity: Decimal
     boq_rate: Decimal
     boq_amount: Decimal
-    approved_estimate_amount: Decimal
+    approved_estimate_amount: Decimal | None
     committed_amount: Decimal
     actual_cost: Decimal
     certified_billed_amount: Decimal
-    uncommitted_estimate: Decimal
+    uncommitted_estimate: Decimal | None
     commitment_remaining: Decimal
-    estimate_remaining: Decimal
+    estimate_remaining: Decimal | None
     unbilled_boq_value: Decimal
 
 
 class BOQCommercialControlSummary(BaseModel):
     project_id: UUID
     currency_code: str
+    estimate_coverage_complete: bool
     total_boq_amount: Decimal
     total_approved_estimate_amount: Decimal
     total_committed_amount: Decimal
