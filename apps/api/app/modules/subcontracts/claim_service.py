@@ -202,11 +202,14 @@ async def certify_claim(
         row.id: row
         for row in (
             await db.scalars(
-                select(SubcontractLine).where(
+                select(SubcontractLine)
+                .where(
                     SubcontractLine.id.in_(subcontract_line_ids),
                     SubcontractLine.project_id == project_id,
                     SubcontractLine.organization_id == organization_id,
                 )
+                .order_by(SubcontractLine.id)
+                .with_for_update()
             )
         ).all()
     }
