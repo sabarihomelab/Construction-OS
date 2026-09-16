@@ -7,6 +7,7 @@ from app.modules.financials.mapping_router import router as mapping_router
 from app.modules.financials.material_feed_router import router as material_feed_router
 from app.modules.financials.payables_router import router as payables_router
 from app.modules.financials.router import router as core_router
+from app.modules.financials.subcontract_feed_router import router as subcontract_feed_router
 
 router = APIRouter()
 router.include_router(core_router)
@@ -14,5 +15,6 @@ router.include_router(mapping_router)
 router.include_router(feed_router)
 router.include_router(material_feed_router)
 router.include_router(equipment_feed_router)
+router.include_router(subcontract_feed_router)
 router.include_router(commitment_router)
 router.include_router(payables_router)
