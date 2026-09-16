@@ -17,9 +17,11 @@ class BOQCommercialControlLine(BaseModel):
     boq_amount: Decimal
     committed_amount: Decimal
     actual_cost: Decimal
+    certified_billed_amount: Decimal
     uncommitted_budget: Decimal
     commitment_remaining: Decimal
     budget_remaining: Decimal
+    unbilled_boq_value: Decimal
 
 
 class BOQCommercialControlSummary(BaseModel):
@@ -28,7 +30,9 @@ class BOQCommercialControlSummary(BaseModel):
     total_boq_amount: Decimal
     total_committed_amount: Decimal
     total_actual_cost: Decimal
+    total_certified_billed_amount: Decimal
     total_uncommitted_budget: Decimal
     total_commitment_remaining: Decimal
     total_budget_remaining: Decimal
+    total_unbilled_boq_value: Decimal
     lines: list[BOQCommercialControlLine]
