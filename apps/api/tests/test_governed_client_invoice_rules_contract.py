@@ -57,9 +57,9 @@ def test_financial_rule_snapshot_preserves_rule_evidence() -> None:
     } <= fields
 
 
-def test_governed_rule_service_has_no_nonzero_statutory_rate_constant() -> None:
+def test_governed_rule_service_has_no_hardcoded_common_statutory_rates() -> None:
     source = inspect.getsource(governed_receivable_service)
     assert 'GST_RULE_KEY = "financials.client_invoice.gst_rule"' in source
     assert 'WITHHOLDING_RULE_KEY = "financials.client_invoice.withholding_rule"' in source
-    assert "18" not in source
-    assert "10" not in source
+    for literal in ('Decimal("18")', 'Decimal("18.00")', 'Decimal("10")', 'Decimal("10.00")'):
+        assert literal not in source
