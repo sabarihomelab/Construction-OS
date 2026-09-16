@@ -125,7 +125,7 @@ MODULE_MANIFESTS: tuple[ModuleManifest, ...] = (
         name="Subcontracts / Work Orders",
         dependencies=("commercial",),
         integrates_with=("estimating", "workforce", "field"),
-        api_router="app.modules.subcontracts.router:router",
+        api_router="app.modules.subcontracts.api:router",
         search_provider_module="app.modules.subcontracts.search",
     ),
     ModuleManifest(
