@@ -1,4 +1,5 @@
 import inspect
+from pathlib import Path
 
 from app.main import app
 from app.modules.procurement import po_revision_service
@@ -40,9 +41,13 @@ def test_purchase_order_amendment_preserves_downstream_history_boundaries() -> N
 
 
 def test_purchase_order_issue_snapshot_is_database_enforced() -> None:
-    migration_path = "apps/api/migrations/versions/20260916_0061_purchase_order_revision_history.py"
-    with open(migration_path, encoding="utf-8") as handle:
-        migration = handle.read()
+    migration_path = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20260916_0061_purchase_order_revision_history.py"
+    )
+    migration = migration_path.read_text(encoding="utf-8")
 
     assert "CREATE TRIGGER trg_purchase_order_issue_revision" in migration
     assert "NEW.status = 'issued'" in migration
