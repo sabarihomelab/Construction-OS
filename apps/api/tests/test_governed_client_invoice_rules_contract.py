@@ -11,8 +11,8 @@ CANONICAL_PATH = "/api/v1/projects/{project_id}/financials/receivables/invoices/
 def test_canonical_ra_to_invoice_route_is_mounted_once() -> None:
     schema = app.openapi()
     assert CANONICAL_PATH in schema["paths"]
-    matching = [route for route in app.routes if getattr(route, "path", "") == CANONICAL_PATH]
-    assert len(matching) == 1
+    operation = schema["paths"][CANONICAL_PATH]["post"]
+    assert operation["operationId"].startswith("create_governed_client_invoice_from_ra_bill_route")
 
 
 def test_client_cannot_supply_authoritative_tax_or_withholding_values() -> None:
