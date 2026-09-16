@@ -10,7 +10,8 @@ from app.modules.financials.models import CommitmentSourceType, CommitmentStatus
 class ProjectCommitmentAllocationRead(BaseModel):
     id: UUID
     line_number: int
-    source_line_id: UUID
+    source_line_id: UUID | None
+    subcontract_line_id: UUID | None
     wbs_code_id: UUID | None
     boq_item_id: UUID | None
     material_id: UUID | None
