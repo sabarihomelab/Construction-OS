@@ -15,7 +15,11 @@ from app.modules.subcontracts.models import (
 )
 from app.modules.subcontracts.service import (
     SubcontractValidationError,
+)
+from app.modules.subcontracts.service import (
     add_claim_line as _add_claim_line,
+)
+from app.modules.subcontracts.service import (
     certify_claim as _certify_claim,
 )
 
