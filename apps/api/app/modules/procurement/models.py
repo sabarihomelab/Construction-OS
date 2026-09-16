@@ -263,6 +263,12 @@ class PurchaseOrderLine(UUIDTimestampMixin, Base):
             name="fk_purchase_order_lines_wbs_scope",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["boq_item_id", "project_id", "organization_id"],
+            ["project_boq_items.id", "project_boq_items.project_id", "project_boq_items.organization_id"],
+            name="fk_purchase_order_lines_boq_scope",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint("purchase_order_id", "line_number", name="uq_purchase_order_line_number"),
         UniqueConstraint("id", "project_id", "organization_id", name="uq_purchase_order_lines_scope"),
         CheckConstraint("quantity > 0", name="ck_purchase_order_lines_quantity"),
@@ -279,6 +285,7 @@ class PurchaseOrderLine(UUIDTimestampMixin, Base):
     requisition_line_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     material_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     wbs_code_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    boq_item_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     line_number: Mapped[int] = mapped_column(Integer)
     description: Mapped[str] = mapped_column(Text)
     unit_code: Mapped[str] = mapped_column(String(24))
