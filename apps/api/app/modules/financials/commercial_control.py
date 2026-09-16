@@ -12,6 +12,7 @@ from app.modules.commercial.models import (
     RABillLine,
     RABillStatus,
 )
+from app.modules.estimating.models import EstimateItem, EstimateStatus, ProjectEstimate
 from app.modules.financials.commitment_models import ProjectCommitmentAllocation
 from app.modules.financials.commercial_control_schemas import (
     BOQCommercialControlLine,
@@ -23,7 +24,7 @@ from app.modules.financials.job_cost_models import (
     ProjectCostStatus,
 )
 from app.modules.financials.models import CommitmentStatus, ProjectCommitment
-from app.modules.financials.service import FinancialValidationError, _require_project
+from app.modules.financials.service import FinancialConflictError, FinancialValidationError, _require_project
 
 
 def _money(value: Decimal) -> Decimal:
@@ -63,6 +64,25 @@ async def build_boq_commercial_control(
         raise FinancialValidationError(
             "Project has no approved BOQ in the project currency for commercial control"
         )
+
+    estimate_rows = await db.execute(
+        select(EstimateItem.boq_item_id, EstimateItem.amount)
+        .join(ProjectEstimate, ProjectEstimate.id == EstimateItem.estimate_id)
+        .where(
+            EstimateItem.organization_id == organization_id,
+            EstimateItem.project_id == project_id,
+            EstimateItem.boq_item_id.is_not(None),
+            ProjectEstimate.status == EstimateStatus.APPROVED,
+            ProjectEstimate.currency_code == currency_code,
+        )
+    )
+    estimates: dict[UUID, Decimal] = {}
+    for boq_item_id, amount in estimate_rows.all():
+        if boq_item_id in estimates:
+            raise FinancialConflictError(
+                "Multiple approved estimate lines reference the same BOQ item"
+            )
+        estimates[boq_item_id] = _money(Decimal(amount))
 
     commitment_rows = await db.execute(
         select(
@@ -127,6 +147,7 @@ async def build_boq_commercial_control(
     lines: list[BOQCommercialControlLine] = []
     for item in boq_items:
         boq_amount = _money(item.amount)
+        approved_estimate_amount = estimates.get(item.id)
         committed_amount = commitments.get(item.id, Decimal("0.00"))
         actual_cost = actuals.get(item.id, Decimal("0.00"))
         certified_billed_amount = billed.get(item.id, Decimal("0.00"))
@@ -142,20 +163,43 @@ async def build_boq_commercial_control(
                 boq_quantity=item.quantity,
                 boq_rate=item.rate,
                 boq_amount=boq_amount,
+                approved_estimate_amount=approved_estimate_amount,
                 committed_amount=committed_amount,
                 actual_cost=actual_cost,
                 certified_billed_amount=certified_billed_amount,
-                uncommitted_budget=_money(boq_amount - committed_amount),
+                uncommitted_estimate=(
+                    _money(approved_estimate_amount - committed_amount)
+                    if approved_estimate_amount is not None
+                    else None
+                ),
                 commitment_remaining=_money(committed_amount - actual_cost),
-                budget_remaining=_money(boq_amount - actual_cost),
+                estimate_remaining=(
+                    _money(approved_estimate_amount - actual_cost)
+                    if approved_estimate_amount is not None
+                    else None
+                ),
                 unbilled_boq_value=_money(boq_amount - certified_billed_amount),
             )
         )
 
+    estimate_coverage_complete = all(
+        line.approved_estimate_amount is not None for line in lines
+    )
     return BOQCommercialControlSummary(
         project_id=project_id,
         currency_code=currency_code,
+        estimate_coverage_complete=estimate_coverage_complete,
         total_boq_amount=_money(sum((line.boq_amount for line in lines), Decimal(0))),
+        total_approved_estimate_amount=_money(
+            sum(
+                (
+                    line.approved_estimate_amount
+                    for line in lines
+                    if line.approved_estimate_amount is not None
+                ),
+                Decimal(0),
+            )
+        ),
         total_committed_amount=_money(
             sum((line.committed_amount for line in lines), Decimal(0))
         ),
@@ -163,14 +207,28 @@ async def build_boq_commercial_control(
         total_certified_billed_amount=_money(
             sum((line.certified_billed_amount for line in lines), Decimal(0))
         ),
-        total_uncommitted_budget=_money(
-            sum((line.uncommitted_budget for line in lines), Decimal(0))
+        total_uncommitted_estimate=_money(
+            sum(
+                (
+                    line.uncommitted_estimate
+                    for line in lines
+                    if line.uncommitted_estimate is not None
+                ),
+                Decimal(0),
+            )
         ),
         total_commitment_remaining=_money(
             sum((line.commitment_remaining for line in lines), Decimal(0))
         ),
-        total_budget_remaining=_money(
-            sum((line.budget_remaining for line in lines), Decimal(0))
+        total_estimate_remaining=_money(
+            sum(
+                (
+                    line.estimate_remaining
+                    for line in lines
+                    if line.estimate_remaining is not None
+                ),
+                Decimal(0),
+            )
         ),
         total_unbilled_boq_value=_money(
             sum((line.unbilled_boq_value for line in lines), Decimal(0))
