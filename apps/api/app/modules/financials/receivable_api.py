@@ -3,7 +3,6 @@ from fastapi import APIRouter
 from app.modules.financials.governed_receivable_router import router as governed_router
 from app.modules.financials.receivable_router import router as legacy_router
 
-
 router = APIRouter()
 router.routes.extend(
     route

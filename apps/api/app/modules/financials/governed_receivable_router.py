@@ -6,7 +6,9 @@ from sqlalchemy import select
 from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
 from app.modules.financials.governed_receivable_schemas import GovernedClientInvoiceFromRABillCreate
-from app.modules.financials.governed_receivable_service import create_governed_client_invoice_from_ra_bill
+from app.modules.financials.governed_receivable_service import (
+    create_governed_client_invoice_from_ra_bill,
+)
 from app.modules.financials.models import ClientInvoice
 from app.modules.financials.receivable_router import _invoice_detail
 from app.modules.financials.receivable_schemas import ClientInvoiceDetailRead

@@ -13,18 +13,22 @@ from app.modules.commercial.models import (
     RABillStatus,
 )
 from app.modules.estimating.models import EstimateItem, EstimateStatus, ProjectEstimate
-from app.modules.financials.commitment_models import ProjectCommitmentAllocation
 from app.modules.financials.commercial_control_schemas import (
     BOQCommercialControlLine,
     BOQCommercialControlSummary,
 )
+from app.modules.financials.commitment_models import ProjectCommitmentAllocation
 from app.modules.financials.job_cost_models import (
     ProjectCostAllocation,
     ProjectCostEntry,
     ProjectCostStatus,
 )
 from app.modules.financials.models import CommitmentStatus, ProjectCommitment
-from app.modules.financials.service import FinancialConflictError, FinancialValidationError, _require_project
+from app.modules.financials.service import (
+    FinancialConflictError,
+    FinancialValidationError,
+    _require_project,
+)
 
 
 def _money(value: Decimal) -> Decimal:

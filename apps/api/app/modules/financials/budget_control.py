@@ -23,8 +23,11 @@ from app.modules.financials.models import (
     CommitmentStatus,
     ProjectCommitment,
 )
-from app.modules.financials.service import FinancialConflictError, FinancialValidationError, _require_project
-
+from app.modules.financials.service import (
+    FinancialConflictError,
+    FinancialValidationError,
+    _require_project,
+)
 
 ZERO = Decimal("0.00")
 

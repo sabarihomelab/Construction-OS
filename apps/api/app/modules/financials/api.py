@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
 from app.modules.financials.budget_control_router import router as budget_control_router
-from app.modules.financials.commitment_router import router as commitment_router
 from app.modules.financials.commercial_control_router import router as commercial_control_router
+from app.modules.financials.commitment_router import router as commitment_router
 from app.modules.financials.equipment_feed_router import router as equipment_feed_router
 from app.modules.financials.feed_router import router as feed_router
 from app.modules.financials.mapping_router import router as mapping_router

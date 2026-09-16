@@ -5,7 +5,6 @@ from app.modules.financials import governed_receivable_service, receivable_api
 from app.modules.financials.governed_receivable_schemas import GovernedClientInvoiceFromRABillCreate
 from app.modules.financials.rule_models import FinancialRuleSnapshot
 
-
 CANONICAL_PATH = "/api/v1/projects/{project_id}/financials/receivables/invoices/from-ra-bill"
 
 

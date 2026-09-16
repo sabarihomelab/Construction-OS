@@ -23,7 +23,6 @@ from app.modules.subcontracts.service import (
     certify_claim as _certify_claim,
 )
 
-
 _CLOSED_CLAIM_STATUSES = {
     SubcontractClaimStatus.CERTIFIED,
     SubcontractClaimStatus.PAID,

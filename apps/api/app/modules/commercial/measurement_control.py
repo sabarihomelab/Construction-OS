@@ -20,7 +20,6 @@ from app.modules.commercial.models import (
 )
 from app.modules.commercial.service import CommercialValidationError, _require_project
 
-
 ZERO = Decimal("0.00")
 
 

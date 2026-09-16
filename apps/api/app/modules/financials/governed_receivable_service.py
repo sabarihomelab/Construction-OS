@@ -13,11 +13,10 @@ from app.modules.financials.receivable_service import create_client_invoice_from
 from app.modules.financials.rule_models import FinancialRuleSnapshot
 from app.modules.financials.service import FinancialValidationError
 
-
 GST_RULE_KEY = "financials.client_invoice.gst_rule"
 WITHHOLDING_RULE_KEY = "financials.client_invoice.withholding_rule"
 MONEY = Decimal("0.01")
-HUNDRED = Decimal("100")
+HUNDRED = Decimal(100)
 
 
 def _money(value: Decimal) -> Decimal:

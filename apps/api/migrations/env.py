@@ -12,7 +12,9 @@ from app.modules.commercial import models as commercial_models  # noqa: F401
 from app.modules.estimating import models as estimating_models  # noqa: F401
 from app.modules.financials import rule_models as financial_rule_models  # noqa: F401
 from app.modules.procurement import models as procurement_models  # noqa: F401
-from app.modules.procurement import po_revision_models as procurement_po_revision_models  # noqa: F401
+from app.modules.procurement import (
+    po_revision_models as procurement_po_revision_models,  # noqa: F401
+)
 from app.modules.scheduling import models as scheduling_models  # noqa: F401
 from app.modules.subcontracts import models as subcontract_models  # noqa: F401
 

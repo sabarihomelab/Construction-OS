@@ -17,7 +17,6 @@ from app.modules.subcontracts.models import (
 )
 from app.modules.subcontracts.service import SubcontractValidationError
 
-
 ZERO = Decimal("0.00")
 
 

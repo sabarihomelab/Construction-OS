@@ -33,9 +33,8 @@ from app.modules.financials.service import (
     _require_project_membership,
 )
 
-
 MONEY = Decimal("0.01")
-HUNDRED = Decimal("100")
+HUNDRED = Decimal(100)
 
 
 def money(value: Decimal) -> Decimal:

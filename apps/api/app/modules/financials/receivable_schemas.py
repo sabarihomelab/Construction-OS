@@ -12,8 +12,8 @@ class ClientInvoiceFromRABillCreate(BaseModel):
     invoice_date: date
     due_date: date | None = None
     tax_code: str | None = Field(default=None, max_length=40)
-    tax_rate: Decimal = Field(default=Decimal("0"), ge=0, max_digits=9, decimal_places=4)
-    withholding_amount: Decimal = Field(default=Decimal("0"), ge=0, max_digits=20, decimal_places=2)
+    tax_rate: Decimal = Field(default=Decimal(0), ge=0, max_digits=9, decimal_places=4)
+    withholding_amount: Decimal = Field(default=Decimal(0), ge=0, max_digits=20, decimal_places=2)
     notes: str | None = Field(default=None, max_length=4000)
 
 
@@ -92,7 +92,7 @@ class ClientReceiptCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_allocation_total(self) -> "ClientReceiptCreate":
-        total = sum((item.amount for item in self.allocations), Decimal("0"))
+        total = sum((item.amount for item in self.allocations), Decimal(0))
         if total != self.amount:
             raise ValueError("receipt allocation total must equal receipt amount")
         if len({item.invoice_id for item in self.allocations}) != len(self.allocations):

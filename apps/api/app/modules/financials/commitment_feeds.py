@@ -33,7 +33,7 @@ def _money(value: Decimal) -> Decimal:
 
 
 def _common_wbs_id(lines: list[object]) -> UUID | None:
-    wbs_values = [getattr(line, "wbs_code_id") for line in lines]
+    wbs_values = [line.wbs_code_id for line in lines]
     if wbs_values and all(value is not None for value in wbs_values):
         distinct_wbs = set(wbs_values)
         if len(distinct_wbs) == 1:
