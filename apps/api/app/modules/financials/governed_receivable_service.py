@@ -2,13 +2,13 @@ from datetime import UTC, datetime, time
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.commercial.models import RABill
 from app.modules.configuration.schemas import ResolvedConfigurationSetting
 from app.modules.configuration.service import resolve_effective_configuration
-from app.modules.financials.models import ClientInvoice
+from app.modules.financials.models import ClientInvoice, ClientInvoiceLine
 from app.modules.financials.receivable_service import create_client_invoice_from_ra_bill
 from app.modules.financials.rule_models import FinancialRuleSnapshot
 from app.modules.financials.service import FinancialValidationError
@@ -41,7 +41,9 @@ def _rule_payload(setting: ResolvedConfigurationSetting, *, key: str) -> dict[st
     return payload
 
 
-def _setting_by_key(settings: list[ResolvedConfigurationSetting], key: str) -> ResolvedConfigurationSetting:
+def _setting_by_key(
+    settings: list[ResolvedConfigurationSetting], key: str
+) -> ResolvedConfigurationSetting:
     for setting in settings:
         if setting.key == key:
             return setting
@@ -91,22 +93,24 @@ async def create_governed_client_invoice_from_ra_bill(
     gst_rate = Decimal(str(gst_rule["rate_percent"]))
     withholding_rate = Decimal(str(withholding_rule["rate_percent"]))
     subtotal = _money(Decimal(ra_bill.gross_amount))
-    tax_amount = _money(subtotal * gst_rate / HUNDRED)
+    provisional_tax = _money(subtotal * gst_rate / HUNDRED)
     withholding_basis = str(withholding_rule.get("basis") or "subtotal").strip().lower()
     if withholding_basis == "subtotal":
-        withholding_base = subtotal
+        provisional_withholding_base = subtotal
     elif withholding_basis == "total_including_tax":
-        withholding_base = _money(subtotal + tax_amount)
+        provisional_withholding_base = _money(subtotal + provisional_tax)
     else:
         raise FinancialValidationError(
             "Configured client withholding basis must be subtotal or total_including_tax"
         )
-    withholding_amount = _money(withholding_base * withholding_rate / HUNDRED)
+    provisional_withholding = _money(
+        provisional_withholding_base * withholding_rate / HUNDRED
+    )
 
     service_values = dict(values)
     service_values["tax_code"] = gst_rule.get("code") or None
     service_values["tax_rate"] = gst_rate
-    service_values["withholding_amount"] = withholding_amount
+    service_values["withholding_amount"] = provisional_withholding
     invoice = await create_client_invoice_from_ra_bill(
         db,
         organization_id=organization_id,
@@ -117,10 +121,52 @@ async def create_governed_client_invoice_from_ra_bill(
         session_id=session_id,
     )
 
+    reconciled_tax = _money(
+        Decimal(
+            await db.scalar(
+                select(func.coalesce(func.sum(ClientInvoiceLine.tax_amount), 0)).where(
+                    ClientInvoiceLine.organization_id == organization_id,
+                    ClientInvoiceLine.project_id == project_id,
+                    ClientInvoiceLine.invoice_id == invoice.id,
+                )
+            )
+            or 0
+        )
+    )
+    if withholding_basis == "subtotal":
+        withholding_base = _money(Decimal(invoice.subtotal))
+    else:
+        withholding_base = _money(Decimal(invoice.subtotal) + reconciled_tax)
+    reconciled_withholding = _money(withholding_base * withholding_rate / HUNDRED)
+    reconciled_total = _money(Decimal(invoice.subtotal) + reconciled_tax)
+    if reconciled_withholding > reconciled_total:
+        raise FinancialValidationError("Configured withholding exceeds reconciled invoice total")
+
+    invoice.tax_amount = reconciled_tax
+    invoice.withholding_amount = reconciled_withholding
+    invoice.total_amount = reconciled_total
+    invoice.net_receivable = _money(reconciled_total - reconciled_withholding)
+
     applied_at = datetime.now(UTC)
-    for setting, payload in (
-        (gst_setting, gst_rule),
-        (withholding_setting, withholding_rule),
+    for setting, payload, calculation in (
+        (
+            gst_setting,
+            gst_rule,
+            {
+                "taxable_subtotal": str(invoice.subtotal),
+                "tax_amount": str(invoice.tax_amount),
+                "calculation_basis": "sum_of_rounded_invoice_line_tax",
+            },
+        ),
+        (
+            withholding_setting,
+            withholding_rule,
+            {
+                "basis": withholding_basis,
+                "basis_amount": str(withholding_base),
+                "withholding_amount": str(invoice.withholding_amount),
+            },
+        ),
     ):
         db.add(
             FinancialRuleSnapshot(
@@ -135,6 +181,7 @@ async def create_governed_client_invoice_from_ra_bill(
                 applied_at=applied_at,
                 snapshot_json={
                     "rule": payload,
+                    "calculation": calculation,
                     "configuration_source": setting.source,
                     "configuration_version": setting.version,
                     "effective_from": (
