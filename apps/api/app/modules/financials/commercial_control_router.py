@@ -6,7 +6,7 @@ from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
 from app.modules.financials.commercial_control import build_boq_commercial_control
 from app.modules.financials.commercial_control_schemas import BOQCommercialControlSummary
-from app.modules.financials.service import FinancialValidationError
+from app.modules.financials.service import FinancialConflictError, FinancialValidationError
 from app.modules.projects.access import project_permission_is_allowed
 from app.modules.sessions.deps import CurrentSession
 
@@ -40,6 +40,8 @@ async def get_boq_commercial_control(
             organization_id=context.organization_id,
             project_id=project_id,
         )
+    except FinancialConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except FinancialValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
