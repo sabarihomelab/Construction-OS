@@ -23,7 +23,6 @@ from app.modules.procurement.models import (
     PurchaseOrder,
     PurchaseOrderLine,
     PurchaseOrderStatus,
-    PurchaseRequisitionLine,
 )
 from app.modules.search.service import schedule_search_index
 
@@ -121,22 +120,6 @@ async def post_purchase_order_commitment(
             "Purchase order must have a positive tax-exclusive value before commitment posting"
         )
 
-    requisition_line_ids = {
-        line.requisition_line_id
-        for line in lines
-        if line.requisition_line_id is not None
-    }
-    requisition_lines: dict[UUID, PurchaseRequisitionLine] = {}
-    if requisition_line_ids:
-        rows = await db.scalars(
-            select(PurchaseRequisitionLine).where(
-                PurchaseRequisitionLine.organization_id == organization_id,
-                PurchaseRequisitionLine.project_id == project_id,
-                PurchaseRequisitionLine.id.in_(requisition_line_ids),
-            )
-        )
-        requisition_lines = {row.id: row for row in rows.all()}
-
     wbs_values = [line.wbs_code_id for line in lines]
     common_wbs_id = None
     if wbs_values and all(value is not None for value in wbs_values):
@@ -162,11 +145,6 @@ async def post_purchase_order_commitment(
     await db.flush()
 
     for line in lines:
-        requisition_line = (
-            requisition_lines.get(line.requisition_line_id)
-            if line.requisition_line_id is not None
-            else None
-        )
         db.add(
             ProjectCommitmentAllocation(
                 organization_id=organization_id,
@@ -175,7 +153,7 @@ async def post_purchase_order_commitment(
                 line_number=line.line_number,
                 source_line_id=line.id,
                 wbs_code_id=line.wbs_code_id,
-                boq_item_id=requisition_line.boq_item_id if requisition_line is not None else None,
+                boq_item_id=line.boq_item_id,
                 material_id=line.material_id,
                 description=line.description,
                 quantity=line.quantity,
