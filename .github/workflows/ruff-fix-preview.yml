@@ -1,0 +1,21 @@
+name: Ruff Autofix Preview
+
+on:
+  pull_request:
+
+jobs:
+  ruff-fix-preview:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[dev]'
+      - name: Show Ruff autofix diff
+        run: |
+          ruff check --fix app tests migrations || true
+          git diff -- app tests migrations
