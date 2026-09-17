@@ -9,6 +9,7 @@ from app.modules.procurement.inventory_bridge import (
     create_goods_receipt_with_stock_location,
     receive_goods_receipt_with_inventory,
 )
+from app.modules.procurement.lineage import add_purchase_order_line, add_requisition_line
 from app.modules.procurement.models import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -39,8 +40,6 @@ from app.modules.procurement.service import (
     ProcurementConflictError,
     ProcurementValidationError,
     add_goods_receipt_line,
-    add_purchase_order_line,
-    add_requisition_line,
     create_purchase_order,
     create_requisition,
     transition_purchase_order,
