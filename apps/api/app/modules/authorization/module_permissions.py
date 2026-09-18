@@ -157,4 +157,5 @@ MODULE_PERMISSION_DEFINITIONS: tuple[ModulePermissionDefinition, ...] = (
     ModulePermissionDefinition("financials.receivable.view", "financials", "receivable", "view", "View client invoices, receipts and allocations.", PermissionRisk.HIGH),
     ModulePermissionDefinition("financials.receivable.manage", "financials", "receivable", "manage", "Create and issue client invoices linked to commercial certification.", PermissionRisk.CRITICAL),
     ModulePermissionDefinition("financials.receipt.post", "financials", "receipt", "post", "Post and allocate client receipts.", PermissionRisk.CRITICAL),
+    ModulePermissionDefinition("financials.receipt.reverse", "financials", "receipt", "reverse", "Reverse posted client receipts with preserved allocation history.", PermissionRisk.CRITICAL),
 )
