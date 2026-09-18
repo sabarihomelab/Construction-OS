@@ -1,4 +1,4 @@
-import pytest
+from fastapi.routing import iter_route_contexts\nimport pytest
 
 from app.modules.authorization.templates import ROLE_TEMPLATES_BY_KEY
 from app.modules.procurement.router import (
@@ -63,3 +63,9 @@ def test_assignment_rule_rejects_missing_approvers():
 def test_requisition_routes_use_shared_workflow_adapter():
     assert routed_requisition_submit.__module__ == "app.modules.procurement.workflow"
     assert routed_requisition_decision.__module__ == "app.modules.procurement.workflow"
+
+
+def test_rejected_requisition_can_be_revised_through_api_contract():
+    paths = {context.path for context in iter_route_contexts(procurement_router.routes)}
+
+    assert "/projects/{project_id}/procurement/requisitions/{requisition_id}/revise" in paths
