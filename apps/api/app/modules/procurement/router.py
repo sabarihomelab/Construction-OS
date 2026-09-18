@@ -28,6 +28,7 @@ from app.modules.procurement.schemas import (
     GoodsReceiptCreate,
     GoodsReceiptLineCreate,
     GoodsReceiptLineRead,
+    GoodsReceiptLineUpdate,
     GoodsReceiptRead,
     GoodsReceiptReceiveAction,
     PurchaseOrderCreate,
@@ -47,6 +48,7 @@ from app.modules.procurement.service import (
     create_purchase_order,
     create_requisition,
     transition_purchase_order,
+    update_goods_receipt_line,
 )
 from app.modules.projects.access import effective_project_permissions, project_permission_is_allowed
 from app.modules.sessions.deps import CsrfProtected, CurrentSession
@@ -401,6 +403,44 @@ async def add_goods_receipt_line_route(project_id: UUID, goods_receipt_id: UUID,
     _project_permission(context, project_id, "procurement.receipt.manage")
     try:
         row = await add_goods_receipt_line(db, organization_id=context.organization_id, project_id=project_id, goods_receipt_id=goods_receipt_id, values=payload.model_dump(), actor_user_id=session.user_id, session_id=session.id)
+        await db.commit()
+        await db.refresh(row)
+        return row
+    except (ProcurementConflictError, ProcurementValidationError) as exc:
+        await db.rollback()
+        _domain_error(exc)
+
+
+@router.patch(
+    "/projects/{project_id}/procurement/goods-receipts/{goods_receipt_id}/lines/{goods_receipt_line_id}",
+    response_model=GoodsReceiptLineRead,
+)
+async def update_goods_receipt_line_route(
+    project_id: UUID,
+    goods_receipt_id: UUID,
+    goods_receipt_line_id: UUID,
+    payload: GoodsReceiptLineUpdate,
+    db: DbSession,
+    session: CurrentSession,
+    _csrf: CsrfProtected,
+) -> GoodsReceiptLine:
+    context = await build_access_context(db, session.membership_id)
+    _project_permission(context, project_id, "procurement.receipt.manage")
+    try:
+        row = await update_goods_receipt_line(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            goods_receipt_id=goods_receipt_id,
+            goods_receipt_line_id=goods_receipt_line_id,
+            expected_receipt_revision=payload.expected_receipt_revision,
+            values=payload.model_dump(
+                exclude_unset=True,
+                exclude={"expected_receipt_revision"},
+            ),
+            actor_user_id=session.user_id,
+            session_id=session.id,
+        )
         await db.commit()
         await db.refresh(row)
         return row
