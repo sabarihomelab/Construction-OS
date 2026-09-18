@@ -99,6 +99,7 @@ async def build_budget_commercial_control(
                 ProjectCostEntry.organization_id == organization_id,
                 ProjectCostEntry.project_id == project_id,
                 ProjectCostEntry.status == ProjectCostStatus.POSTED,
+                ProjectCostEntry.reversal_of_entry_id.is_(None),
                 ProjectCostEntry.currency_code != currency_code,
             )
         )
@@ -211,6 +212,7 @@ async def build_budget_commercial_control(
             ProjectCostAllocation.organization_id == organization_id,
             ProjectCostAllocation.project_id == project_id,
             ProjectCostEntry.status == ProjectCostStatus.POSTED,
+            ProjectCostEntry.reversal_of_entry_id.is_(None),
             ProjectCostEntry.currency_code == currency_code,
         )
         .group_by(ProjectCostAllocation.wbs_code_id, CostHead.category)
