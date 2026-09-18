@@ -23,11 +23,13 @@ from app.modules.financials.receivable_schemas import (
     ClientReceiptCreate,
     ClientReceiptDetailRead,
     ClientReceiptRead,
+    ClientReceiptReverseAction,
 )
 from app.modules.financials.receivable_service import (
     create_client_invoice_from_ra_bill,
     invoice_received_amount,
     post_client_receipt,
+    reverse_client_receipt,
     transition_client_invoice,
 )
 from app.modules.financials.service import FinancialConflictError, FinancialValidationError
@@ -374,6 +376,45 @@ async def post_client_receipt_route(
             values=payload.model_dump(),
             membership_id=context.membership_id,
             actor_user_id=session.user_id,
+            session_id=session.id,
+        )
+        await db.commit()
+        await db.refresh(row)
+        return await _receipt_detail(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            receipt=row,
+        )
+    except (FinancialConflictError, FinancialValidationError) as exc:
+        await db.rollback()
+        _domain_error(exc)
+
+
+
+@router.post(
+    "/projects/{project_id}/financials/receivables/receipts/{receipt_id}/reverse",
+    response_model=ClientReceiptDetailRead,
+)
+async def reverse_client_receipt_route(
+    project_id: UUID,
+    receipt_id: UUID,
+    payload: ClientReceiptReverseAction,
+    db: DbSession,
+    session: CurrentSession,
+    _csrf: CsrfProtected,
+) -> ClientReceiptDetailRead:
+    context = await build_access_context(db, session.membership_id)
+    _project_permission(context, project_id, "financials.receipt.reverse")
+    try:
+        row = await reverse_client_receipt(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            receipt_id=receipt_id,
+            membership_id=context.membership_id,
+            actor_user_id=session.user_id,
+            reason=payload.reason,
             session_id=session.id,
         )
         await db.commit()
