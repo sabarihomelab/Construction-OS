@@ -1047,6 +1047,7 @@ async def job_cost_summary_rows(
             ProjectCostEntry.organization_id == organization_id,
             ProjectCostEntry.project_id == project_id,
             ProjectCostEntry.status == ProjectCostStatus.POSTED,
+            ProjectCostEntry.reversal_of_entry_id.is_(None),
             ProjectCostAllocation.organization_id == organization_id,
             ProjectCostAllocation.project_id == project_id,
         )
