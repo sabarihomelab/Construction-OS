@@ -10,6 +10,10 @@ from app.modules.procurement.inventory_bridge import (
     receive_goods_receipt_with_inventory,
 )
 from app.modules.procurement.lineage import add_purchase_order_line, add_requisition_line
+from app.modules.procurement.workflow import (
+    decide_requisition_approval,
+    submit_requisition_for_approval,
+)
 from app.modules.procurement.models import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -18,7 +22,6 @@ from app.modules.procurement.models import (
     PurchaseOrderStatus,
     PurchaseRequisition,
     PurchaseRequisitionLine,
-    RequisitionStatus,
 )
 from app.modules.procurement.schemas import (
     GoodsReceiptCreate,
@@ -43,7 +46,6 @@ from app.modules.procurement.service import (
     create_purchase_order,
     create_requisition,
     transition_purchase_order,
-    transition_requisition,
 )
 from app.modules.projects.access import effective_project_permissions, project_permission_is_allowed
 from app.modules.sessions.deps import CsrfProtected, CurrentSession
