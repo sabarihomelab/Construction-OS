@@ -43,6 +43,43 @@ def money(value: Decimal) -> Decimal:
     return value.quantize(MONEY, rounding=ROUND_HALF_UP)
 
 
+def _validate_goods_receipt_quantities(
+    *,
+    received: Decimal,
+    accepted: Decimal,
+    rejected: Decimal,
+    remarks: str | None,
+    require_full_disposition: bool,
+) -> None:
+    if received <= 0:
+        raise ProcurementValidationError("Received quantity must be greater than zero")
+    if accepted < 0 or rejected < 0:
+        raise ProcurementValidationError("Accepted and rejected quantities cannot be negative")
+    disposition = accepted + rejected
+    if disposition > received:
+        raise ProcurementValidationError(
+            "Accepted plus rejected quantity cannot exceed received quantity"
+        )
+    if require_full_disposition and disposition != received:
+        raise ProcurementValidationError(
+            "Every received quantity must be accepted or rejected before the GRN is received"
+        )
+    if rejected > 0 and not (remarks and remarks.strip()):
+        raise ProcurementValidationError("Remarks are required when quantity is rejected")
+
+
+def _validate_po_acceptance_limit(
+    *,
+    ordered_quantity: Decimal,
+    previously_accepted: Decimal,
+    accepted_quantity: Decimal,
+) -> None:
+    if previously_accepted + accepted_quantity > ordered_quantity:
+        raise ProcurementValidationError(
+            "Accepted quantity exceeds the remaining purchase order quantity"
+        )
+
+
 async def _require_project(db: AsyncSession, organization_id: UUID, project_id: UUID) -> None:
     exists = await db.scalar(
         select(Project.id).where(Project.id == project_id, Project.organization_id == organization_id)
@@ -767,18 +804,32 @@ async def add_goods_receipt_line(
     received = Decimal(values.get("received_quantity") or 0)
     accepted = Decimal(values.get("accepted_quantity") or 0)
     rejected = Decimal(values.get("rejected_quantity") or 0)
-    if accepted + rejected > received:
-        raise ProcurementValidationError("Accepted plus rejected quantity cannot exceed received quantity")
-    prior = await db.scalar(
-        select(func.coalesce(func.sum(GoodsReceiptLine.received_quantity), 0))
+    remarks = values.get("remarks") if isinstance(values.get("remarks"), str) else None
+    _validate_goods_receipt_quantities(
+        received=received,
+        accepted=accepted,
+        rejected=rejected,
+        remarks=remarks,
+        require_full_disposition=False,
+    )
+    unit_code = str(values.get("unit_code") or po_line.unit_code).strip()
+    if unit_code.casefold() != po_line.unit_code.strip().casefold():
+        raise ProcurementValidationError(
+            "Goods receipt unit must match the purchase order line until governed UOM conversion is configured"
+        )
+    previously_accepted = await db.scalar(
+        select(func.coalesce(func.sum(GoodsReceiptLine.accepted_quantity), 0))
         .join(GoodsReceipt, GoodsReceipt.id == GoodsReceiptLine.goods_receipt_id)
         .where(
             GoodsReceiptLine.purchase_order_line_id == po_line_id,
             GoodsReceipt.status == GoodsReceiptStatus.RECEIVED,
         )
     )
-    if Decimal(prior or 0) + received > po_line.quantity:
-        raise ProcurementValidationError("Receipt quantity exceeds the remaining purchase order quantity")
+    _validate_po_acceptance_limit(
+        ordered_quantity=po_line.quantity,
+        previously_accepted=Decimal(previously_accepted or 0),
+        accepted_quantity=accepted,
+    )
     row = GoodsReceiptLine(
         organization_id=organization_id,
         project_id=project_id,
@@ -787,8 +838,8 @@ async def add_goods_receipt_line(
         received_quantity=received,
         accepted_quantity=accepted,
         rejected_quantity=rejected,
-        unit_code=str(values.get("unit_code") or po_line.unit_code),
-        remarks=values.get("remarks") if isinstance(values.get("remarks"), str) else None,
+        unit_code=unit_code,
+        remarks=remarks,
     )
     db.add(row)
     receipt.revision += 1
@@ -846,43 +897,95 @@ async def receive_goods_receipt(
         raise ProcurementConflictError("Goods receipt changed; refresh before receiving")
     if receipt.status != GoodsReceiptStatus.DRAFT:
         raise ProcurementValidationError("Only draft goods receipts can be received")
-    line_count = await db.scalar(
-        select(func.count(GoodsReceiptLine.id)).where(GoodsReceiptLine.goods_receipt_id == receipt.id)
+    receipt_lines = list(
+        (
+            await db.scalars(
+                select(GoodsReceiptLine).where(
+                    GoodsReceiptLine.goods_receipt_id == receipt.id,
+                    GoodsReceiptLine.project_id == project_id,
+                    GoodsReceiptLine.organization_id == organization_id,
+                )
+            )
+        ).all()
     )
-    if not line_count:
+    if not receipt_lines:
         raise ProcurementValidationError("Goods receipt must contain at least one line")
+
+    po = await db.scalar(
+        select(PurchaseOrder)
+        .where(
+            PurchaseOrder.id == receipt.purchase_order_id,
+            PurchaseOrder.project_id == project_id,
+            PurchaseOrder.organization_id == organization_id,
+        )
+        .with_for_update()
+    )
+    if po is None or po.status not in {
+        PurchaseOrderStatus.ISSUED,
+        PurchaseOrderStatus.PART_RECEIVED,
+    }:
+        raise ProcurementValidationError("Goods receipt requires an open issued purchase order")
+
+    po_lines = {
+        row.id: row
+        for row in (
+            await db.scalars(
+                select(PurchaseOrderLine).where(
+                    PurchaseOrderLine.purchase_order_id == po.id,
+                    PurchaseOrderLine.project_id == project_id,
+                    PurchaseOrderLine.organization_id == organization_id,
+                )
+            )
+        ).all()
+    }
+    for receipt_line in receipt_lines:
+        po_line = po_lines.get(receipt_line.purchase_order_line_id)
+        if po_line is None:
+            raise ProcurementValidationError("Purchase order line was not found for this GRN")
+        _validate_goods_receipt_quantities(
+            received=receipt_line.received_quantity,
+            accepted=receipt_line.accepted_quantity,
+            rejected=receipt_line.rejected_quantity,
+            remarks=receipt_line.remarks,
+            require_full_disposition=True,
+        )
+        if receipt_line.unit_code.strip().casefold() != po_line.unit_code.strip().casefold():
+            raise ProcurementValidationError(
+                "Goods receipt unit must match the purchase order line until governed UOM conversion is configured"
+            )
+        previously_accepted = await db.scalar(
+            select(func.coalesce(func.sum(GoodsReceiptLine.accepted_quantity), 0))
+            .join(GoodsReceipt, GoodsReceipt.id == GoodsReceiptLine.goods_receipt_id)
+            .where(
+                GoodsReceiptLine.purchase_order_line_id == po_line.id,
+                GoodsReceipt.status == GoodsReceiptStatus.RECEIVED,
+            )
+        )
+        _validate_po_acceptance_limit(
+            ordered_quantity=po_line.quantity,
+            previously_accepted=Decimal(previously_accepted or 0),
+            accepted_quantity=receipt_line.accepted_quantity,
+        )
+
     receipt.status = GoodsReceiptStatus.RECEIVED
     receipt.revision += 1
     await db.flush()
 
-    po = await db.scalar(
-        select(PurchaseOrder)
-        .where(PurchaseOrder.id == receipt.purchase_order_id)
-        .with_for_update()
-    )
-    if po is not None:
-        po_lines = list(
-            (
-                await db.scalars(
-                    select(PurchaseOrderLine).where(PurchaseOrderLine.purchase_order_id == po.id)
-                )
-            ).all()
-        )
-        all_complete = True
-        for po_line in po_lines:
-            accepted_total = await db.scalar(
-                select(func.coalesce(func.sum(GoodsReceiptLine.accepted_quantity), 0))
-                .join(GoodsReceipt, GoodsReceipt.id == GoodsReceiptLine.goods_receipt_id)
-                .where(
-                    GoodsReceiptLine.purchase_order_line_id == po_line.id,
-                    GoodsReceipt.status == GoodsReceiptStatus.RECEIVED,
-                )
+    all_complete = True
+    for po_line in po_lines.values():
+        accepted_total = await db.scalar(
+            select(func.coalesce(func.sum(GoodsReceiptLine.accepted_quantity), 0))
+            .join(GoodsReceipt, GoodsReceipt.id == GoodsReceiptLine.goods_receipt_id)
+            .where(
+                GoodsReceiptLine.purchase_order_line_id == po_line.id,
+                GoodsReceipt.status == GoodsReceiptStatus.RECEIVED,
             )
-            if Decimal(accepted_total or 0) < po_line.quantity:
-                all_complete = False
-                break
-        po.status = PurchaseOrderStatus.CLOSED if all_complete else PurchaseOrderStatus.PART_RECEIVED
-        po.revision += 1
+        )
+        if Decimal(accepted_total or 0) < po_line.quantity:
+            all_complete = False
+            break
+    po.status = PurchaseOrderStatus.CLOSED if all_complete else PurchaseOrderStatus.PART_RECEIVED
+    po.revision += 1
 
     await record_audit_event(
         db,
