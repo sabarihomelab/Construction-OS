@@ -273,6 +273,10 @@ class ProjectCostRead(BaseModel):
     revision: int
     posted_by_membership_id: UUID | None
     posted_at: datetime | None
+    reversed_by_membership_id: UUID | None
+    reversed_at: datetime | None
+    reversal_of_entry_id: UUID | None
+    reversal_reason: str | None
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
