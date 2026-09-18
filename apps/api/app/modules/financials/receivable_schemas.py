@@ -135,3 +135,8 @@ class ClientReceiptRead(BaseModel):
 
 class ClientReceiptDetailRead(ClientReceiptRead):
     allocations: list[ClientReceiptAllocationRead] = Field(default_factory=list)
+
+
+
+class ClientReceiptReverseAction(BaseModel):
+    reason: str = Field(min_length=1, max_length=1000)
