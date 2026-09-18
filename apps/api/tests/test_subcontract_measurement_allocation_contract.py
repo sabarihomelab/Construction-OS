@@ -24,4 +24,15 @@ def test_claim_certification_rechecks_work_order_and_measurement_limits() -> Non
 def test_subcontract_routes_use_hardened_claim_service() -> None:
     source = getsource(router)
 
-    assert "from app.modules.subcontracts.claim_service import add_claim_line, certify_claim" in source
+    assert "from app.modules.subcontracts.claim_service import add_claim_line" in source
+    assert "from app.modules.subcontracts.workflow import (" in source
+    assert "decide_claim_certification" in source
+
+
+def test_workflow_adapter_preserves_hardened_claim_certification() -> None:
+    from app.modules.subcontracts import workflow
+
+    source = getsource(workflow)
+
+    assert "from app.modules.subcontracts.claim_service import certify_claim" in source
+    assert "return await certify_claim(" in source
