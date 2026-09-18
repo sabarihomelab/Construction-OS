@@ -1,4 +1,5 @@
-from fastapi.routing import iter_route_contexts\nfrom decimal import Decimal
+from fastapi.routing import iter_route_contexts
+from decimal import Decimal
 from inspect import getsource
 
 import pytest
