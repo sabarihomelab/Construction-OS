@@ -37,6 +37,9 @@ def test_boq_commercial_control_contract_separates_cost_and_billing_baselines() 
         "total_committed_amount",
         "total_actual_cost",
         "total_certified_billed_amount",
+        "total_issued_receivable_amount",
+        "total_received_amount",
+        "total_outstanding_receivable",
         "total_uncommitted_estimate",
         "total_commitment_remaining",
         "total_estimate_remaining",
@@ -56,6 +59,11 @@ def test_boq_commercial_control_uses_governed_sources() -> None:
     assert "ProjectCommitmentAllocation.boq_item_id" in source
     assert "ProjectCostAllocation.boq_item_id" in source
     assert "RABillLine.boq_item_id" in source
+    assert "ClientInvoiceStatus.ISSUED" in source
+    assert "ClientInvoiceStatus.PARTIALLY_PAID" in source
+    assert "ClientInvoiceStatus.PAID" in source
+    assert "ClientReceipt.status == ClientReceiptStatus.POSTED" in source
+    assert "ClientReceiptAllocation.amount" in source
 
 
 def test_boq_commercial_control_does_not_mix_boq_value_with_cost_budget() -> None:
@@ -67,3 +75,12 @@ def test_boq_commercial_control_does_not_mix_boq_value_with_cost_budget() -> Non
     assert "boq_amount - committed_amount" not in source
     assert "boq_amount - actual_cost" not in source
     assert "max(" not in source
+
+
+def test_received_cash_stays_project_level_without_fake_boq_allocation() -> None:
+    line_fields = set(BOQCommercialControlLine.model_fields)
+    summary_fields = set(BOQCommercialControlSummary.model_fields)
+
+    assert "received_amount" not in line_fields
+    assert "total_received_amount" in summary_fields
+    assert "total_outstanding_receivable" in summary_fields
