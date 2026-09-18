@@ -2,11 +2,21 @@
 
 ## Purpose
 
-The BOQ is the project's contractual or controlled quantity/rate baseline. It is deliberately separate from WBS / Cost Codes:
+The BOQ is the project's contractual or controlled quantity/rate baseline. It is not the universal parent of every project transaction. It is deliberately separate from WBS / Cost Codes:
 
 - WBS / Cost Codes organize internal planning, cost allocation and reporting.
 - BOQ lines represent measurable commercial quantities and rates.
 - A BOQ line may map to one WBS code, but the BOQ does not become the WBS hierarchy.
+- Transactions representing BOQ scope should preserve BOQ-item lineage where applicable.
+- Legitimate indirect/site/non-contractual costs must use appropriate WBS/Cost Head/project-cost allocation rather than fabricated miscellaneous BOQ lines.
+
+## Pre-construction / award relationship
+
+A customer quotation and an internal cost estimate are not automatically the contractual BOQ.
+
+On award, a controlled conversion/mapping process may create the project's contractual BOQ from accepted scope, imported client BOQ, detailed estimate lines or another verified contractual schedule. The conversion records source lineage and then follows the normal BOQ approval rules.
+
+The accepted customer quotation, contractual BOQ and internal project cost budget remain distinct commercial records even when they originate from the same estimate.
 
 ## Release 1 lifecycle
 
@@ -16,7 +26,7 @@ A draft may also move to `Cancelled` when it has not become a downstream depende
 
 Approved BOQs are immutable. Approval creates an immutable snapshot in `project_boq_revisions` containing the BOQ header, line quantities/rates, WBS code evidence, total value and approval metadata.
 
-Release 1 does not silently reopen an approved BOQ. Contract amendments that need successor-line lineage are a separate controlled extension; they must not mutate an already-used approved baseline.
+Release 1 does not silently reopen an approved BOQ. Contract amendments/variations must preserve original approved scope and use controlled successor/change lineage rather than mutating an already-used approved baseline. This extension becomes increasingly important for client-requested changes, claims, revised contract value, enterprise CVR and downstream PO/subcontract/billing reconciliation.
 
 ## BOQ identity
 
