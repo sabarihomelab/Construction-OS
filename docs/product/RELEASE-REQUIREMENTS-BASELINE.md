@@ -6,7 +6,7 @@ Construction OS Release 1 is now an **India-first integrated contractor operatin
 
 ## Release goal
 
-Release 1 is not measured by how many individual modules exist. It is ready when one realistic Indian civil/general contractor project can be demonstrated coherently from project setup and BOQ through site execution, procurement, measurement, RA billing, job cost and management visibility using persisted authoritative data.
+Release 1 is not measured by how many individual modules exist. It is ready when one realistic Indian civil/general contractor opportunity can be demonstrated coherently from client enquiry, estimate and quotation through award/project setup, site execution, procurement, measurement, billing, job cost, profitability and accounting handoff using persisted authoritative data.
 
 The first customer-facing milestone is **one complete India Demo Build**. Internal modules may be completed and validated incrementally, but incomplete engineering checkpoints are not separate customer releases.
 
@@ -14,45 +14,59 @@ The first customer-facing milestone is **one complete India Demo Build**. Intern
 
 The integrated demo must be capable of demonstrating, with real persisted relationships:
 
-1. Company and project configuration.
-2. Party / client / vendor / subcontractor setup.
-3. WBS / Cost Code hierarchy.
-4. BOQ creation or controlled Excel import.
-5. Estimate / Rate Analysis.
-6. Budget baseline and controlled revisions.
-7. Worker/crew setup and project assignment.
-8. Fast attendance capture, including supervisor-driven bulk attendance.
-9. Structured work quantity / progress capture.
-10. DPR generated from authoritative attendance/work/material/equipment data where possible.
-11. Material requirement / indent.
-12. Approval through the shared Workflow engine.
-13. RFQ to multiple vendors.
-14. Vendor quotations and auditable comparison.
-15. Purchase Order with revision/amendment history.
-16. Delivery Challan / GRN and quantity/quality acceptance.
-17. Site/store inventory derived from transaction history.
-18. Material issue/consumption/wastage linked to project control structures where applicable.
-19. Equipment assignment/usage and maintenance basics.
-20. Practical quality/safety/punch workflow.
-21. Subcontract / Work Order.
-22. Measurement and certification with separate executed/measured/submitted/certified/billed quantities.
-23. Subcontractor cumulative RA Billing with configurable deductions/additions.
-24. Basic planning/scheduling/lookahead and DPR progress linkage.
-25. Job Cost combining labour + materials + equipment + subcontract + other direct costs.
-26. Client contract / measurement / RA Billing / certification / receivable tracking.
-27. Versioned India tax/withholding/invoice metadata foundation without hardcoded current statutory rates.
-28. Excel/CSV accounting export and Tally integration surface.
-29. Project management dashboard with drilldown to originating transactions.
-30. Useful PDF/Excel/CSV reports.
-31. Closeout basics.
-32. Mobile field workflow usable by a supervisor/site engineer.
-33. Critical field flows tolerate weak/offline connectivity.
+1. Company configuration and contractor profile.
+2. Client enquiry / pre-construction job with client/site requirements and drawing/file intake.
+3. Parametric/preliminary estimate using built-up area, floors, specification selections and governed assumptions where used.
+4. Detailed Estimate / Rate Analysis with material, labour, equipment, subcontract, overhead and other cost components.
+5. Rate Library / Price History lookup with selected-rate source/effective-date snapshot.
+6. Versioned customer quotation with company branding, scope, assumptions, exclusions, cost breakdown, derived ₹/sq.ft. presentation and PDF export.
+7. Quotation issue/revision/acceptance/rejection/expiry history without overwriting issued revisions.
+8. Controlled award/conversion into an active project with accepted commercial scope, WBS/Cost Codes, contractual BOQ and approved internal budget kept as distinct governed concepts.
+9. Party / client / vendor / subcontractor setup.
+10. WBS / Cost Code hierarchy.
+11. BOQ creation/conversion or controlled Excel import.
+12. Budget baseline and controlled revisions.
+13. Worker/crew setup and project assignment.
+14. Fast attendance capture, including supervisor-driven bulk attendance.
+15. Structured work quantity / progress capture.
+16. DPR generated from authoritative attendance/work/material/equipment data where possible.
+17. Material requirement / indent.
+18. Approval through the shared Workflow engine.
+19. RFQ to multiple vendors.
+20. Vendor quotations and auditable comparison.
+21. Purchase Order with revision/amendment history.
+22. Delivery Challan / GRN and quantity/quality acceptance.
+23. Site/store inventory derived from transaction history.
+24. Material issue/consumption/wastage linked to project control structures where applicable.
+25. Equipment assignment/usage and maintenance basics.
+26. Practical quality/safety/punch workflow.
+27. Subcontract / Work Order.
+28. Measurement and certification with separate executed/measured/submitted/certified/billed quantities.
+29. Subcontractor cumulative RA Billing with configurable deductions/additions.
+30. Basic planning/scheduling/lookahead and DPR progress linkage.
+31. Job Cost combining labour + materials + equipment + subcontract + other direct costs.
+32. Client contract / measurement / RA Billing / certification / receivable tracking.
+33. Versioned India tax/withholding/invoice metadata foundation without hardcoded current statutory rates.
+34. Excel/CSV accounting export and Tally integration surface.
+35. Project management dashboard with drilldown to originating transactions.
+36. Useful PDF/Excel/CSV reports.
+37. Closeout basics.
+38. Mobile field workflow usable by a supervisor/site engineer.
+39. Critical field flows tolerate weak/offline connectivity.
 
 ## India-first domain rules
 
+### Pre-construction and quotation are governed commercial history
+
+Pre-award estimating may begin without an approved BOQ. Parametric estimates are proposals/working calculations until reviewed. Issued quotation revisions are immutable historical evidence; acceptance pins the exact accepted revision.
+
+Award/conversion must not equate customer selling price with contractor internal cost. The accepted quotation/contract value, contractual BOQ and approved internal cost budget remain distinct even when generated from related source data.
+
+The ₹/sq.ft. figure is derived for customer communication and comparison; component-based quantity/rate analysis remains the authoritative calculation basis where detailed estimating is used.
+
 ### WBS and BOQ are different
 
-WBS/Cost Codes are the internal project cost/control structure. BOQ is the contractual quantity/rate/billing structure. A BOQ item may map to multiple internal cost components.
+WBS/Cost Codes are the internal project cost/control structure. BOQ is the contractual quantity/rate/billing structure. A BOQ item may map to multiple internal cost components. BOQ lineage is used where semantically valid, but non-BOQ project costs must not be forced into artificial BOQ items.
 
 ### Authoritative quantities and money
 
@@ -68,11 +82,19 @@ Client, vendor, supplier, subcontractor, contractor, consultant and service-prov
 
 ### Procurement is core
 
-Canonical Release 1 path:
+Canonical full-control path:
 
 `Indent → Approval → RFQ → Vendor Quotes → Comparison → Vendor Selection → PO → Delivery/Challan → GRN → Stock → Invoice/accounting reconciliation`
 
+The domain model must also support a configured short path for smaller contractors (for example Request → Approval → PO/Controlled Direct Purchase → GRN) without inventing separate purchase, receipt or cost objects. Larger contractors may add procurement packages, central procurement, technical/commercial evaluation and value-based approval matrices around the same canonical records.
+
 Vendor selection and PO revisions are auditable. Accepted historical commercial values are never overwritten silently.
+
+### Rate Library is not inventory
+
+Physical inventory answers what stock exists and where. Rate/price history answers what materials/services cost from particular suppliers/sources at a point in time. Keep these concepts separate.
+
+Company purchase history from governed PO/GRN/vendor-bill flows should feed reusable estimating references. External/vendor-fed or extracted market rates remain source-attributed observations and never silently rewrite approved estimates, quotations or budgets.
 
 ### Inventory is transactional
 
@@ -152,4 +174,4 @@ A salesperson/developer must be able to run the India demo without manual databa
 
 The final question is:
 
-> Can one real Indian contractor run one real project through Construction OS from BOQ and site execution through procurement, measurement, RA billing, cost and management visibility?
+> Can one real Indian contractor move from enquiry and quotation to an awarded project, execute the work, control procurement/labour/materials, bill and collect from the client, understand project profitability/CVR and hand approved accounting transactions to Tally without manual database edits or duplicate truth?
