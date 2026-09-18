@@ -1,9 +1,11 @@
-from decimal import Decimal
+from fastapi.routing import iter_route_contexts\nfrom decimal import Decimal
 from inspect import getsource
 
 import pytest
 
 from app.modules.equipment.inventory_service import record_goods_receipt_stock
+from app.modules.procurement.router import router as procurement_router
+from app.modules.procurement.schemas import GoodsReceiptLineUpdate
 from app.modules.procurement.service import (
     ProcurementValidationError,
     _validate_goods_receipt_quantities,
@@ -65,3 +67,13 @@ def test_grn_stock_uses_authoritative_po_boq_lineage() -> None:
 
     assert "boq_item_id=po_line.boq_item_id" in source
     assert "quantity=receipt_line.accepted_quantity" in source
+
+
+def test_draft_grn_line_can_be_corrected_before_receive() -> None:
+    paths = {context.path for context in iter_route_contexts(procurement_router.routes)}
+
+    assert (
+        "/projects/{project_id}/procurement/goods-receipts/"
+        "{goods_receipt_id}/lines/{goods_receipt_line_id}"
+    ) in paths
+    assert GoodsReceiptLineUpdate.model_fields["expected_receipt_revision"].is_required()
