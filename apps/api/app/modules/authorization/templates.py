@@ -358,6 +358,7 @@ INDIA_ROLE_TEMPLATES: tuple[RoleTemplateSpec, ...] = (
             "financials.cost_head.view",
             "financials.ledger.view",
             "financials.project_cost.view",
+            "financials.project_cost.adjust",
             "financials.accounting_export.view",
             "financials.accounting_export.export",
             "financials.site_cash.view",
