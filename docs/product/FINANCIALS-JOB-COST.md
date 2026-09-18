@@ -182,9 +182,14 @@ The current foundation includes:
 - site expenses and allocations;
 - shared Workflow approval for site expenses and vendor bills while preserving domain validation/posting rules;
 - controlled accounting export preview with an Excel-compatible cost-register CSV;
+- generated XLSX cost-register packages stored through the shared Files module;
 - a TallyPrime adapter contract based only on posted balanced journal entries;
+- generated TallyPrime XML voucher packages stored through the shared Files module;
 - project commercial control across Budget, Commitment, Actual Cost, Certified/Billed, Issued Receivable, Received and Outstanding Receivable;
 - versioned India tax/withholding rule snapshots on governed client invoicing;
+- shared Files evidence linkage for site-expense receipts and vendor-bill documents;
+- governed project-cost and site-expense reversals that preserve original history and restore site cash where applicable;
+- governed client-receipt reversal with invoice payment-state reconciliation;
 - permission-scoped APIs for Cost Heads, ledgers, site cash, site expenses, payables, receivables, accounting export and job-cost reporting;
 - audit/events for implemented write flows;
 - permission-scoped search projections;
@@ -194,11 +199,8 @@ The current foundation includes:
 
 This foundation is not the end of Financials. Follow-on work must connect approved operational events without duplicating data, including:
 
-- generated Excel workbook packages in addition to the current Excel-compatible CSV surface;
-- concrete TallyPrime transport/import packaging on top of the governed adapter contract;
-- receipt/file attachment UX using the shared Files module;
+- broader receipt/file attachment UX across additional financial entities where business value warrants it;
 - mobile/offline site-expense capture;
-- reversal/correction workflows that preserve the original history;
 - deeper authorization, migration, concurrency and transaction tests.
 
 No customer-facing Financials feature should be marked Available merely because these backend tables and routes exist. It remains PLANNED until the integrated India project journey and release Definition of Done are satisfied.
