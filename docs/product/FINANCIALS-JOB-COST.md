@@ -174,6 +174,9 @@ The current foundation includes:
 - company Cost Heads;
 - effective-dated Cost Head to Ledger mappings;
 - project-cost entries and allocations;
+- approved workforce time → labour actual cost using effective Project Worker Rates;
+- posted material consumption → material actual cost using governed consumption cost snapshots;
+- posted equipment usage → equipment actual cost using effective Project Equipment Rates;
 - certified subcontract claim cost feeds plus a non-duplicating payable projection;
 - project site-cash accounts and transaction ledger;
 - site expenses and allocations;
@@ -191,9 +194,6 @@ The current foundation includes:
 
 This foundation is not the end of Financials. Follow-on work must connect approved operational events without duplicating data, including:
 
-- approved workforce time → labour cost using the effective Project Worker Rate;
-- material consumption/store ledger → material actual cost;
-- equipment usage/hire/fuel → equipment actual cost;
 - generated Excel workbook packages in addition to the current Excel-compatible CSV surface;
 - concrete TallyPrime transport/import packaging on top of the governed adapter contract;
 - receipt/file attachment UX using the shared Files module;
