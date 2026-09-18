@@ -2,20 +2,46 @@
 
 ## Purpose
 
-Module 4 turns approved contractual scope into the contractor's governed internal cost and budget baseline.
+Estimating supports both pre-award commercial estimation and post-award governed cost baselines.
 
-It preserves three separate meanings:
+The existing governed project Estimate/Rate Analysis/Budget engine remains the authoritative detailed cost-calculation foundation. A pre-construction layer may generate preliminary/parametric suggestions and customer quotations before award; those suggestions do not become an approved project budget until reviewed and converted through the governed workflow.
 
-- **BOQ** — contractual scope, quantity and contract rate.
-- **Estimate / Rate Analysis** — contractor's internal build-up of cost and selling rate.
+It preserves separate meanings:
+
+- **Parametric Estimate** — fast pre-award quantity/cost proposal derived from controlled project parameters and templates.
+- **Quotation** — customer-facing, versioned selling offer with scope/assumptions/exclusions.
+- **BOQ** — contractual scope, quantity and contract rate after/around award as applicable.
+- **Estimate / Rate Analysis** — contractor's detailed internal build-up of cost and selling rate.
 - **Budget** — approved project cost baseline used for cost control.
 
 A BOQ rate is never silently copied as internal cost.
 
 ## India Release workflow
 
+Two entry paths are supported conceptually.
+
+Pre-award:
+
 ```text
-Approved BOQ
+Client enquiry / pre-construction job
+    ↓
+Project parameters / drawings / requirements
+    ↓
+Parametric estimate (optional)
+    ↓
+Detailed estimate / rate analysis
+    ↓
+Versioned quotation
+    ↓
+Client acceptance
+    ↓
+Controlled award / project activation
+```
+
+Post-award/governed project baseline:
+
+```text
+Approved BOQ or accepted-award scope
     ↓
 Estimate draft
     ↓
@@ -43,6 +69,44 @@ Current approved project budget baseline
 ```
 
 Manual estimates are also supported where a project scope is not sourced from a BOQ.
+
+## Parametric estimation
+
+Parametric estimating is intended for rapid pre-construction pricing, not to replace detailed measurement/rate analysis.
+
+Typical inputs may include:
+
+- built-up area;
+- number of floors;
+- building/project type;
+- specification tier;
+- structural system;
+- substructure/superstructure choices;
+- finish selections;
+- MEP selections;
+- contract type;
+- locality/region;
+- configurable project-specific factors.
+
+Templates may propose WBS items, quantities, coefficients and assemblies. Users must be able to review/override generated quantities and assumptions before a detailed estimate or quotation is issued.
+
+The system may show an indicative ₹/sq.ft. value during early estimation, but the final detailed quotation should derive that figure from the calculated quotation total divided by the applicable governed area basis. Do not use a single ₹/sq.ft. multiplier as the hidden authoritative cost model when detailed component calculation is available.
+
+## Rate Library and price snapshots
+
+Rate analysis may consume source-attributed price observations from a Rate Library/Price History. A price observation should be able to identify material/service/specification, unit, locality, supplier/source, value, effective/observed date and source evidence where available.
+
+Preferred sources include:
+
+1. the contractor's own governed historical purchase data;
+2. active supplier quotations/catalog feeds;
+3. manually maintained company rate masters;
+4. approved external market/government references;
+5. optional extracted/web-collected observations.
+
+When a rate is selected for an issued quotation or approved estimate, snapshot the selected value and sufficient source context. Future price updates never recalculate historical commercial evidence.
+
+Physical stock quantity and price intelligence remain separate domains.
 
 ## Rate analysis meaning
 
@@ -82,7 +146,7 @@ Those defaults do not rewrite historical records. Each approved estimate snapsho
 
 ## BOQ relationship
 
-An estimate may reference an approved BOQ.
+A governed project estimate may reference an approved BOQ. A pre-award estimate may exist without BOQ lineage. Client acceptance does not silently transform a quotation into a BOQ; award/conversion explicitly creates or maps the contractual scope and preserves source lineage.
 
 When BOQ items are copied:
 
@@ -202,9 +266,15 @@ The module does not:
 - silently omit estimate items without WBS;
 - maintain multiple approved project budgets as if all were current.
 
+## Quotation boundary
+
+Quotation owns customer-facing revision/issue/acceptance semantics and PDF presentation. Estimating owns the underlying cost/rate-analysis evidence. A quotation may snapshot or reference an estimate revision, but quotation revision history must remain reproducible even if later estimates or market rates change.
+
+See `PRECONSTRUCTION-QUOTATION.md`.
+
 ## Non-goals
 
-Module 4 is not:
+This module does not by itself own:
 
 - procurement;
 - job-cost actual posting;
