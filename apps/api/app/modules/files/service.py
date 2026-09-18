@@ -10,6 +10,7 @@ from app.modules.events.service import enqueue_event
 from app.modules.files.models import (
     FileAsset,
     FileAssetStatus,
+    FileLink,
     FileSourceType,
     FileVersion,
     OrganizationStorageUsage,
@@ -366,3 +367,113 @@ async def finalize_upload(
         payload={"version": version_number, "processing_status": "pending"},
     )
     return asset, version
+
+
+
+async def link_file_asset(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    entity_type: str,
+    entity_id: UUID,
+    asset_id: UUID,
+    relation_type: str = "attachment",
+    pinned_version: int | None = None,
+    actor_user_id: UUID | None = None,
+    session_id: UUID | None = None,
+) -> FileLink:
+    normalized_entity_type = entity_type.strip()
+    normalized_relation_type = relation_type.strip()
+    if not normalized_entity_type or len(normalized_entity_type) > 80:
+        raise FileValidationError("File link entity type is invalid")
+    if not normalized_relation_type or len(normalized_relation_type) > 80:
+        raise FileValidationError("File link relation type is invalid")
+
+    asset = await db.scalar(
+        select(FileAsset).where(
+            FileAsset.id == asset_id,
+            FileAsset.organization_id == organization_id,
+            FileAsset.status == FileAssetStatus.ACTIVE,
+        )
+    )
+    if asset is None:
+        raise FileValidationError("Active file asset was not found")
+
+    version_number = pinned_version or asset.current_version
+    if version_number < 1:
+        raise FileValidationError("Pinned file version is invalid")
+    version_exists = await db.scalar(
+        select(FileVersion.id).where(
+            FileVersion.organization_id == organization_id,
+            FileVersion.asset_id == asset_id,
+            FileVersion.version == version_number,
+        )
+    )
+    if version_exists is None:
+        raise FileValidationError("Pinned file version was not found")
+
+    existing = await db.scalar(
+        select(FileLink).where(
+            FileLink.organization_id == organization_id,
+            FileLink.entity_type == normalized_entity_type,
+            FileLink.entity_id == entity_id,
+            FileLink.asset_id == asset_id,
+            FileLink.relation_type == normalized_relation_type,
+        )
+    )
+    if existing is not None:
+        return existing
+
+    link = FileLink(
+        organization_id=organization_id,
+        entity_type=normalized_entity_type,
+        entity_id=entity_id,
+        asset_id=asset_id,
+        relation_type=normalized_relation_type,
+        pinned_version=version_number,
+        created_by_user_id=actor_user_id,
+    )
+    db.add(link)
+    await db.flush()
+    await record_audit_event(
+        db,
+        organization_id=organization_id,
+        action="file.link.created",
+        target_type=normalized_entity_type,
+        target_id=str(entity_id),
+        actor_type=AuditActorType.USER,
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+        risk=AuditRisk.MEDIUM,
+        changes={
+            "file_asset_id": str(asset_id),
+            "pinned_version": version_number,
+            "relation_type": normalized_relation_type,
+        },
+    )
+    return link
+
+
+async def list_entity_file_links(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    entity_type: str,
+    entity_id: UUID,
+) -> list[tuple[FileLink, FileAsset]]:
+    rows = await db.execute(
+        select(FileLink, FileAsset)
+        .join(
+            FileAsset,
+            (FileAsset.id == FileLink.asset_id)
+            & (FileAsset.organization_id == FileLink.organization_id),
+        )
+        .where(
+            FileLink.organization_id == organization_id,
+            FileLink.entity_type == entity_type,
+            FileLink.entity_id == entity_id,
+            FileAsset.status != FileAssetStatus.DELETED,
+        )
+        .order_by(FileLink.created_at, FileLink.id)
+    )
+    return list(rows.all())
