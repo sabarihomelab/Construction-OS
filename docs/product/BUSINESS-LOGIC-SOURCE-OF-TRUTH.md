@@ -373,3 +373,8 @@ Do not change only the Android or web screen and assume the business rule change
 Construction OS already has a strong overall product/release foundation and detailed documents for several modules, but the standardized per-module contract library is not yet complete for every business area.
 
 The goal is therefore not to reinvent the product. The goal is to progressively consolidate existing product documents and implemented backend behavior into consistent module contracts so the repository itself remains the permanent reference for future development, support, Android/web work and new chat sessions.
+
+
+## Pre-construction contract
+
+Pre-construction enquiry, quotation revision/acceptance and controlled award behavior is defined in `docs/product/PRECONSTRUCTION-QUOTATION.md`.
