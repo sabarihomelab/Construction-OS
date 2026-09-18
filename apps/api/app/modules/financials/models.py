@@ -433,13 +433,29 @@ class ClientReceipt(UUIDTimestampMixin, Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
-            ["reversal_of_receipt_id", "organization_id"],
-            ["client_receipts.id", "client_receipts.organization_id"],
-            name="fk_client_receipts_reversal_org",
+            ["reversal_of_receipt_id", "project_id", "organization_id"],
+            [
+                "client_receipts.id",
+                "client_receipts.project_id",
+                "client_receipts.organization_id",
+            ],
+            name="fk_client_receipts_reversal_scope",
             ondelete="RESTRICT",
         ),
         UniqueConstraint("project_id", "receipt_number", name="uq_client_receipts_project_number"),
         UniqueConstraint("id", "organization_id", name="uq_client_receipts_id_org"),
+        UniqueConstraint(
+            "id",
+            "project_id",
+            "organization_id",
+            name="uq_client_receipts_scope",
+        ),
+        UniqueConstraint(
+            "reversal_of_receipt_id",
+            "project_id",
+            "organization_id",
+            name="uq_client_receipts_reversal_once",
+        ),
         CheckConstraint("amount > 0", name="ck_client_receipts_amount"),
         Index("ix_client_receipts_project_date", "project_id", "receipt_date"),
     )
