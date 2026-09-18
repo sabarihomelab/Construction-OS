@@ -88,6 +88,7 @@ def test_india_commercial_permission_catalog_is_complete() -> None:
         "commercial.ra_bill.create",
         "commercial.ra_bill.submit",
         "commercial.ra_bill.certify",
+        "commercial.ra_bill.payment",
     }
     assert required.issubset(PERMISSIONS_BY_KEY)
 
@@ -125,6 +126,8 @@ def test_commercial_api_exposes_real_workflow_routes() -> None:
         "/projects/{project_id}/commercial/measurements/{measurement_id}/review",
         "/projects/{project_id}/commercial/ra-bills",
         "/projects/{project_id}/commercial/ra-bills/{bill_id}/certify",
+        "/projects/{project_id}/commercial/ra-bills/{bill_id}/return-to-draft",
+        "/projects/{project_id}/commercial/ra-bills/{bill_id}/mark-paid",
         "/projects/{project_id}/commercial/dashboard",
     }
     assert required.issubset(paths)
