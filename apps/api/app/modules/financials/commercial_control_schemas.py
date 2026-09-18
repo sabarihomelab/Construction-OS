@@ -34,6 +34,9 @@ class BOQCommercialControlSummary(BaseModel):
     total_committed_amount: Decimal
     total_actual_cost: Decimal
     total_certified_billed_amount: Decimal
+    total_issued_receivable_amount: Decimal
+    total_received_amount: Decimal
+    total_outstanding_receivable: Decimal
     total_uncommitted_estimate: Decimal
     total_commitment_remaining: Decimal
     total_estimate_remaining: Decimal
