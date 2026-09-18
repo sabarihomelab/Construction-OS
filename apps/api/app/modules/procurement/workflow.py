@@ -559,3 +559,52 @@ async def decide_requisition_approval(
         raise ProcurementConflictError(str(exc)) from exc
     except (WorkflowValidationError, WorkflowPermissionError) as exc:
         raise ProcurementValidationError(str(exc)) from exc
+
+
+async def revise_rejected_requisition(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    project_id: UUID,
+    requisition_id: UUID,
+    expected_revision: int,
+    permission_keys: set[str],
+    actor_user_id: UUID,
+    actor_membership_id: UUID,
+    session_id: UUID | None = None,
+    reason: str | None = None,
+) -> PurchaseRequisition:
+    try:
+        instance = await _workflow_instance(
+            db,
+            organization_id=organization_id,
+            requisition_id=requisition_id,
+        )
+        await execute_transition(
+            db,
+            workflow_instance_id=instance.id,
+            organization_id=organization_id,
+            transition_key="revise",
+            expected_instance_version=instance.version,
+            permission_keys=permission_keys,
+            actor_user_id=actor_user_id,
+            reason=reason,
+            session_id=session_id,
+            event_context={"project_id": str(project_id)},
+        )
+        return await transition_requisition(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            requisition_id=requisition_id,
+            expected_revision=expected_revision,
+            target=RequisitionStatus.DRAFT,
+            actor_user_id=actor_user_id,
+            actor_membership_id=actor_membership_id,
+            session_id=session_id,
+            reason=reason,
+        )
+    except WorkflowConflictError as exc:
+        raise ProcurementConflictError(str(exc)) from exc
+    except (WorkflowValidationError, WorkflowPermissionError) as exc:
+        raise ProcurementValidationError(str(exc)) from exc
