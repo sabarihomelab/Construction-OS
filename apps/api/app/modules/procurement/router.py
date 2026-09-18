@@ -45,7 +45,7 @@ from app.modules.procurement.service import (
     transition_purchase_order,
     transition_requisition,
 )
-from app.modules.projects.access import project_permission_is_allowed
+from app.modules.projects.access import effective_project_permissions, project_permission_is_allowed
 from app.modules.sessions.deps import CsrfProtected, CurrentSession
 
 router = APIRouter(tags=["procurement"])
@@ -176,25 +176,31 @@ async def add_requisition_line_route(
         _domain_error(exc)
 
 
-async def _requisition_transition(
+def _effective_project_permissions(context, project_id: UUID) -> set[str]:
+    return effective_project_permissions(
+        project_id=project_id,
+        organization_permissions=set(context.permissions),
+        project_permissions={key: set(values) for key, values in context.project_permissions.items()},
+    )
+
+
+async def _submit_requisition(
     project_id: UUID,
     requisition_id: UUID,
     payload: RevisionAction,
-    target: RequisitionStatus,
-    permission: str,
     db: DbSession,
     session: CurrentSession,
 ) -> PurchaseRequisition:
     context = await build_access_context(db, session.membership_id)
-    _project_permission(context, project_id, permission)
+    _project_permission(context, project_id, "procurement.requisition.submit")
     try:
-        row = await transition_requisition(
+        row = await submit_requisition_for_approval(
             db,
             organization_id=context.organization_id,
             project_id=project_id,
             requisition_id=requisition_id,
             expected_revision=payload.expected_revision,
-            target=target,
+            permission_keys=_effective_project_permissions(context, project_id),
             actor_user_id=session.user_id,
             actor_membership_id=session.membership_id,
             session_id=session.id,
@@ -208,19 +214,51 @@ async def _requisition_transition(
         _domain_error(exc)
 
 
+async def _decide_requisition(
+    project_id: UUID,
+    requisition_id: UUID,
+    payload: RevisionAction,
+    approve: bool,
+    db: DbSession,
+    session: CurrentSession,
+) -> PurchaseRequisition:
+    context = await build_access_context(db, session.membership_id)
+    _project_permission(context, project_id, "procurement.requisition.approve")
+    try:
+        row = await decide_requisition_approval(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            requisition_id=requisition_id,
+            expected_revision=payload.expected_revision,
+            permission_keys=_effective_project_permissions(context, project_id),
+            actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
+            approve=approve,
+            session_id=session.id,
+            reason=payload.reason,
+        )
+        await db.commit()
+        await db.refresh(row)
+        return row
+    except (ProcurementConflictError, ProcurementValidationError) as exc:
+        await db.rollback()
+        _domain_error(exc)
+
+
 @router.post("/projects/{project_id}/procurement/requisitions/{requisition_id}/submit", response_model=RequisitionRead)
 async def submit_requisition(project_id: UUID, requisition_id: UUID, payload: RevisionAction, db: DbSession, session: CurrentSession, _csrf: CsrfProtected) -> PurchaseRequisition:
-    return await _requisition_transition(project_id, requisition_id, payload, RequisitionStatus.SUBMITTED, "procurement.requisition.submit", db, session)
+    return await _submit_requisition(project_id, requisition_id, payload, db, session)
 
 
 @router.post("/projects/{project_id}/procurement/requisitions/{requisition_id}/approve", response_model=RequisitionRead)
 async def approve_requisition(project_id: UUID, requisition_id: UUID, payload: RevisionAction, db: DbSession, session: CurrentSession, _csrf: CsrfProtected) -> PurchaseRequisition:
-    return await _requisition_transition(project_id, requisition_id, payload, RequisitionStatus.APPROVED, "procurement.requisition.approve", db, session)
+    return await _decide_requisition(project_id, requisition_id, payload, True, db, session)
 
 
 @router.post("/projects/{project_id}/procurement/requisitions/{requisition_id}/reject", response_model=RequisitionRead)
 async def reject_requisition(project_id: UUID, requisition_id: UUID, payload: RevisionAction, db: DbSession, session: CurrentSession, _csrf: CsrfProtected) -> PurchaseRequisition:
-    return await _requisition_transition(project_id, requisition_id, payload, RequisitionStatus.REJECTED, "procurement.requisition.approve", db, session)
+    return await _decide_requisition(project_id, requisition_id, payload, False, db, session)
 
 
 @router.get("/projects/{project_id}/procurement/purchase-orders", response_model=list[PurchaseOrderRead])
