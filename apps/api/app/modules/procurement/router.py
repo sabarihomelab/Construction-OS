@@ -12,6 +12,7 @@ from app.modules.procurement.inventory_bridge import (
 from app.modules.procurement.lineage import add_purchase_order_line, add_requisition_line
 from app.modules.procurement.workflow import (
     decide_requisition_approval,
+    revise_rejected_requisition,
     submit_requisition_for_approval,
 )
 from app.modules.procurement.models import (
@@ -261,6 +262,31 @@ async def approve_requisition(project_id: UUID, requisition_id: UUID, payload: R
 @router.post("/projects/{project_id}/procurement/requisitions/{requisition_id}/reject", response_model=RequisitionRead)
 async def reject_requisition(project_id: UUID, requisition_id: UUID, payload: RevisionAction, db: DbSession, session: CurrentSession, _csrf: CsrfProtected) -> PurchaseRequisition:
     return await _decide_requisition(project_id, requisition_id, payload, False, db, session)
+
+
+@router.post("/projects/{project_id}/procurement/requisitions/{requisition_id}/revise", response_model=RequisitionRead)
+async def revise_requisition(project_id: UUID, requisition_id: UUID, payload: RevisionAction, db: DbSession, session: CurrentSession, _csrf: CsrfProtected) -> PurchaseRequisition:
+    context = await build_access_context(db, session.membership_id)
+    _project_permission(context, project_id, "procurement.requisition.manage")
+    try:
+        row = await revise_rejected_requisition(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            requisition_id=requisition_id,
+            expected_revision=payload.expected_revision,
+            permission_keys=_effective_project_permissions(context, project_id),
+            actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
+            session_id=session.id,
+            reason=payload.reason,
+        )
+        await db.commit()
+        await db.refresh(row)
+        return row
+    except (ProcurementConflictError, ProcurementValidationError) as exc:
+        await db.rollback()
+        _domain_error(exc)
 
 
 @router.get("/projects/{project_id}/procurement/purchase-orders", response_model=list[PurchaseOrderRead])
