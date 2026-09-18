@@ -11,6 +11,7 @@ from app.modules.financials.payables_router import router as payables_router
 from app.modules.financials.receivable_api import router as receivable_router
 from app.modules.financials.router import router as core_router
 from app.modules.financials.subcontract_feed_router import router as subcontract_feed_router
+from app.modules.financials.subcontract_payable_router import router as subcontract_payable_router
 
 router = APIRouter()
 router.include_router(core_router)
@@ -19,6 +20,7 @@ router.include_router(feed_router)
 router.include_router(material_feed_router)
 router.include_router(equipment_feed_router)
 router.include_router(subcontract_feed_router)
+router.include_router(subcontract_payable_router)
 router.include_router(commitment_router)
 router.include_router(commercial_control_router)
 router.include_router(budget_control_router)
