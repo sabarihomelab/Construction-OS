@@ -1,8 +1,8 @@
-from fastapi.routing import iter_route_contexts
 from decimal import Decimal
 from inspect import getsource
 
 import pytest
+from fastapi.routing import iter_route_contexts
 
 from app.modules.equipment.inventory_service import record_goods_receipt_stock
 from app.modules.procurement.router import router as procurement_router
