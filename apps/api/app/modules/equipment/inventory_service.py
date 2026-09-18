@@ -22,7 +22,6 @@ from app.modules.procurement.models import (
     GoodsReceiptLine,
     PurchaseOrder,
     PurchaseOrderLine,
-    PurchaseRequisitionLine,
 )
 from app.modules.projects.models import ProjectMembership, ProjectMembershipStatus
 
