@@ -348,6 +348,9 @@ INDIA_ROLE_TEMPLATES: tuple[RoleTemplateSpec, ...] = (
         membership_kind_hint=MembershipKind.INTERNAL,
         permission_keys=_permissions(
             "projects.project.view",
+            "files.file.view",
+            "files.file.download",
+            "files.file.upload",
             "commercial.party.view",
             "commercial.ra_bill.view",
             "commercial.ra_bill.payment",
