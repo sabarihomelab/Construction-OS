@@ -186,6 +186,15 @@ class GoodsReceiptLineRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class GoodsReceiptLineUpdate(BaseModel):
+    expected_receipt_revision: int = Field(ge=1)
+    received_quantity: Decimal | None = Field(default=None, gt=0)
+    accepted_quantity: Decimal | None = Field(default=None, ge=0)
+    rejected_quantity: Decimal | None = Field(default=None, ge=0)
+    unit_code: str | None = Field(default=None, min_length=1, max_length=24)
+    remarks: str | None = None
+
+
 class RevisionAction(BaseModel):
     expected_revision: int = Field(ge=1)
     reason: str | None = Field(default=None, max_length=1000)
