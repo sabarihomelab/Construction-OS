@@ -542,3 +542,178 @@ async def post_client_receipt(
         session_id=session_id,
     )
     return receipt
+
+
+
+async def reverse_client_receipt(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    project_id: UUID,
+    receipt_id: UUID,
+    membership_id: UUID,
+    actor_user_id: UUID,
+    reason: str,
+    session_id: UUID | None = None,
+) -> ClientReceipt:
+    clean_reason = reason.strip()
+    if not clean_reason:
+        raise FinancialValidationError("Receipt reversal reason is required")
+    await _require_project_membership(
+        db,
+        organization_id=organization_id,
+        project_id=project_id,
+        membership_id=membership_id,
+    )
+    original = await db.scalar(
+        select(ClientReceipt)
+        .where(
+            ClientReceipt.id == receipt_id,
+            ClientReceipt.organization_id == organization_id,
+            ClientReceipt.project_id == project_id,
+        )
+        .with_for_update()
+    )
+    if original is None:
+        raise FinancialValidationError("Client receipt was not found")
+    if original.status != ClientReceiptStatus.POSTED:
+        raise FinancialValidationError("Only a posted client receipt can be reversed")
+    if original.reversal_of_receipt_id is not None:
+        raise FinancialValidationError("A receipt reversal cannot itself be reversed")
+
+    existing_reversal = await db.scalar(
+        select(ClientReceipt.id).where(
+            ClientReceipt.organization_id == organization_id,
+            ClientReceipt.project_id == project_id,
+            ClientReceipt.reversal_of_receipt_id == original.id,
+        )
+    )
+    if existing_reversal is not None:
+        raise FinancialConflictError("Client receipt already has a reversal record")
+
+    allocations = list(
+        (
+            await db.scalars(
+                select(ClientReceiptAllocation)
+                .where(
+                    ClientReceiptAllocation.organization_id == organization_id,
+                    ClientReceiptAllocation.project_id == project_id,
+                    ClientReceiptAllocation.receipt_id == original.id,
+                )
+                .order_by(ClientReceiptAllocation.invoice_id)
+            )
+        ).all()
+    )
+    if not allocations:
+        raise FinancialConflictError("Posted client receipt has no allocations to reverse")
+
+    invoice_ids = sorted({allocation.invoice_id for allocation in allocations}, key=str)
+    invoices = list(
+        (
+            await db.scalars(
+                select(ClientInvoice)
+                .where(
+                    ClientInvoice.organization_id == organization_id,
+                    ClientInvoice.project_id == project_id,
+                    ClientInvoice.id.in_(invoice_ids),
+                )
+                .order_by(ClientInvoice.id)
+                .with_for_update()
+            )
+        ).all()
+    )
+    if len(invoices) != len(invoice_ids):
+        raise FinancialConflictError(
+            "Client receipt reversal references a missing invoice"
+        )
+
+    now = datetime.now(UTC)
+    reversal_number = await _next_project_number(
+        db,
+        organization_id=organization_id,
+        project_id=project_id,
+        kind="client_receipt",
+        prefix="REC",
+    )
+    reversal = ClientReceipt(
+        organization_id=organization_id,
+        project_id=project_id,
+        receipt_number=reversal_number,
+        client_party_id=original.client_party_id,
+        receipt_date=now.date(),
+        amount=original.amount,
+        currency_code=original.currency_code,
+        payment_method=original.payment_method,
+        payment_reference=f"Reversal of {original.receipt_number}",
+        status=ClientReceiptStatus.REVERSED,
+        posted_by_membership_id=membership_id,
+        posted_at=now,
+        reversal_of_receipt_id=original.id,
+        reversal_reason=clean_reason,
+    )
+    db.add(reversal)
+    await db.flush()
+
+    for allocation in allocations:
+        db.add(
+            ClientReceiptAllocation(
+                organization_id=organization_id,
+                project_id=project_id,
+                receipt_id=reversal.id,
+                invoice_id=allocation.invoice_id,
+                amount=allocation.amount,
+            )
+        )
+
+    original.status = ClientReceiptStatus.REVERSED
+    original.reversal_reason = clean_reason
+    await db.flush()
+
+    for invoice in invoices:
+        received = await invoice_received_amount(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            invoice_id=invoice.id,
+        )
+        if received <= Decimal(0):
+            invoice.status = ClientInvoiceStatus.ISSUED
+        elif received >= Decimal(invoice.net_receivable):
+            invoice.status = ClientInvoiceStatus.PAID
+        else:
+            invoice.status = ClientInvoiceStatus.PARTIALLY_PAID
+        invoice.revision += 1
+    await db.flush()
+
+    await record_audit_event(
+        db,
+        organization_id=organization_id,
+        action="financials.client_receipt.reversed",
+        target_type="client_receipt",
+        target_id=str(original.id),
+        actor_type=AuditActorType.USER,
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+        risk=AuditRisk.CRITICAL,
+        reason=clean_reason,
+        changes={
+            "original_receipt_number": original.receipt_number,
+            "reversal_receipt_id": str(reversal.id),
+            "reversal_receipt_number": reversal.receipt_number,
+            "amount": str(original.amount),
+            "allocation_count": len(allocations),
+        },
+    )
+    await _publish(
+        db,
+        organization_id=organization_id,
+        project_id=project_id,
+        event_type="financials.client_receipt.reversed",
+        entity_type="client_receipt",
+        entity_id=original.id,
+        entity_version=1,
+        permission="financials.receivable.view",
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+    )
+    return reversal
