@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.modules.financials.accounting_export_router import router as accounting_export_router
+from app.modules.financials.attachment_router import router as attachment_router
 from app.modules.financials.budget_control_router import router as budget_control_router
 from app.modules.financials.commercial_control_router import router as commercial_control_router
 from app.modules.financials.commitment_router import router as commitment_router
@@ -16,6 +17,7 @@ from app.modules.financials.subcontract_payable_router import router as subcontr
 
 router = APIRouter()
 router.include_router(accounting_export_router)
+router.include_router(attachment_router)
 router.include_router(core_router)
 router.include_router(mapping_router)
 router.include_router(feed_router)
