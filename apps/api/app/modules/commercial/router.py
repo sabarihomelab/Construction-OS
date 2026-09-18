@@ -54,14 +54,19 @@ from app.modules.commercial.service import (
     create_party,
     create_ra_bill,
     create_wbs_code,
-    transition_measurement,
     transition_ra_bill,
     update_boq_item,
     update_party,
     update_wbs_code,
 )
+from app.modules.commercial.workflow import (
+    decide_measurement_certification,
+    decide_ra_bill_certification,
+    submit_measurement_for_certification,
+    submit_ra_bill_for_certification,
+)
 from app.modules.features.service import build_access_context
-from app.modules.projects.access import project_permission_is_allowed
+from app.modules.projects.access import effective_project_permissions, project_permission_is_allowed
 from app.modules.sessions.deps import CsrfProtected, CurrentSession
 
 router = APIRouter(tags=["commercial"])
@@ -81,6 +86,16 @@ def _project_permission(context, project_id: UUID, permission_key: str) -> None:
         project_permissions=scoped,
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+
+
+def _effective_project_permissions(context, project_id: UUID) -> set[str]:
+    return effective_project_permissions(
+        project_id=project_id,
+        organization_permissions=set(context.permissions),
+        project_permissions={
+            key: set(values) for key, values in context.project_permissions.items()
+        },
+    )
 
 
 def _domain_error(exc: Exception) -> None:
@@ -539,15 +554,15 @@ async def submit_measurement_route(
     context = await build_access_context(db, session.membership_id)
     _project_permission(context, project_id, "commercial.measurement.submit")
     try:
-        row = await transition_measurement(
+        row = await submit_measurement_for_certification(
             db,
             organization_id=context.organization_id,
             project_id=project_id,
             measurement_id=measurement_id,
             expected_revision=payload.expected_revision,
-            target_status=MeasurementStatus.SUBMITTED,
-            membership_id=context.membership_id,
+            permission_keys=_effective_project_permissions(context, project_id),
             actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
             session_id=session.id,
             reason=payload.reason,
         )
@@ -573,17 +588,17 @@ async def review_measurement_route(
 ) -> MeasurementEntry:
     context = await build_access_context(db, session.membership_id)
     _project_permission(context, project_id, "commercial.measurement.certify")
-    target = MeasurementStatus.CERTIFIED if payload.approve else MeasurementStatus.REJECTED
     try:
-        row = await transition_measurement(
+        row = await decide_measurement_certification(
             db,
             organization_id=context.organization_id,
             project_id=project_id,
             measurement_id=measurement_id,
             expected_revision=payload.expected_revision,
-            target_status=target,
-            membership_id=context.membership_id,
+            permission_keys=_effective_project_permissions(context, project_id),
             actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
+            approve=payload.approve,
             session_id=session.id,
             reason=payload.reason,
         )
@@ -721,15 +736,27 @@ async def submit_ra_bill_route(
     session: CurrentSession,
     _csrf: CsrfProtected,
 ) -> RABill:
-    return await _transition_bill_route(
-        project_id=project_id,
-        bill_id=bill_id,
-        payload=payload,
-        target_status=RABillStatus.SUBMITTED,
-        permission_key="commercial.ra_bill.submit",
-        db=db,
-        session=session,
-    )
+    context = await build_access_context(db, session.membership_id)
+    _project_permission(context, project_id, "commercial.ra_bill.submit")
+    try:
+        row = await submit_ra_bill_for_certification(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            bill_id=bill_id,
+            expected_revision=payload.expected_revision,
+            permission_keys=_effective_project_permissions(context, project_id),
+            actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
+            session_id=session.id,
+            reason=payload.reason,
+        )
+        await db.commit()
+        await db.refresh(row)
+        return row
+    except (CommercialConflictError, CommercialValidationError) as exc:
+        await db.rollback()
+        _domain_error(exc)
 
 
 @router.post(
@@ -744,15 +771,64 @@ async def certify_ra_bill_route(
     session: CurrentSession,
     _csrf: CsrfProtected,
 ) -> RABill:
-    return await _transition_bill_route(
-        project_id=project_id,
-        bill_id=bill_id,
-        payload=payload,
-        target_status=RABillStatus.CERTIFIED,
-        permission_key="commercial.ra_bill.certify",
-        db=db,
-        session=session,
-    )
+    context = await build_access_context(db, session.membership_id)
+    _project_permission(context, project_id, "commercial.ra_bill.certify")
+    try:
+        row = await decide_ra_bill_certification(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            bill_id=bill_id,
+            expected_revision=payload.expected_revision,
+            permission_keys=_effective_project_permissions(context, project_id),
+            actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
+            approve=True,
+            session_id=session.id,
+            reason=payload.reason,
+        )
+        await db.commit()
+        await db.refresh(row)
+        return row
+    except (CommercialConflictError, CommercialValidationError) as exc:
+        await db.rollback()
+        _domain_error(exc)
+
+
+@router.post(
+    "/projects/{project_id}/commercial/ra-bills/{bill_id}/return-to-draft",
+    response_model=RABillRead,
+)
+async def return_ra_bill_to_draft_route(
+    project_id: UUID,
+    bill_id: UUID,
+    payload: RevisionAction,
+    db: DbSession,
+    session: CurrentSession,
+    _csrf: CsrfProtected,
+) -> RABill:
+    context = await build_access_context(db, session.membership_id)
+    _project_permission(context, project_id, "commercial.ra_bill.certify")
+    try:
+        row = await decide_ra_bill_certification(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            bill_id=bill_id,
+            expected_revision=payload.expected_revision,
+            permission_keys=_effective_project_permissions(context, project_id),
+            actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
+            approve=False,
+            session_id=session.id,
+            reason=payload.reason,
+        )
+        await db.commit()
+        await db.refresh(row)
+        return row
+    except (CommercialConflictError, CommercialValidationError) as exc:
+        await db.rollback()
+        _domain_error(exc)
 
 
 @router.post(
