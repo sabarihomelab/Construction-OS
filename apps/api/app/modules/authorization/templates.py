@@ -44,6 +44,7 @@ INDIA_ROLE_TEMPLATES: tuple[RoleTemplateSpec, ...] = (
             "financials.project_cost.view",
             "financials.site_expense.view",
             "financials.payable.view",
+            "financials.payable.approve",
             "financials.receivable.view",
         ),
     ),
