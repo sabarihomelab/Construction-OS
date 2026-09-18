@@ -258,7 +258,7 @@ def test_xlsx_export_still_blocks_unmapped_cost_heads() -> None:
 
     try:
         accounting_export_service.serialize_cost_register_xlsx(export)
-    except Exception as exc:
+    except accounting_export_service.FinancialValidationError as exc:
         assert "complete ledger mapping before export" in str(exc)
     else:
         raise AssertionError("Unmapped Cost Heads must block workbook generation")
