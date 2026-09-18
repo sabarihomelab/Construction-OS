@@ -1,4 +1,5 @@
-from fastapi.routing import iter_route_contexts\nimport pytest
+from fastapi.routing import iter_route_contexts
+import pytest
 
 from app.modules.authorization.templates import ROLE_TEMPLATES_BY_KEY
 from app.modules.procurement.router import (
