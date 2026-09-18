@@ -79,7 +79,7 @@ def test_generic_cost_reversal_forces_site_expenses_through_cash_aware_flow() ->
 def test_current_cost_views_exclude_reversal_records() -> None:
     job_source = inspect.getsource(financial_service.job_cost_summary_rows)
     commercial_source = inspect.getsource(commercial_control.build_boq_commercial_control)
-    budget_source = inspect.getsource(budget_control.build_budget_control)
+    budget_source = inspect.getsource(budget_control.build_budget_commercial_control)
 
     assert "ProjectCostEntry.reversal_of_entry_id.is_(None)" in job_source
     assert "ProjectCostEntry.reversal_of_entry_id.is_(None)" in commercial_source
