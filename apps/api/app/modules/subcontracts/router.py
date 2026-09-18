@@ -5,9 +5,9 @@ from sqlalchemy import select
 
 from app.core.deps import DbSession
 from app.modules.features.service import build_access_context
-from app.modules.projects.access import project_permission_is_allowed
+from app.modules.projects.access import effective_project_permissions, project_permission_is_allowed
 from app.modules.sessions.deps import CsrfProtected, CurrentSession
-from app.modules.subcontracts.claim_service import add_claim_line, certify_claim
+from app.modules.subcontracts.claim_service import add_claim_line
 from app.modules.subcontracts.models import (
     Subcontract,
     SubcontractClaim,
@@ -15,7 +15,6 @@ from app.modules.subcontracts.models import (
     SubcontractLine,
     SubcontractStatus,
 )
-from app.modules.subcontracts.review import reject_claim
 from app.modules.subcontracts.schemas import (
     ClaimCertification,
     ClaimPayment,
@@ -36,8 +35,13 @@ from app.modules.subcontracts.service import (
     create_claim,
     create_subcontract,
     record_claim_payment,
-    submit_claim,
     transition_subcontract,
+)
+from app.modules.subcontracts.workflow import (
+    decide_claim_certification,
+    decide_contract_approval,
+    submit_claim_for_certification,
+    submit_contract_for_approval,
 )
 
 router = APIRouter(tags=["subcontracts"])
@@ -58,6 +62,16 @@ def _error(exc: Exception) -> None:
     if isinstance(exc, SubcontractConflictError):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+def _effective_project_permissions(context, project_id: UUID) -> set[str]:
+    return effective_project_permissions(
+        project_id=project_id,
+        organization_permissions=set(context.permissions),
+        project_permissions={
+            key: set(values) for key, values in context.project_permissions.items()
+        },
+    )
 
 
 @router.get("/projects/{project_id}/subcontracts", response_model=list[SubcontractRead])
@@ -123,12 +137,69 @@ async def _contract_transition(project_id: UUID, subcontract_id: UUID, payload: 
 
 @router.post("/projects/{project_id}/subcontracts/{subcontract_id}/submit", response_model=SubcontractRead)
 async def submit_subcontract(project_id: UUID, subcontract_id: UUID, payload: RevisionAction, db: DbSession, session: CurrentSession, _csrf: CsrfProtected) -> Subcontract:
-    return await _contract_transition(project_id, subcontract_id, payload, SubcontractStatus.SUBMITTED, "subcontracts.contract.submit", db, session)
+    context = await build_access_context(db, session.membership_id)
+    _permission(context, project_id, "subcontracts.contract.submit")
+    try:
+        row = await submit_contract_for_approval(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            subcontract_id=subcontract_id,
+            expected_revision=payload.expected_revision,
+            permission_keys=_effective_project_permissions(context, project_id),
+            actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
+            session_id=session.id,
+            reason=payload.reason,
+        )
+        await db.commit()
+        await db.refresh(row)
+        return row
+    except (SubcontractConflictError, SubcontractValidationError) as exc:
+        await db.rollback()
+        _error(exc)
+
+
+async def _decide_contract(
+    project_id: UUID,
+    subcontract_id: UUID,
+    payload: RevisionAction,
+    approve: bool,
+    db: DbSession,
+    session: CurrentSession,
+) -> Subcontract:
+    context = await build_access_context(db, session.membership_id)
+    _permission(context, project_id, "subcontracts.contract.approve")
+    try:
+        row = await decide_contract_approval(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            subcontract_id=subcontract_id,
+            expected_revision=payload.expected_revision,
+            permission_keys=_effective_project_permissions(context, project_id),
+            actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
+            approve=approve,
+            session_id=session.id,
+            reason=payload.reason,
+        )
+        await db.commit()
+        await db.refresh(row)
+        return row
+    except (SubcontractConflictError, SubcontractValidationError) as exc:
+        await db.rollback()
+        _error(exc)
 
 
 @router.post("/projects/{project_id}/subcontracts/{subcontract_id}/approve", response_model=SubcontractRead)
 async def approve_subcontract(project_id: UUID, subcontract_id: UUID, payload: RevisionAction, db: DbSession, session: CurrentSession, _csrf: CsrfProtected) -> Subcontract:
-    return await _contract_transition(project_id, subcontract_id, payload, SubcontractStatus.APPROVED, "subcontracts.contract.approve", db, session)
+    return await _decide_contract(project_id, subcontract_id, payload, True, db, session)
+
+
+@router.post("/projects/{project_id}/subcontracts/{subcontract_id}/return-to-draft", response_model=SubcontractRead)
+async def return_subcontract_to_draft(project_id: UUID, subcontract_id: UUID, payload: RevisionAction, db: DbSession, session: CurrentSession, _csrf: CsrfProtected) -> Subcontract:
+    return await _decide_contract(project_id, subcontract_id, payload, False, db, session)
 
 
 @router.post("/projects/{project_id}/subcontracts/{subcontract_id}/issue", response_model=SubcontractRead)
@@ -195,7 +266,18 @@ async def submit_claim_route(project_id: UUID, claim_id: UUID, payload: Revision
     context = await build_access_context(db, session.membership_id)
     _permission(context, project_id, "subcontracts.claim.submit")
     try:
-        row = await submit_claim(db, organization_id=context.organization_id, project_id=project_id, claim_id=claim_id, expected_revision=payload.expected_revision, actor_user_id=session.user_id, actor_membership_id=session.membership_id, session_id=session.id, reason=payload.reason)
+        row = await submit_claim_for_certification(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            claim_id=claim_id,
+            expected_revision=payload.expected_revision,
+            permission_keys=_effective_project_permissions(context, project_id),
+            actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
+            session_id=session.id,
+            reason=payload.reason,
+        )
         await db.commit()
         await db.refresh(row)
         return row
@@ -209,7 +291,19 @@ async def reject_claim_route(project_id: UUID, claim_id: UUID, payload: Revision
     context = await build_access_context(db, session.membership_id)
     _permission(context, project_id, "subcontracts.claim.certify")
     try:
-        row = await reject_claim(db, organization_id=context.organization_id, project_id=project_id, claim_id=claim_id, expected_revision=payload.expected_revision, actor_user_id=session.user_id, session_id=session.id, reason=payload.reason)
+        row = await decide_claim_certification(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            claim_id=claim_id,
+            expected_revision=payload.expected_revision,
+            permission_keys=_effective_project_permissions(context, project_id),
+            actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
+            approve=False,
+            session_id=session.id,
+            reason=payload.reason,
+        )
         await db.commit()
         await db.refresh(row)
         return row
@@ -223,7 +317,21 @@ async def certify_claim_route(project_id: UUID, claim_id: UUID, payload: ClaimCe
     context = await build_access_context(db, session.membership_id)
     _permission(context, project_id, "subcontracts.claim.certify")
     try:
-        row = await certify_claim(db, organization_id=context.organization_id, project_id=project_id, claim_id=claim_id, expected_revision=payload.expected_revision, other_deductions=payload.other_deductions, tax_withheld_amount=payload.tax_withheld_amount, actor_user_id=session.user_id, actor_membership_id=session.membership_id, session_id=session.id, reason=payload.reason)
+        row = await decide_claim_certification(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            claim_id=claim_id,
+            expected_revision=payload.expected_revision,
+            permission_keys=_effective_project_permissions(context, project_id),
+            actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
+            approve=True,
+            other_deductions=payload.other_deductions,
+            tax_withheld_amount=payload.tax_withheld_amount,
+            session_id=session.id,
+            reason=payload.reason,
+        )
         await db.commit()
         await db.refresh(row)
         return row
