@@ -135,6 +135,8 @@ MODULE_PERMISSION_DEFINITIONS: tuple[ModulePermissionDefinition, ...] = (
     ModulePermissionDefinition("financials.cost_head.manage", "financials", "cost_head", "manage", "Create, revise and retire construction cost heads and ledger mappings.", PermissionRisk.CRITICAL),
     ModulePermissionDefinition("financials.ledger.view", "financials", "ledger", "view", "View company accounting ledger definitions used for integration and governed postings.", PermissionRisk.HIGH),
     ModulePermissionDefinition("financials.ledger.manage", "financials", "ledger", "manage", "Create, revise and retire company ledger definitions.", PermissionRisk.CRITICAL),
+    ModulePermissionDefinition("financials.accounting_export.view", "financials", "accounting_export", "view", "Preview accounting-ready project export data and mapping readiness.", PermissionRisk.HIGH),
+    ModulePermissionDefinition("financials.accounting_export.export", "financials", "accounting_export", "export", "Export controlled accounting data and TallyPrime adapter payloads.", PermissionRisk.CRITICAL),
     ModulePermissionDefinition("financials.project_cost.view", "financials", "project_cost", "view", "View project cost entries and allocations.", PermissionRisk.HIGH),
     ModulePermissionDefinition("financials.project_cost.post", "financials", "project_cost", "post", "Post authoritative project cost entries from approved source records.", PermissionRisk.CRITICAL),
     ModulePermissionDefinition("financials.project_cost.adjust", "financials", "project_cost", "adjust", "Create controlled project cost adjustments and reversals.", PermissionRisk.CRITICAL),
