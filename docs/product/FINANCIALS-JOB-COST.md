@@ -169,14 +169,20 @@ These are starter role patterns, not hardcoded job titles.
 The current foundation includes:
 
 - governed Ledger Accounts and balanced journal persistence;
-- project commitments;
-- client invoice/receipt persistence;
+- project commitments from issued purchase orders and work orders;
+- client invoice/receipt persistence with certified-RA lineage and allocation controls;
 - company Cost Heads;
 - effective-dated Cost Head to Ledger mappings;
 - project-cost entries and allocations;
+- certified subcontract claim cost feeds plus a non-duplicating payable projection;
 - project site-cash accounts and transaction ledger;
 - site expenses and allocations;
-- permission-scoped APIs for Cost Heads, ledgers, site cash, site expenses and job-cost reporting;
+- shared Workflow approval for site expenses and vendor bills while preserving domain validation/posting rules;
+- controlled accounting export preview with an Excel-compatible cost-register CSV;
+- a TallyPrime adapter contract based only on posted balanced journal entries;
+- project commercial control across Budget, Commitment, Actual Cost, Certified/Billed, Issued Receivable, Received and Outstanding Receivable;
+- versioned India tax/withholding rule snapshots on governed client invoicing;
+- permission-scoped APIs for Cost Heads, ledgers, site cash, site expenses, payables, receivables, accounting export and job-cost reporting;
 - audit/events for implemented write flows;
 - permission-scoped search projections;
 - Alembic migration and structural tests.
@@ -188,14 +194,8 @@ This foundation is not the end of Financials. Follow-on work must connect approv
 - approved workforce time → labour cost using the effective Project Worker Rate;
 - material consumption/store ledger → material actual cost;
 - equipment usage/hire/fuel → equipment actual cost;
-- issued purchase orders/work orders → commitments;
-- certified subcontract claims/RA bills → subcontract cost/payable basis;
-- certified client RA billing → client invoice/receivable basis;
-- receipts and payment-state reconciliation;
-- versioned India tax/withholding metadata and rule snapshots;
-- accounting export/mapping packages, starting with controlled Excel/CSV and TallyPrime adapter contracts;
-- dashboard comparison of Budget vs Commitment vs Actual Cost vs Certified/Billed/Received;
-- configurable shared Workflow for site-expense and other finance approvals;
+- generated Excel workbook packages in addition to the current Excel-compatible CSV surface;
+- concrete TallyPrime transport/import packaging on top of the governed adapter contract;
 - receipt/file attachment UX using the shared Files module;
 - mobile/offline site-expense capture;
 - reversal/correction workflows that preserve the original history;
