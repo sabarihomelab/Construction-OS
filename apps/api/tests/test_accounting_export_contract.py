@@ -1,9 +1,8 @@
+import inspect
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 from xml.etree import ElementTree
-
-import inspect
 
 from app.main import app
 from app.modules.authorization.catalog import PERMISSIONS_BY_KEY
