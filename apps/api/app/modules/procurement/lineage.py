@@ -6,11 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.commercial.models import BOQItem
 from app.modules.procurement.models import PurchaseOrderLine, PurchaseRequisitionLine
-from app.modules.procurement.service import (
-    ProcurementValidationError,
-    add_purchase_order_line as _add_purchase_order_line,
-    add_requisition_line as _add_requisition_line,
-)
+from app.modules.procurement.service import ProcurementValidationError
+from app.modules.procurement.service import add_purchase_order_line as _add_purchase_order_line
+from app.modules.procurement.service import add_requisition_line as _add_requisition_line
 
 
 def _inherit_reference(
