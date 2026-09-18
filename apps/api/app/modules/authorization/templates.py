@@ -374,6 +374,8 @@ INDIA_ROLE_TEMPLATES: tuple[RoleTemplateSpec, ...] = (
             "subcontracts.claim.view",
             "subcontracts.claim.payment",
             "financials.receivable.view",
+            "financials.receipt.post",
+            "financials.receipt.reverse",
             "reporting.report.view",
             "reporting.report.export",
         ),
