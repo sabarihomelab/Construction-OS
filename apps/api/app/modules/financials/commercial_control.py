@@ -129,6 +129,7 @@ async def build_boq_commercial_control(
             ProjectCostAllocation.project_id == project_id,
             ProjectCostAllocation.boq_item_id.is_not(None),
             ProjectCostEntry.status == ProjectCostStatus.POSTED,
+            ProjectCostEntry.reversal_of_entry_id.is_(None),
         )
         .group_by(ProjectCostAllocation.boq_item_id)
     )
