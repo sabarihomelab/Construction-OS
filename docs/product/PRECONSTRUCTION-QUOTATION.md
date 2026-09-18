@@ -47,9 +47,15 @@ Controlled Award
 Active Project + Contractual BOQ + Internal Budget
 ```
 
-## Pre-construction job
+## Pre-construction workspace
 
-A pre-construction job/opportunity should be organization-owned and may exist before a full project is activated.
+For Release 1, reuse the existing Project aggregate in `PLANNING` status as the pre-construction workspace. This keeps Estimate, Files, Party assignment, authorization and later BOQ/Budget relationships on the same stable project UUID and avoids creating a duplicate opportunity/project hierarchy.
+
+A planning project is not yet an execution project: field execution, governed award-dependent financial actions and other configured downstream capabilities remain unavailable until award/activation.
+
+A separate CRM-style Opportunity aggregate may be introduced later only if the product needs leads that should exist without any project workspace.
+
+The pre-construction workspace is organization-owned and becomes the same project after award.
 
 Typical attributes:
 
@@ -183,7 +189,7 @@ Award is the boundary between sales/pre-construction and governed project execut
 
 Award should be transactional/idempotent and able to create or establish:
 
-- active Project;
+- transition the existing planning Project to the governed awarded/active execution state;
 - client Party/project relationship;
 - accepted contract/quotation value;
 - initial WBS/Cost Codes from approved templates/estimate structure;
@@ -286,6 +292,30 @@ Required views should eventually include:
 - expected vs awarded value;
 - awarded quotation → project traceability;
 - quoted vs current forecast margin after execution begins.
+
+## Release 1 implementation impact
+
+Reuse existing foundations rather than rewriting them:
+
+- `Project` in `PLANNING` status is the pre-construction workspace.
+- existing Party/ProjectParty relationships represent the prospective/accepted client.
+- existing Estimate/Rate Analysis remains the detailed calculation engine.
+- existing Files/Documents foundations store drawings, specifications and quotation evidence.
+- existing Workflow/Audit/Events/Jobs/Reporting services govern approval, history, PDF generation and notifications.
+- existing BOQ and Budget engines remain post-award governed baselines.
+
+Additive domain capability required:
+
+- quotation header and immutable quotation revision/snapshot records;
+- quotation issue/accept/reject/expire/supersede lifecycle;
+- pre-construction parameter/template data for deterministic parametric estimates;
+- organization-owned Rate Library / Price Observation records with source/effective-date history;
+- selected-rate snapshot lineage on issued quotation/approved estimate evidence;
+- controlled award/conversion service that validates accepted revision and creates/maps BOQ/Budget baselines atomically;
+- quotation PDF/export provider;
+- permissions, audit, search, reporting and tests for the above.
+
+Do not change existing Project/BOQ/Estimate IDs merely to add pre-construction. Prefer additive migrations and services.
 
 ## Implementation boundary
 
