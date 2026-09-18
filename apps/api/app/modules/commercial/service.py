@@ -1150,7 +1150,11 @@ async def transition_ra_bill(
         raise CommercialConflictError("RA bill changed; refresh before continuing")
     allowed = {
         RABillStatus.DRAFT: {RABillStatus.SUBMITTED, RABillStatus.CANCELLED},
-        RABillStatus.SUBMITTED: {RABillStatus.CERTIFIED, RABillStatus.CANCELLED},
+        RABillStatus.SUBMITTED: {
+            RABillStatus.CERTIFIED,
+            RABillStatus.DRAFT,
+            RABillStatus.CANCELLED,
+        },
         RABillStatus.CERTIFIED: {RABillStatus.PAID},
         RABillStatus.PAID: set(),
         RABillStatus.CANCELLED: set(),
@@ -1163,6 +1167,10 @@ async def transition_ra_bill(
     now = datetime.now(UTC)
     if target_status == RABillStatus.SUBMITTED:
         bill.submitted_at = now
+    elif target_status == RABillStatus.DRAFT:
+        bill.submitted_at = None
+        bill.certified_by_membership_id = None
+        bill.certified_at = None
     if target_status == RABillStatus.CERTIFIED:
         bill.certified_by_membership_id = membership_id
         bill.certified_at = now
