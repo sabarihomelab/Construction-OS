@@ -17,7 +17,6 @@ from app.modules.financials.accounting_export_schemas import (
     TallyPrimeVoucher,
     TallyPrimeVoucherLine,
 )
-from app.modules.financials.job_cost_models import ProjectCostSourceType
 from app.modules.financials.models import JournalSourceType
 
 
