@@ -1151,6 +1151,7 @@ async def _reverse_project_cost_entry(
         configuration_context={
             "reversal_of_entry_id": str(original.id),
             "original_entry_number": original.entry_number,
+            "original_entry_date": original.entry_date.isoformat(),
             "original_source_type": original.source_type.value,
             "original_source_id": str(original.source_id) if original.source_id else None,
             "reason": clean_reason,
