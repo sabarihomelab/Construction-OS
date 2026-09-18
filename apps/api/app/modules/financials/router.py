@@ -44,6 +44,8 @@ from app.modules.financials.service import (
     create_site_expense,
     job_cost_summary_rows,
     post_site_expense,
+    reverse_posted_site_expense,
+    reverse_project_cost_entry,
     site_cash_balance,
 )
 from app.modules.financials.site_expense_workflow import (
@@ -596,6 +598,75 @@ async def post_project_site_expense(
         await db.commit()
         await db.refresh(row)
         return row
+    except (FinancialConflictError, FinancialValidationError) as exc:
+        await db.rollback()
+        _raise_domain_error(exc)
+
+
+@router.post(
+    "/projects/{project_id}/financials/site-expenses/{expense_id}/reverse",
+    response_model=SiteExpenseRead,
+)
+async def reverse_project_site_expense(
+    project_id: UUID,
+    expense_id: UUID,
+    payload: RejectAction,
+    db: DbSession,
+    session: CurrentSession,
+    _csrf: CsrfProtected,
+) -> SiteExpense:
+    context = await build_access_context(db, session.membership_id)
+    _require_project_permission(context, project_id, "financials.site_expense.post")
+    _require_project_permission(context, project_id, "financials.project_cost.adjust")
+    try:
+        expense, _ = await reverse_posted_site_expense(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            expense_id=expense_id,
+            expected_revision=payload.expected_revision,
+            membership_id=context.membership_id,
+            actor_user_id=session.user_id,
+            reason=payload.reason,
+            session_id=session.id,
+        )
+        await db.commit()
+        await db.refresh(expense)
+        return expense
+    except (FinancialConflictError, FinancialValidationError) as exc:
+        await db.rollback()
+        _raise_domain_error(exc)
+
+
+@router.post(
+    "/projects/{project_id}/financials/job-cost/entries/{entry_id}/reverse",
+    response_model=ProjectCostRead,
+)
+async def reverse_project_cost_entry_route(
+    project_id: UUID,
+    entry_id: UUID,
+    payload: RejectAction,
+    db: DbSession,
+    session: CurrentSession,
+    _csrf: CsrfProtected,
+) -> ProjectCostEntry:
+    context = await build_access_context(db, session.membership_id)
+    _require_project_permission(context, project_id, "financials.project_cost.adjust")
+    try:
+        _, reversal = await reverse_project_cost_entry(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            entry_id=entry_id,
+            expected_revision=payload.expected_revision,
+            membership_id=context.membership_id,
+            actor_user_id=session.user_id,
+            reason=payload.reason,
+            session_id=session.id,
+        )
+        await db.commit()
+        await db.refresh(reversal)
+        return reversal
     except (FinancialConflictError, FinancialValidationError) as exc:
         await db.rollback()
         _raise_domain_error(exc)
