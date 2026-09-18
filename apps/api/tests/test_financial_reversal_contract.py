@@ -17,7 +17,7 @@ from app.modules.financials.job_cost_models import (
     SiteCashTransactionType,
     SiteExpenseStatus,
 )
-from app.modules.financials.models import ClientInvoiceStatus, ClientReceiptStatus
+from app.modules.financials.models import ClientInvoiceStatus, ClientReceipt, ClientReceiptStatus
 from app.modules.financials.schemas import ProjectCostRead
 
 
@@ -174,3 +174,41 @@ def test_receipt_reversal_status_contract_is_explicit() -> None:
     assert ClientReceiptStatus.POSTED.value == "posted"
     assert ClientReceiptStatus.REVERSED.value == "reversed"
     assert ClientInvoiceStatus.ISSUED.value == "issued"
+
+
+
+def test_receipt_reversal_is_project_scoped_and_database_unique() -> None:
+    table = ClientReceipt.__table__
+    unique_sets = {
+        tuple(column.name for column in constraint.columns)
+        for constraint in table.constraints
+        if constraint.__class__.__name__ == "UniqueConstraint"
+    }
+
+    assert ("id", "project_id", "organization_id") in unique_sets
+    assert (
+        "reversal_of_receipt_id",
+        "project_id",
+        "organization_id",
+    ) in unique_sets
+
+    reversal_fk = next(
+        constraint
+        for constraint in table.foreign_key_constraints
+        if constraint.name == "fk_client_receipts_reversal_scope"
+    )
+    assert tuple(
+        element.target_fullname for element in reversal_fk.elements
+    ) == (
+        "client_receipts.id",
+        "client_receipts.project_id",
+        "client_receipts.organization_id",
+    )
+
+
+def test_reversal_services_lock_original_rows_before_mutation() -> None:
+    cost_source = inspect.getsource(financial_service._reverse_project_cost_entry)
+    receipt_source = inspect.getsource(receivable_service.reverse_client_receipt)
+
+    assert ".with_for_update()" in cost_source
+    assert ".with_for_update()" in receipt_source
