@@ -85,7 +85,7 @@ def test_cost_register_uses_only_posted_cost_and_effective_ledger_mapping() -> N
 
     assert "ProjectCostStatus.POSTED" in source
     assert "ProjectCostStatus.REVERSED" in source
-    assert "mapping.effective_from <= entry.entry_date" in source
+    assert "mapping.effective_from <= mapping_date" in source
     assert "mapping.effective_to is None or mapping.effective_to >= entry.entry_date" in source
     assert "ready_for_export=missing_mapping_count == 0" in source
 
