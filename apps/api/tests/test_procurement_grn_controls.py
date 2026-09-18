@@ -16,9 +16,9 @@ from app.modules.procurement.service import (
 
 def test_grn_can_leave_disposition_open_while_draft() -> None:
     _validate_goods_receipt_quantities(
-        received=Decimal("10"),
-        accepted=Decimal("6"),
-        rejected=Decimal("0"),
+        received=Decimal(10),
+        accepted=Decimal(6),
+        rejected=Decimal(0),
         remarks=None,
         require_full_disposition=False,
     )
@@ -27,9 +27,9 @@ def test_grn_can_leave_disposition_open_while_draft() -> None:
 def test_grn_requires_full_disposition_before_receiving() -> None:
     with pytest.raises(ProcurementValidationError, match="accepted or rejected"):
         _validate_goods_receipt_quantities(
-            received=Decimal("10"),
-            accepted=Decimal("6"),
-            rejected=Decimal("0"),
+            received=Decimal(10),
+            accepted=Decimal(6),
+            rejected=Decimal(0),
             remarks=None,
             require_full_disposition=True,
         )
@@ -38,9 +38,9 @@ def test_grn_requires_full_disposition_before_receiving() -> None:
 def test_grn_rejection_requires_a_reason() -> None:
     with pytest.raises(ProcurementValidationError, match="Remarks are required"):
         _validate_goods_receipt_quantities(
-            received=Decimal("10"),
-            accepted=Decimal("8"),
-            rejected=Decimal("2"),
+            received=Decimal(10),
+            accepted=Decimal(8),
+            rejected=Decimal(2),
             remarks=None,
             require_full_disposition=True,
         )
@@ -48,18 +48,18 @@ def test_grn_rejection_requires_a_reason() -> None:
 
 def test_rejected_delivery_does_not_consume_po_acceptance_capacity() -> None:
     _validate_po_acceptance_limit(
-        ordered_quantity=Decimal("10"),
-        previously_accepted=Decimal("0"),
-        accepted_quantity=Decimal("10"),
+        ordered_quantity=Decimal(10),
+        previously_accepted=Decimal(0),
+        accepted_quantity=Decimal(10),
     )
 
 
 def test_accepted_quantity_cannot_exceed_po_quantity() -> None:
     with pytest.raises(ProcurementValidationError, match="remaining purchase order"):
         _validate_po_acceptance_limit(
-            ordered_quantity=Decimal("10"),
-            previously_accepted=Decimal("8"),
-            accepted_quantity=Decimal("3"),
+            ordered_quantity=Decimal(10),
+            previously_accepted=Decimal(8),
+            accepted_quantity=Decimal(3),
         )
 
 
