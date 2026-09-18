@@ -3,7 +3,9 @@ import inspect
 from app.main import app
 from app.modules.authorization.templates import ROLE_TEMPLATES_BY_KEY
 from app.modules.financials import accounting_export_service, budget_control, commercial_control
+from app.modules.financials import receivable_service
 from app.modules.financials import service as financial_service
+from app.modules.financials.models import ClientInvoiceStatus, ClientReceiptStatus
 from app.modules.financials.job_cost_models import (
     ProjectCostEntry,
     ProjectCostSourceType,
@@ -118,3 +120,53 @@ def test_reversal_model_contract_already_supports_history() -> None:
     assert SiteCashTransactionType.REVERSAL.value == "reversal"
     assert SiteCashDirection.INFLOW.value == "inflow"
     assert hasattr(ProjectCostEntry, "reversal_of_entry_id")
+
+
+
+def test_client_receipt_reversal_route_is_mounted() -> None:
+    paths = app.openapi()["paths"]
+
+    assert (
+        "/api/v1/projects/{project_id}/financials/receivables/receipts/{receipt_id}/reverse"
+        in paths
+    )
+
+
+def test_client_receipt_reversal_preserves_allocation_history() -> None:
+    source = inspect.getsource(receivable_service.reverse_client_receipt)
+
+    assert "original.status = ClientReceiptStatus.REVERSED" in source
+    assert "status=ClientReceiptStatus.REVERSED" in source
+    assert "reversal_of_receipt_id=original.id" in source
+    assert "receipt_id=reversal.id" in source
+    assert "invoice_id=allocation.invoice_id" in source
+    assert "amount=allocation.amount" in source
+    assert "db.delete(" not in source
+
+
+def test_client_receipt_reversal_recalculates_invoice_payment_state() -> None:
+    source = inspect.getsource(receivable_service.reverse_client_receipt)
+
+    assert "received = await invoice_received_amount(" in source
+    assert "invoice.status = ClientInvoiceStatus.ISSUED" in source
+    assert "invoice.status = ClientInvoiceStatus.PAID" in source
+    assert "invoice.status = ClientInvoiceStatus.PARTIALLY_PAID" in source
+
+
+def test_received_cash_control_only_counts_posted_receipts() -> None:
+    source = inspect.getsource(commercial_control.build_boq_commercial_control)
+
+    assert "ClientReceipt.status == ClientReceiptStatus.POSTED" in source
+
+
+def test_receipt_reversal_permission_is_assigned_to_finance() -> None:
+    role = ROLE_TEMPLATES_BY_KEY["accounts-finance"]
+
+    assert "financials.receipt.post" in role.permission_keys
+    assert "financials.receipt.reverse" in role.permission_keys
+
+
+def test_receipt_reversal_status_contract_is_explicit() -> None:
+    assert ClientReceiptStatus.POSTED.value == "posted"
+    assert ClientReceiptStatus.REVERSED.value == "reversed"
+    assert ClientInvoiceStatus.ISSUED.value == "issued"
