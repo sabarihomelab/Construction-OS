@@ -6,7 +6,9 @@ Construction OS is an **India-first construction operating platform**. Release 1
 
 Foreign construction products may be studied only as technical/product references. They do **not** define Construction OS terminology, accounting, compliance, workflow or Release 1 priorities.
 
-Primary product inputs are Indian contractor workflows: BOQ, measurement, RA billing, subcontract work, labour/contract labour, material planning and procurement, site inventory, GST/TDS-aware commercial records, Excel-heavy processes, Tally/accounting integration, WhatsApp-heavy communication and low-bandwidth/mobile site work.
+Primary product inputs are Indian contractor workflows: client enquiry and quotation, BOQ, estimation/rate analysis, measurement, RA billing, subcontract work, labour/contract labour, material planning and procurement, site inventory, GST/TDS-aware commercial records, Excel-heavy processes, Tally/accounting integration, WhatsApp-heavy communication and low-bandwidth/mobile site work.
+
+Release 1 is optimized for small and mid-sized contractors, but canonical business objects must remain suitable for larger contractors. Large-company depth is added through configuration and governance rather than a separate enterprise data model.
 
 The customer-facing objective is **one complete integrated India demo build**, not a sequence of incomplete customer releases.
 
@@ -18,7 +20,7 @@ Information is entered once and reused through authoritative relationships. A no
 
 Target connected flow:
 
-`Attendance + Work Quantity + Material Consumption + Equipment Usage → DPR → WBS/BOQ/Activity → Actual Progress + Actual Cost → Measurement → RA Billing → Management Visibility`
+`Client Enquiry → Preliminary/Detailed Estimate → Quotation → Client Acceptance → Award → BOQ/Budget Baseline → Attendance + Work Quantity + Material Consumption + Equipment Usage → DPR → WBS/BOQ/Activity → Commitments + Actual Cost + Progress → Measurement → RA Billing/Client Billing → Receipts → CVR/Profitability → Accounting Integration`
 
 Do not create duplicate independent truths for the same real-world event.
 
@@ -26,7 +28,7 @@ Do not create duplicate independent truths for the same real-world event.
 
 The first meaningful customer demo should support a realistic persisted journey:
 
-`Company → Project → Party → WBS/Cost Codes → BOQ → Estimate/Rate Analysis → Budget → Workforce/Crews → Attendance → DPR/Work Quantity → Material Requirement → Approval → RFQ → Quotes → Comparison → PO → Delivery/GRN → Site Inventory → Issue/Consumption → Equipment Usage → Measurement → Subcontract Work Order → Subcontract Measurement → Subcontractor RA Bill → Certification/Deductions → Client Measurement → Client RA Bill → Receivable → Job Cost → Planned vs Actual → Dashboard/Reports → Accounting Export/Tally Bridge → Closeout basics`
+`Company → Client Enquiry / Pre-Construction Job → Drawings / Requirements → Parametric or Detailed Estimate → Rate Analysis / Rate Library Selection → Versioned Quotation → PDF Issue → Client Acceptance → Controlled Award / Project Activation → Party → WBS/Cost Codes → Contractual BOQ → Approved Cost Budget → Workforce/Crews → Attendance → DPR/Work Quantity → Material Requirement → Approval → RFQ or configured direct purchase → Quotes/Comparison where required → PO → Delivery/GRN → Site Inventory → Issue/Consumption → Equipment Usage → Measurement → Subcontract Work Order → Subcontract Measurement → Subcontractor RA Bill → Certification/Deductions → Client Measurement / Stage Billing → Client RA Bill / Invoice → Receipt → Job Cost → Commitment/Actual/Forecast/CVR → Dashboard/Reports → Accounting Export/Tally Bridge → Closeout basics`
 
 ## Existing capability handling
 
@@ -79,6 +81,60 @@ The following business foundations drive the next development sequence:
 24. Offline/low-bandwidth hardening
 25. Security/performance/reliability/demo readiness
 
+## Pre-construction, quotation and award
+
+Construction OS starts before a project is won.
+
+A client enquiry or pre-construction job may collect client/site details, drawings, built-up area, floors, specification tier, structural/finish/MEP selections, contract type and other estimating parameters without treating the opportunity as an active execution project.
+
+Supported estimating paths:
+
+```text
+Fast ballpark / parametric estimate
+        ↓
+Detailed estimate / rate analysis
+        ↓
+Versioned customer quotation
+        ↓
+Issue / negotiate / revise
+        ↓
+Client acceptance
+        ↓
+Controlled award / conversion
+        ↓
+Contractual BOQ + approved internal budget + active project controls
+```
+
+The per-square-foot figure is a derived commercial presentation metric, not the authoritative calculation engine. Detailed cost remains component-based: material, labour, equipment, subcontract, overhead and other governed cost components, with configured wastage/overhead/profit.
+
+Quotation revisions are immutable historical commercial evidence. A later revision never overwrites an already issued quotation. Acceptance records the accepted revision, date, commercial amount and evidence/actor as applicable.
+
+Project award is a controlled boundary. It creates or activates downstream project-control baselines from the accepted commercial scope without silently changing the accepted quotation.
+
+See `PRECONSTRUCTION-QUOTATION.md`.
+
+## Rate and supplier intelligence
+
+Material price intelligence is separate from physical inventory.
+
+The platform should maintain a governed Rate Library/Price History capable of recording company historical purchases, supplier quotations, manual market references and approved external feeds by material/specification, unit, location, supplier/source and effective date.
+
+New prices may be proposed during estimating, but an approved/issued estimate or quotation snapshots the selected rate and source context. Later market updates never recalculate historical quotations, approved estimates or budgets.
+
+The company's own PO/GRN/vendor-bill history should become a primary trusted source of future estimating references. Web scraping or AI extraction may enrich the rate library but must not become the sole authoritative rate source.
+
+## Enterprise-down operating model
+
+Do not create separate small, mid-market and enterprise business engines.
+
+The same canonical transactions are exposed with different workflow depth:
+
+- Small contractor: direct/simple material request, owner/PM approval, PO or controlled direct purchase, GRN, simple site inventory, attendance, DPR, expenses, client receipts and profitability.
+- Mid-market contractor: requisition, configurable approval, RFQ/quote comparison, PO, multi-store inventory, formal subcontracts/measurements/RA billing and stronger budget control.
+- Large contractor: procurement packages, central/regional purchasing, vendor prequalification, technical/commercial evaluations, value-based approval matrices, framework/rate contracts, warehouses/transfers, contract/change/claim administration, accruals, ETC/EAC forecasting and formal CVR.
+
+Configuration may shorten a workflow, but it must not create a second definition of PO, GRN, BOQ, inventory, cost or subcontract data.
+
 ## Party model
 
 Use one reusable Party / Business Partner foundation for client, vendor, supplier, subcontractor, contractor, consultant and service provider roles. Avoid independent duplicate vendor/client/subcontractor masters.
@@ -88,6 +144,8 @@ India-specific identifiers must be jurisdiction-aware and sensitive identifiers 
 ## WBS and BOQ
 
 WBS/Cost Codes are the internal project control/cost backbone. BOQ is the contractual quantity/rate/billing backbone. They are related but **not the same object**.
+
+BOQ is not a mandatory parent for every project transaction. Where a cost, commitment, inventory movement or measurement genuinely represents BOQ scope, retain explicit BOQ lineage. Legitimate non-BOQ costs such as site establishment, temporary works, security, local transport or other indirect/site costs remain governed through WBS/Cost Head/project-cost structures rather than being forced onto artificial BOQ lines.
 
 Authoritative quantities and money use Decimal/Numeric. Units are controlled and incompatible units are never silently converted.
 
@@ -99,7 +157,7 @@ Integration pattern:
 
 `Construction OS domain → Accounting integration contract → adapter → TallyPrime / CSV / other accounting system`
 
-Initial adoption priority is controlled Excel/CSV import/export followed by Tally integration.
+Initial adoption priority is controlled Excel/CSV import/export followed by Tally integration. Tally integration must remain adapter-based so transport/protocol details can evolve without changing Construction OS business objects.
 
 GST/TDS/e-invoice concepts must be versioned and effective-dated. Do not hardcode current tax rates, thresholds or section numbers into permanent domain columns or logic. Historical approved/certified transactions retain the exact rule version applied at the time.
 
@@ -145,4 +203,4 @@ AI answers must expose evidence. AI is never authoritative for measurement, bill
 
 Do not optimize for the number of coded modules. Optimize for this question:
 
-> Can one real Indian contractor run one real project through Construction OS from BOQ and site execution through procurement, measurement, RA billing, cost and management visibility?
+> Can one real Indian contractor take a customer from enquiry and quotation through award, execution, procurement, measurement, billing, cost, profitability and accounting handoff without creating duplicate truths or leaving the system for core project control?
