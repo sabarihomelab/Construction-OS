@@ -269,25 +269,6 @@ async def record_goods_receipt_stock(
             )
         ).all()
     }
-    requisition_line_ids = {
-        row.requisition_line_id
-        for row in po_lines.values()
-        if row.requisition_line_id is not None
-    }
-    requisition_lines: dict[UUID, PurchaseRequisitionLine] = {}
-    if requisition_line_ids:
-        requisition_lines = {
-            row.id: row
-            for row in (
-                await db.scalars(
-                    select(PurchaseRequisitionLine).where(
-                        PurchaseRequisitionLine.organization_id == organization_id,
-                        PurchaseRequisitionLine.project_id == project_id,
-                        PurchaseRequisitionLine.id.in_(requisition_line_ids),
-                    )
-                )
-            ).all()
-        }
     material_ids = {
         row.material_id for row in po_lines.values() if row.material_id is not None
     }
@@ -336,18 +317,13 @@ async def record_goods_receipt_stock(
         if existing is not None:
             created.append(existing)
             continue
-        requisition_line = (
-            requisition_lines.get(po_line.requisition_line_id)
-            if po_line.requisition_line_id is not None
-            else None
-        )
         transaction = MaterialStockTransaction(
             organization_id=organization_id,
             project_id=project_id,
             stock_location_id=receipt.stock_location_id,
             material_id=po_line.material_id,
             wbs_code_id=po_line.wbs_code_id,
-            boq_item_id=requisition_line.boq_item_id if requisition_line is not None else None,
+            boq_item_id=po_line.boq_item_id,
             transaction_type=StockTransactionType.GRN_RECEIPT,
             direction=StockDirection.INFLOW,
             quantity=receipt_line.accepted_quantity,
