@@ -62,9 +62,9 @@ def test_workflow_preserves_three_way_match_submission_rules() -> None:
 def test_vendor_bill_workflow_supports_rejection_and_resubmission() -> None:
     source = getsource(ensure_vendor_bill_approval_workflow)
 
-    assert '"key": "resubmit"' in source
-    assert '"from_state_key": "rejected"' in source
-    assert '"key": "reject"' in source
+    assert 'key="resubmit"' in source
+    assert 'from_state_key="rejected"' in source
+    assert 'key="reject"' in source
     assert "requires_reason=True" in source
 
 
