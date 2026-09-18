@@ -55,37 +55,39 @@ Deep Procore-style RFI/Submittal behavior, advanced BIM/CAD/GIS, advanced drawin
 
 The following business foundations drive the next development sequence:
 
-1. Party / Business Directory
-2. WBS / Cost Codes
-3. BOQ
-4. Estimate / Rate Analysis / Budget Baseline
-5. Workforce / Contract Labour / Attendance
-6. DPR integration
-7. Material Master / Inventory / Site Store
-8. Procurement
-9. Equipment
-10. Quality / Safety / Punch integration
-11. Subcontract / Work Order
-12. Measurement / Certification Engine
-13. Subcontractor RA Billing
-14. Basic Planning / Scheduling / Lookahead
-15. Job Cost / Commercial Control
-16. Client Contract / Client RA Billing / Certification
-17. India Tax / Withholding / Invoice foundation
-18. Accounting Export / Tally integration
-19. Correspondence / Meetings / Approvals
-20. Reporting / Dashboards / Portfolio
-21. Closeout
-22. Integrated India demo data
-23. Release 1 web/mobile UX integration
-24. Offline/low-bandwidth hardening
-25. Security/performance/reliability/demo readiness
+1. Pre-Construction / Quotation / Award
+2. Party / Business Directory
+3. WBS / Cost Codes
+4. BOQ
+5. Estimate / Rate Analysis / Budget Baseline
+6. Workforce / Contract Labour / Attendance
+7. DPR integration
+8. Material Master / Inventory / Site Store
+9. Procurement
+10. Equipment
+11. Quality / Safety / Punch integration
+12. Subcontract / Work Order
+13. Measurement / Certification Engine
+14. Subcontractor RA Billing
+15. Basic Planning / Scheduling / Lookahead
+16. Job Cost / Commercial Control / CVR
+17. Client Contract / Client RA Billing / Certification / Receipts
+18. Contract Variations / Change Control
+19. India Tax / Withholding / Invoice foundation
+20. Accounting Export / Tally integration
+21. Correspondence / Meetings / Approvals
+22. Reporting / Dashboards / Portfolio
+23. Closeout
+24. Integrated India demo data
+25. Release 1 web/mobile UX integration
+26. Offline/low-bandwidth hardening
+27. Security/performance/reliability/demo readiness
 
 ## Pre-construction, quotation and award
 
 Construction OS starts before a project is won.
 
-A client enquiry or pre-construction job may collect client/site details, drawings, built-up area, floors, specification tier, structural/finish/MEP selections, contract type and other estimating parameters without treating the opportunity as an active execution project.
+For Release 1, the existing Project in `PLANNING` status is the pre-construction workspace. It may collect client/site details, drawings, built-up area, floors, specification tier, structural/finish/MEP selections, contract type and other estimating parameters without enabling it as an active execution project. This preserves one stable project identity from enquiry through completion.
 
 Supported estimating paths:
 
