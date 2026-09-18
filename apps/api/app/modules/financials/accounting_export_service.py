@@ -2,9 +2,11 @@ import csv
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
-from io import StringIO
+from io import BytesIO, StringIO
 from uuid import UUID
+from xml.etree import ElementTree
 
+from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -347,4 +349,123 @@ async def build_tallyprime_preview(
         voucher_count=len(vouchers),
         line_count=total_lines,
         vouchers=vouchers,
+    )
+
+
+
+def serialize_cost_register_xlsx(export: AccountingCostRegisterExport) -> bytes:
+    if not export.ready_for_export:
+        raise FinancialValidationError(
+            "Accounting export has unmapped Cost Heads; complete ledger mapping before export"
+        )
+
+    workbook = Workbook()
+    summary = workbook.active
+    summary.title = "Summary"
+    summary.append(["Project ID", str(export.project_id)])
+    summary.append(["From Date", export.from_date.isoformat() if export.from_date else ""])
+    summary.append(["To Date", export.to_date.isoformat() if export.to_date else ""])
+    summary.append(["Currency", export.currency_code])
+    summary.append(["Rows", export.row_count])
+    summary.append(["Mapped Rows", export.mapped_row_count])
+    summary.append(["Missing Mappings", export.missing_mapping_count])
+    summary.append(["Total Amount", float(export.total_amount)])
+
+    register = workbook.create_sheet("Cost Register")
+    headers = [
+        "Entry Number",
+        "Entry Date",
+        "Source Type",
+        "Source Reference",
+        "Allocation Line",
+        "Cost Head Code",
+        "Cost Head Name",
+        "Ledger Code",
+        "Ledger Name",
+        "Mapping Status",
+        "WBS Code ID",
+        "BOQ Item ID",
+        "Party ID",
+        "Description",
+        "Quantity",
+        "Unit",
+        "Amount",
+        "Currency",
+    ]
+    register.append(headers)
+    register.freeze_panes = "A2"
+    register.auto_filter.ref = f"A1:R{max(export.row_count + 1, 1)}"
+
+    for row in export.rows:
+        register.append(
+            [
+                row.entry_number,
+                row.entry_date,
+                row.source_type.value,
+                row.source_reference or "",
+                row.allocation_line_number,
+                row.cost_head_code,
+                row.cost_head_name,
+                row.ledger_code or "",
+                row.ledger_name or "",
+                row.mapping_status.value,
+                str(row.wbs_code_id or ""),
+                str(row.boq_item_id or ""),
+                str(row.party_id or ""),
+                row.description or "",
+                float(row.quantity) if row.quantity is not None else None,
+                row.unit_code or "",
+                float(row.amount),
+                row.currency_code,
+            ]
+        )
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def serialize_tallyprime_xml(preview: TallyPrimeExportPreview) -> bytes:
+    envelope = ElementTree.Element("ENVELOPE")
+    header = ElementTree.SubElement(envelope, "HEADER")
+    ElementTree.SubElement(header, "VERSION").text = "1"
+    ElementTree.SubElement(header, "TALLYREQUEST").text = "Import"
+    ElementTree.SubElement(header, "TYPE").text = "Data"
+    ElementTree.SubElement(header, "ID").text = "Vouchers"
+
+    body = ElementTree.SubElement(envelope, "BODY")
+    data = ElementTree.SubElement(body, "DATA")
+
+    for voucher in preview.vouchers:
+        tally_message = ElementTree.SubElement(data, "TALLYMESSAGE")
+        voucher_node = ElementTree.SubElement(
+            tally_message,
+            "VOUCHER",
+            {"VCHTYPE": "Journal", "ACTION": "Create"},
+        )
+        ElementTree.SubElement(voucher_node, "DATE").text = voucher.voucher_date.strftime(
+            "%Y%m%d"
+        )
+        ElementTree.SubElement(voucher_node, "VOUCHERTYPENAME").text = "Journal"
+        ElementTree.SubElement(voucher_node, "VOUCHERNUMBER").text = voucher.voucher_number
+        ElementTree.SubElement(voucher_node, "NARRATION").text = voucher.narration
+        ElementTree.SubElement(voucher_node, "PERSISTEDVIEW").text = (
+            "Accounting Voucher View"
+        )
+        ElementTree.SubElement(voucher_node, "ISINVOICE").text = "No"
+
+        for line in voucher.lines:
+            ledger_entry = ElementTree.SubElement(voucher_node, "LEDGERENTRIES.LIST")
+            ElementTree.SubElement(ledger_entry, "LEDGERNAME").text = line.ledger_name
+            is_debit = line.debit_amount > Decimal(0)
+            ElementTree.SubElement(ledger_entry, "ISDEEMEDPOSITIVE").text = (
+                "Yes" if is_debit else "No"
+            )
+            signed_amount = -line.debit_amount if is_debit else line.credit_amount
+            ElementTree.SubElement(ledger_entry, "AMOUNT").text = f"{signed_amount:.2f}"
+
+    return ElementTree.tostring(
+        envelope,
+        encoding="utf-8",
+        xml_declaration=True,
     )
