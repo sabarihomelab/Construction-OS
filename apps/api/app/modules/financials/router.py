@@ -44,11 +44,13 @@ from app.modules.financials.service import (
     create_site_expense,
     job_cost_summary_rows,
     post_site_expense,
-    review_site_expense,
     site_cash_balance,
-    submit_site_expense,
 )
-from app.modules.projects.access import project_permission_is_allowed
+from app.modules.financials.site_expense_workflow import (
+    decide_site_expense_approval,
+    submit_site_expense_for_approval,
+)
+from app.modules.projects.access import effective_project_permissions, project_permission_is_allowed
 from app.modules.sessions.deps import CsrfProtected, CurrentSession
 
 router = APIRouter(tags=["financials"])
@@ -67,6 +69,16 @@ def _require_project_permission(context, project_id: UUID, permission_key: str) 
         project_permissions={key: set(values) for key, values in context.project_permissions.items()},
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+
+
+def _effective_project_permissions(context, project_id: UUID) -> set[str]:
+    return effective_project_permissions(
+        project_id=project_id,
+        organization_permissions=set(context.permissions),
+        project_permissions={
+            key: set(values) for key, values in context.project_permissions.items()
+        },
+    )
 
 
 def _raise_domain_error(exc: Exception) -> None:
@@ -455,16 +467,51 @@ async def submit_project_site_expense(
     context = await build_access_context(db, session.membership_id)
     _require_project_permission(context, project_id, "financials.site_expense.create")
     try:
-        row = await submit_site_expense(
+        row = await submit_site_expense_for_approval(
             db,
             organization_id=context.organization_id,
             project_id=project_id,
             expense_id=expense_id,
             expected_revision=payload.expected_revision,
-            membership_id=context.membership_id,
+            permission_keys=_effective_project_permissions(context, project_id),
             actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
             session_id=session.id,
             reason=payload.reason,
+        )
+        await db.commit()
+        await db.refresh(row)
+        return row
+    except (FinancialConflictError, FinancialValidationError) as exc:
+        await db.rollback()
+        _raise_domain_error(exc)
+
+
+async def _decide_site_expense(
+    *,
+    project_id: UUID,
+    expense_id: UUID,
+    expected_revision: int,
+    approve: bool,
+    reason: str | None,
+    db: DbSession,
+    session: CurrentSession,
+) -> SiteExpense:
+    context = await build_access_context(db, session.membership_id)
+    _require_project_permission(context, project_id, "financials.site_expense.approve")
+    try:
+        row = await decide_site_expense_approval(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            expense_id=expense_id,
+            expected_revision=expected_revision,
+            permission_keys=_effective_project_permissions(context, project_id),
+            actor_user_id=session.user_id,
+            actor_membership_id=session.membership_id,
+            approve=approve,
+            session_id=session.id,
+            reason=reason,
         )
         await db.commit()
         await db.refresh(row)
@@ -486,27 +533,15 @@ async def approve_project_site_expense(
     session: CurrentSession,
     _csrf: CsrfProtected,
 ) -> SiteExpense:
-    context = await build_access_context(db, session.membership_id)
-    _require_project_permission(context, project_id, "financials.site_expense.approve")
-    try:
-        row = await review_site_expense(
-            db,
-            organization_id=context.organization_id,
-            project_id=project_id,
-            expense_id=expense_id,
-            expected_revision=payload.expected_revision,
-            approve=True,
-            membership_id=context.membership_id,
-            actor_user_id=session.user_id,
-            session_id=session.id,
-            reason=payload.reason,
-        )
-        await db.commit()
-        await db.refresh(row)
-        return row
-    except (FinancialConflictError, FinancialValidationError) as exc:
-        await db.rollback()
-        _raise_domain_error(exc)
+    return await _decide_site_expense(
+        project_id=project_id,
+        expense_id=expense_id,
+        expected_revision=payload.expected_revision,
+        approve=True,
+        reason=payload.reason,
+        db=db,
+        session=session,
+    )
 
 
 @router.post(
@@ -521,27 +556,15 @@ async def reject_project_site_expense(
     session: CurrentSession,
     _csrf: CsrfProtected,
 ) -> SiteExpense:
-    context = await build_access_context(db, session.membership_id)
-    _require_project_permission(context, project_id, "financials.site_expense.approve")
-    try:
-        row = await review_site_expense(
-            db,
-            organization_id=context.organization_id,
-            project_id=project_id,
-            expense_id=expense_id,
-            expected_revision=payload.expected_revision,
-            approve=False,
-            membership_id=context.membership_id,
-            actor_user_id=session.user_id,
-            session_id=session.id,
-            reason=payload.reason,
-        )
-        await db.commit()
-        await db.refresh(row)
-        return row
-    except (FinancialConflictError, FinancialValidationError) as exc:
-        await db.rollback()
-        _raise_domain_error(exc)
+    return await _decide_site_expense(
+        project_id=project_id,
+        expense_id=expense_id,
+        expected_revision=payload.expected_revision,
+        approve=False,
+        reason=payload.reason,
+        db=db,
+        session=session,
+    )
 
 
 @router.post(
