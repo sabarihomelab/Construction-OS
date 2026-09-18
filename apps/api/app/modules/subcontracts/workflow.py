@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
