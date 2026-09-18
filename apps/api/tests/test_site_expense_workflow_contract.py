@@ -27,11 +27,11 @@ def test_site_supervisor_can_capture_and_submit_site_expenses() -> None:
     role = ROLE_TEMPLATES_BY_KEY["site-supervisor"]
 
     assert {
-        "financials.module.view",
         "financials.site_cash.view",
         "financials.site_expense.view",
         "financials.site_expense.create",
     } <= set(role.permission_keys)
+    assert "financials.module.view" not in role.permission_keys
     assert "financials.site_expense.approve" not in role.permission_keys
     assert "financials.site_expense.post" not in role.permission_keys
 
