@@ -1054,3 +1054,348 @@ async def job_cost_summary_rows(
         .order_by(CostHead.code)
     )
     return [(head, _money(amount)) for head, amount in rows.all()]
+
+
+
+async def _reverse_project_cost_entry(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    project_id: UUID,
+    entry_id: UUID,
+    expected_revision: int,
+    membership_id: UUID,
+    actor_user_id: UUID,
+    reason: str,
+    session_id: UUID | None = None,
+    allow_site_expense: bool = False,
+) -> tuple[ProjectCostEntry, ProjectCostEntry]:
+    clean_reason = reason.strip()
+    if not clean_reason:
+        raise FinancialValidationError("Reversal reason is required")
+    await _require_project_membership(
+        db,
+        organization_id=organization_id,
+        project_id=project_id,
+        membership_id=membership_id,
+    )
+    original = await db.scalar(
+        select(ProjectCostEntry)
+        .where(
+            ProjectCostEntry.id == entry_id,
+            ProjectCostEntry.organization_id == organization_id,
+            ProjectCostEntry.project_id == project_id,
+        )
+        .with_for_update()
+    )
+    if original is None:
+        raise FinancialValidationError("Project cost entry was not found")
+    if original.revision != expected_revision:
+        raise FinancialConflictError("Project cost entry changed; refresh before reversing")
+    if original.status != ProjectCostStatus.POSTED:
+        raise FinancialValidationError("Only a posted project cost entry can be reversed")
+    if original.reversal_of_entry_id is not None:
+        raise FinancialValidationError("A reversal entry cannot itself be reversed")
+    if original.source_type == ProjectCostSourceType.SITE_EXPENSE and not allow_site_expense:
+        raise FinancialValidationError(
+            "Site expense cost must be reversed through the site expense reversal flow"
+        )
+
+    existing_reversal = await db.scalar(
+        select(ProjectCostEntry.id).where(
+            ProjectCostEntry.organization_id == organization_id,
+            ProjectCostEntry.project_id == project_id,
+            ProjectCostEntry.reversal_of_entry_id == original.id,
+        )
+    )
+    if existing_reversal is not None:
+        raise FinancialConflictError("Project cost entry already has a reversal record")
+
+    allocations = list(
+        (
+            await db.scalars(
+                select(ProjectCostAllocation)
+                .where(
+                    ProjectCostAllocation.organization_id == organization_id,
+                    ProjectCostAllocation.project_id == project_id,
+                    ProjectCostAllocation.cost_entry_id == original.id,
+                )
+                .order_by(ProjectCostAllocation.line_number)
+            )
+        ).all()
+    )
+    if not allocations:
+        raise FinancialConflictError("Posted project cost entry has no allocations to reverse")
+
+    now = datetime.now(UTC)
+    reversal_number = await _next_project_number(
+        db,
+        organization_id=organization_id,
+        project_id=project_id,
+        kind="project_cost",
+        prefix="COST",
+    )
+    reversal = ProjectCostEntry(
+        organization_id=organization_id,
+        project_id=project_id,
+        entry_number=reversal_number,
+        entry_date=now.date(),
+        source_type=ProjectCostSourceType.ADJUSTMENT,
+        source_id=original.id,
+        source_reference=f"Reversal of {original.entry_number}",
+        description=f"Reversal · {original.description}",
+        total_amount=original.total_amount,
+        currency_code=original.currency_code,
+        status=ProjectCostStatus.POSTED,
+        configuration_context={
+            "reversal_of_entry_id": str(original.id),
+            "original_entry_number": original.entry_number,
+            "original_source_type": original.source_type.value,
+            "original_source_id": str(original.source_id) if original.source_id else None,
+            "reason": clean_reason,
+        },
+        revision=1,
+        posted_by_membership_id=membership_id,
+        posted_at=now,
+        reversal_of_entry_id=original.id,
+        reversal_reason=clean_reason,
+    )
+    db.add(reversal)
+    await db.flush()
+
+    for allocation in allocations:
+        db.add(
+            ProjectCostAllocation(
+                organization_id=organization_id,
+                project_id=project_id,
+                cost_entry_id=reversal.id,
+                line_number=allocation.line_number,
+                cost_head_id=allocation.cost_head_id,
+                wbs_code_id=allocation.wbs_code_id,
+                boq_item_id=allocation.boq_item_id,
+                party_id=allocation.party_id,
+                worker_assignment_id=allocation.worker_assignment_id,
+                equipment_asset_id=allocation.equipment_asset_id,
+                material_id=allocation.material_id,
+                description=f"Reversal · {allocation.description or original.entry_number}",
+                quantity=allocation.quantity,
+                unit_code=allocation.unit_code,
+                amount=allocation.amount,
+            )
+        )
+
+    original.status = ProjectCostStatus.REVERSED
+    original.revision += 1
+    original.reversed_by_membership_id = membership_id
+    original.reversed_at = now
+    original.reversal_reason = clean_reason
+    await db.flush()
+
+    await record_audit_event(
+        db,
+        organization_id=organization_id,
+        action="financials.project_cost.reversed",
+        target_type="project_cost_entry",
+        target_id=str(original.id),
+        actor_type=AuditActorType.USER,
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+        risk=AuditRisk.CRITICAL,
+        reason=clean_reason,
+        changes={
+            "original_entry_number": original.entry_number,
+            "reversal_entry_id": str(reversal.id),
+            "reversal_entry_number": reversal.entry_number,
+            "amount": original.total_amount,
+            "currency_code": original.currency_code,
+        },
+    )
+    await enqueue_event(
+        db,
+        organization_id=organization_id,
+        event_type="financials.project_cost.reversed",
+        entity_type="project_cost_entry",
+        entity_id=original.id,
+        entity_version=original.revision,
+        required_permission_key="financials.project_cost.view",
+        scope_type="project",
+        scope_id=project_id,
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+        payload={
+            "reversal_entry_id": str(reversal.id),
+            "reversal_entry_number": reversal.entry_number,
+            "amount": str(original.total_amount),
+        },
+    )
+    return original, reversal
+
+
+async def reverse_project_cost_entry(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    project_id: UUID,
+    entry_id: UUID,
+    expected_revision: int,
+    membership_id: UUID,
+    actor_user_id: UUID,
+    reason: str,
+    session_id: UUID | None = None,
+) -> tuple[ProjectCostEntry, ProjectCostEntry]:
+    return await _reverse_project_cost_entry(
+        db,
+        organization_id=organization_id,
+        project_id=project_id,
+        entry_id=entry_id,
+        expected_revision=expected_revision,
+        membership_id=membership_id,
+        actor_user_id=actor_user_id,
+        reason=reason,
+        session_id=session_id,
+    )
+
+
+async def reverse_posted_site_expense(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    project_id: UUID,
+    expense_id: UUID,
+    expected_revision: int,
+    membership_id: UUID,
+    actor_user_id: UUID,
+    reason: str,
+    session_id: UUID | None = None,
+) -> tuple[SiteExpense, ProjectCostEntry]:
+    clean_reason = reason.strip()
+    if not clean_reason:
+        raise FinancialValidationError("Reversal reason is required")
+    await _require_project_membership(
+        db,
+        organization_id=organization_id,
+        project_id=project_id,
+        membership_id=membership_id,
+    )
+    expense = await _load_expense_for_update(
+        db,
+        organization_id=organization_id,
+        project_id=project_id,
+        expense_id=expense_id,
+        expected_revision=expected_revision,
+    )
+    if expense.status != SiteExpenseStatus.POSTED:
+        raise FinancialValidationError("Only a posted site expense can be reversed")
+
+    cost = await db.scalar(
+        select(ProjectCostEntry).where(
+            ProjectCostEntry.organization_id == organization_id,
+            ProjectCostEntry.project_id == project_id,
+            ProjectCostEntry.source_type == ProjectCostSourceType.SITE_EXPENSE,
+            ProjectCostEntry.source_id == expense.id,
+        )
+    )
+    if cost is None:
+        raise FinancialConflictError("Posted site expense is missing its project cost entry")
+
+    _, reversal = await _reverse_project_cost_entry(
+        db,
+        organization_id=organization_id,
+        project_id=project_id,
+        entry_id=cost.id,
+        expected_revision=cost.revision,
+        membership_id=membership_id,
+        actor_user_id=actor_user_id,
+        reason=clean_reason,
+        session_id=session_id,
+        allow_site_expense=True,
+    )
+
+    now = datetime.now(UTC)
+    if expense.cash_account_id is not None:
+        cash_account = await _load_cash_account(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            cash_account_id=expense.cash_account_id,
+            lock=True,
+        )
+        original_cash = await db.scalar(
+            select(SiteCashTransaction.id).where(
+                SiteCashTransaction.organization_id == organization_id,
+                SiteCashTransaction.project_id == project_id,
+                SiteCashTransaction.cash_account_id == cash_account.id,
+                SiteCashTransaction.source_expense_id == expense.id,
+                SiteCashTransaction.transaction_type == SiteCashTransactionType.EXPENSE,
+                SiteCashTransaction.direction == SiteCashDirection.OUTFLOW,
+            )
+        )
+        if original_cash is None:
+            raise FinancialConflictError(
+                "Posted site expense is missing its site cash outflow"
+            )
+        reversal_number = await _next_project_number(
+            db,
+            organization_id=organization_id,
+            project_id=project_id,
+            kind="site_cash_transaction",
+            prefix="CASH",
+        )
+        db.add(
+            SiteCashTransaction(
+                organization_id=organization_id,
+                project_id=project_id,
+                cash_account_id=cash_account.id,
+                transaction_number=reversal_number,
+                transaction_date=now.date(),
+                transaction_type=SiteCashTransactionType.REVERSAL,
+                direction=SiteCashDirection.INFLOW,
+                amount=expense.gross_amount,
+                source_expense_id=None,
+                source_reference=f"Reversal of {expense.expense_number}",
+                description=f"Reversal · {expense.description}",
+                posted_by_membership_id=membership_id,
+                posted_at=now,
+            )
+        )
+
+    expense.status = SiteExpenseStatus.REVERSED
+    expense.revision += 1
+    await db.flush()
+    await record_audit_event(
+        db,
+        organization_id=organization_id,
+        action="financials.site_expense.reversed",
+        target_type="site_expense",
+        target_id=str(expense.id),
+        actor_type=AuditActorType.USER,
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+        risk=AuditRisk.CRITICAL,
+        reason=clean_reason,
+        changes={
+            "project_cost_reversal_id": str(reversal.id),
+            "amount": expense.gross_amount,
+            "cash_account_id": (
+                str(expense.cash_account_id) if expense.cash_account_id else None
+            ),
+        },
+    )
+    await enqueue_event(
+        db,
+        organization_id=organization_id,
+        event_type="financials.site_expense.reversed",
+        entity_type="site_expense",
+        entity_id=expense.id,
+        entity_version=expense.revision,
+        required_permission_key="financials.site_expense.view",
+        scope_type="project",
+        scope_id=project_id,
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+        payload={
+            "project_cost_reversal_id": str(reversal.id),
+            "amount": str(expense.gross_amount),
+        },
+    )
+    return expense, reversal
