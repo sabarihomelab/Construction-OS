@@ -93,3 +93,13 @@ class TallyPrimeExportPreview(BaseModel):
     voucher_count: int
     line_count: int
     vouchers: list[TallyPrimeVoucher] = Field(default_factory=list)
+
+
+
+class AccountingGeneratedFileRead(BaseModel):
+    asset_id: UUID
+    version: int
+    filename: str
+    content_type: str
+    size_bytes: int
+    sha256: str
