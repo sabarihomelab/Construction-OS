@@ -159,7 +159,6 @@ INDIA_ROLE_TEMPLATES: tuple[RoleTemplateSpec, ...] = (
             "workforce.timecard.update",
             "workforce.timecard.submit",
             "commercial.wbs.view",
-            "financials.module.view",
             "financials.site_cash.view",
             "financials.site_expense.view",
             "financials.site_expense.create",
