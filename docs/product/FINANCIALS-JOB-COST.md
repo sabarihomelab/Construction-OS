@@ -4,7 +4,39 @@
 
 Financials / Job Cost is the governed financial-control layer between Construction OS operational records and an external accounting book such as TallyPrime.
 
-Release 1 does not attempt to replace statutory accounting. Construction OS owns construction-commercial truth: commitments, site expenses, actual project cost, client billing/receipts, traceability and accounting-ready mappings. Statutory books, returns and organization-specific accounting policy remain in the accounting system and with the contractor's finance/CA process.
+Release 1 does not attempt to replace statutory accounting. Construction OS owns construction-commercial truth: approved cost baselines, commitments, site expenses, actual project cost, client billing/receipts, traceability, profitability/CVR projections and accounting-ready mappings. Statutory books, returns and organization-specific accounting policy remain in the accounting system and with the contractor's finance/CA process.
+
+## Commercial-control progression
+
+Construction OS should support increasing control depth without separate financial engines.
+
+A small contractor may primarily need:
+
+```text
+Approved Budget
+→ Commitments / Purchases
+→ Actual Cost
+→ Client Billing / Receipts
+→ Current Profitability
+```
+
+Mid-market and enterprise contractors may additionally enable:
+
+```text
+Approved Budget
+→ Commitments
+→ Accruals
+→ Posted Actuals
+→ Estimate to Complete (ETC)
+→ Estimate / Forecast at Completion (EAC/FAC)
+→ Certified / Billed Value
+→ Cash Received
+→ CVR / Forecast Margin
+```
+
+The same Project Cost, Commitment, WBS/BOQ and source-transaction lineage remains underneath both views. Advanced forecasting and accruals are additive governed projections, not replacements for posted actual-cost truth.
+
+CVR must drill back to source evidence. It must not be maintained as a manually editable parallel spreadsheet-style truth inside the database.
 
 ## Core separation
 
@@ -19,6 +51,8 @@ Ledger Account        = how finance/accounting classifies the posting
 For example, `Equipment > Fuel / Diesel` can be a company-defined Cost Head. The same Cost Head can be allocated to different projects, WBS packages or equipment records. It can then be mapped, with effective dates, to the company's chosen accounting ledger.
 
 This avoids hardcoding one contractor's expense names into the product while preserving consistent reporting categories and accounting integrity.
+
+Customer contract/quotation value, internal approved cost budget, committed cost, actual cost and cash flow are separate measures. Customer selling price must never be treated as internal cost merely because both originated from the same estimate.
 
 ## Company-defined cost heads
 
@@ -194,6 +228,24 @@ The current foundation includes:
 - audit/events for implemented write flows;
 - permission-scoped search projections;
 - Alembic migration and structural tests.
+
+## Tally integration direction
+
+Tally remains an external accounting book of record where the contractor uses it. Construction OS should expose an accounting integration contract and connector/adapter boundary rather than embedding Tally transport details in project modules.
+
+The intended production pattern is an outbound-safe connector running in the contractor's office/local environment where needed:
+
+```text
+Construction OS
+    ↓ approved/pending accounting job
+Tally Connector
+    ↓ mapped/idempotent import
+TallyPrime
+    ↓ result / voucher identity / error
+Construction OS reconciliation status
+```
+
+The adapter may support XML, JSON or other Tally-supported mechanisms over time. Project/commercial modules must not depend on a specific wire format.
 
 ## Remaining Release 1 work
 
