@@ -871,6 +871,138 @@ async def add_goods_receipt_line(
     return row
 
 
+async def update_goods_receipt_line(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    project_id: UUID,
+    goods_receipt_id: UUID,
+    goods_receipt_line_id: UUID,
+    expected_receipt_revision: int,
+    values: Mapping[str, object],
+    actor_user_id: UUID,
+    session_id: UUID | None = None,
+) -> GoodsReceiptLine:
+    receipt = await db.scalar(
+        select(GoodsReceipt)
+        .where(
+            GoodsReceipt.id == goods_receipt_id,
+            GoodsReceipt.project_id == project_id,
+            GoodsReceipt.organization_id == organization_id,
+        )
+        .with_for_update()
+    )
+    if receipt is None:
+        raise ProcurementValidationError("Goods receipt was not found")
+    if receipt.revision != expected_receipt_revision:
+        raise ProcurementConflictError("Goods receipt changed; refresh before editing")
+    if receipt.status != GoodsReceiptStatus.DRAFT:
+        raise ProcurementValidationError("Only draft goods receipts can be edited")
+
+    row = await db.scalar(
+        select(GoodsReceiptLine)
+        .where(
+            GoodsReceiptLine.id == goods_receipt_line_id,
+            GoodsReceiptLine.goods_receipt_id == goods_receipt_id,
+            GoodsReceiptLine.project_id == project_id,
+            GoodsReceiptLine.organization_id == organization_id,
+        )
+        .with_for_update()
+    )
+    if row is None:
+        raise ProcurementValidationError("Goods receipt line was not found")
+
+    po_line = await db.scalar(
+        select(PurchaseOrderLine).where(
+            PurchaseOrderLine.id == row.purchase_order_line_id,
+            PurchaseOrderLine.purchase_order_id == receipt.purchase_order_id,
+            PurchaseOrderLine.project_id == project_id,
+            PurchaseOrderLine.organization_id == organization_id,
+        )
+    )
+    if po_line is None:
+        raise ProcurementValidationError("Purchase order line was not found for this order")
+
+    received_raw = values.get("received_quantity")
+    accepted_raw = values.get("accepted_quantity")
+    rejected_raw = values.get("rejected_quantity")
+    unit_raw = values.get("unit_code")
+    received = Decimal(received_raw) if received_raw is not None else row.received_quantity
+    accepted = Decimal(accepted_raw) if accepted_raw is not None else row.accepted_quantity
+    rejected = Decimal(rejected_raw) if rejected_raw is not None else row.rejected_quantity
+    unit_code = str(unit_raw).strip() if unit_raw is not None else row.unit_code.strip()
+    remarks = (
+        values.get("remarks")
+        if "remarks" in values and (values.get("remarks") is None or isinstance(values.get("remarks"), str))
+        else row.remarks
+    )
+
+    _validate_goods_receipt_quantities(
+        received=received,
+        accepted=accepted,
+        rejected=rejected,
+        remarks=remarks,
+        require_full_disposition=False,
+    )
+    if unit_code.casefold() != po_line.unit_code.strip().casefold():
+        raise ProcurementValidationError(
+            "Goods receipt unit must match the purchase order line until governed UOM conversion is configured"
+        )
+    previously_accepted = await db.scalar(
+        select(func.coalesce(func.sum(GoodsReceiptLine.accepted_quantity), 0))
+        .join(GoodsReceipt, GoodsReceipt.id == GoodsReceiptLine.goods_receipt_id)
+        .where(
+            GoodsReceiptLine.purchase_order_line_id == po_line.id,
+            GoodsReceipt.status == GoodsReceiptStatus.RECEIVED,
+        )
+    )
+    _validate_po_acceptance_limit(
+        ordered_quantity=po_line.quantity,
+        previously_accepted=Decimal(previously_accepted or 0),
+        accepted_quantity=accepted,
+    )
+
+    row.received_quantity = received
+    row.accepted_quantity = accepted
+    row.rejected_quantity = rejected
+    row.unit_code = unit_code
+    row.remarks = remarks
+    receipt.revision += 1
+    await db.flush()
+
+    await record_audit_event(
+        db,
+        organization_id=organization_id,
+        action="procurement.goods_receipt_line.updated",
+        target_type="goods_receipt_line",
+        target_id=str(row.id),
+        actor_type=AuditActorType.USER,
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+        risk=AuditRisk.HIGH,
+        changes={
+            "goods_receipt_id": str(receipt.id),
+            "received_quantity": str(received),
+            "accepted_quantity": str(accepted),
+            "rejected_quantity": str(rejected),
+            "receipt_revision": receipt.revision,
+        },
+    )
+    await _publish(
+        db,
+        organization_id=organization_id,
+        project_id=project_id,
+        event_type="procurement.goods_receipt.updated",
+        entity_type="goods_receipt",
+        entity_id=receipt.id,
+        entity_version=receipt.revision,
+        permission="procurement.receipt.view",
+        actor_user_id=actor_user_id,
+        session_id=session_id,
+    )
+    return row
+
+
 async def receive_goods_receipt(
     db: AsyncSession,
     *,
