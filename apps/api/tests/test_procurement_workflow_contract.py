@@ -5,6 +5,7 @@ from app.modules.authorization.templates import ROLE_TEMPLATES_BY_KEY
 from app.modules.procurement.router import (
     decide_requisition_approval as routed_requisition_decision,
 )
+from app.modules.procurement.router import router as procurement_router
 from app.modules.procurement.router import (
     submit_requisition_for_approval as routed_requisition_submit,
 )
