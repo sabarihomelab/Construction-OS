@@ -34,6 +34,7 @@ def test_project_cost_reversal_preserves_original_and_creates_linked_record() ->
     assert "original.status = ProjectCostStatus.REVERSED" in source
     assert "source_type=ProjectCostSourceType.ADJUSTMENT" in source
     assert "reversal_of_entry_id=original.id" in source
+    assert '"original_entry_date": original.entry_date.isoformat()' in source
     assert "reversal_reason=clean_reason" in source
     assert "reversed_by_membership_id = membership_id" in source
     assert "reversed_at = now" in source
@@ -88,6 +89,8 @@ def test_accounting_export_preserves_reversal_as_negative_history() -> None:
 
     assert "ProjectCostStatus.REVERSED" in source
     assert "if entry.reversal_of_entry_id is not None" in source
+    assert 'entry.configuration_context.get("original_entry_date")' in source
+    assert "mapping.effective_from <= mapping_date" in source
     assert "-_money(allocation.amount)" in source
 
 
