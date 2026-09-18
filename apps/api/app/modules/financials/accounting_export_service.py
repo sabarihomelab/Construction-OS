@@ -5,7 +5,7 @@ from decimal import Decimal
 from io import StringIO
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.financials.accounting_export_schemas import (
@@ -93,17 +93,6 @@ async def build_cost_register_export(
             CostHeadLedgerMapping.organization_id == organization_id,
             CostHeadLedgerMapping.cost_head_id.in_(cost_head_ids),
         )
-        if to_date is not None:
-            mapping_statement = mapping_statement.where(
-                CostHeadLedgerMapping.effective_from <= to_date
-            )
-        if from_date is not None:
-            mapping_statement = mapping_statement.where(
-                or_(
-                    CostHeadLedgerMapping.effective_to.is_(None),
-                    CostHeadLedgerMapping.effective_to >= from_date,
-                )
-            )
         mappings = list((await db.scalars(mapping_statement)).all())
 
     ledger_ids = {mapping.ledger_account_id for mapping in mappings}
@@ -133,11 +122,25 @@ async def build_cost_register_export(
                 "Posted project cost currency does not match project currency"
             )
 
+        mapping_date = entry.entry_date
+        if entry.reversal_of_entry_id is not None:
+            original_entry_date = entry.configuration_context.get("original_entry_date")
+            if not isinstance(original_entry_date, str):
+                raise FinancialConflictError(
+                    f"Reversal {entry.entry_number} is missing original entry date"
+                )
+            try:
+                mapping_date = date.fromisoformat(original_entry_date)
+            except ValueError as exc:
+                raise FinancialConflictError(
+                    f"Reversal {entry.entry_number} has invalid original entry date"
+                ) from exc
+
         effective = [
             mapping
             for mapping in by_cost_head.get(allocation.cost_head_id, [])
-            if mapping.effective_from <= entry.entry_date
-            and (mapping.effective_to is None or mapping.effective_to >= entry.entry_date)
+            if mapping.effective_from <= mapping_date
+            and (mapping.effective_to is None or mapping.effective_to >= mapping_date)
         ]
         if len(effective) > 1:
             raise FinancialConflictError(
