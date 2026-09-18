@@ -9,7 +9,6 @@ from app.modules.commercial.models import (
     BOQ,
     BOQItem,
     MeasurementEntry,
-    MeasurementStatus,
     Party,
     ProjectPartyAssignment,
     RABill,
@@ -848,7 +847,7 @@ async def mark_ra_bill_paid_route(
         bill_id=bill_id,
         payload=payload,
         target_status=RABillStatus.PAID,
-        permission_key="commercial.ra_bill.certify",
+        permission_key="commercial.ra_bill.payment",
         db=db,
         session=session,
     )
