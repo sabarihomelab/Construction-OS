@@ -23,7 +23,15 @@ from app.modules.financials.job_cost_models import (
     ProjectCostEntry,
     ProjectCostStatus,
 )
-from app.modules.financials.models import CommitmentStatus, ProjectCommitment
+from app.modules.financials.models import (
+    ClientInvoice,
+    ClientInvoiceStatus,
+    ClientReceipt,
+    ClientReceiptAllocation,
+    ClientReceiptStatus,
+    CommitmentStatus,
+    ProjectCommitment,
+)
 from app.modules.financials.service import (
     FinancialConflictError,
     FinancialValidationError,
@@ -148,6 +156,45 @@ async def build_boq_commercial_control(
         for boq_item_id, amount in billed_rows.all()
     }
 
+    issued_receivable = _money(
+        Decimal(
+            await db.scalar(
+                select(func.coalesce(func.sum(ClientInvoice.net_receivable), 0)).where(
+                    ClientInvoice.organization_id == organization_id,
+                    ClientInvoice.project_id == project_id,
+                    ClientInvoice.currency_code == currency_code,
+                    ClientInvoice.status.in_(
+                        {
+                            ClientInvoiceStatus.ISSUED,
+                            ClientInvoiceStatus.PARTIALLY_PAID,
+                            ClientInvoiceStatus.PAID,
+                        }
+                    ),
+                )
+            )
+            or 0
+        )
+    )
+    received_amount = _money(
+        Decimal(
+            await db.scalar(
+                select(func.coalesce(func.sum(ClientReceiptAllocation.amount), 0))
+                .join(ClientReceipt, ClientReceipt.id == ClientReceiptAllocation.receipt_id)
+                .where(
+                    ClientReceiptAllocation.organization_id == organization_id,
+                    ClientReceiptAllocation.project_id == project_id,
+                    ClientReceipt.currency_code == currency_code,
+                    ClientReceipt.status == ClientReceiptStatus.POSTED,
+                )
+            )
+            or 0
+        )
+    )
+    if received_amount > issued_receivable:
+        raise FinancialConflictError(
+            "Posted client receipts exceed issued net receivable"
+        )
+
     lines: list[BOQCommercialControlLine] = []
     for item in boq_items:
         boq_amount = _money(item.amount)
@@ -211,6 +258,9 @@ async def build_boq_commercial_control(
         total_certified_billed_amount=_money(
             sum((line.certified_billed_amount for line in lines), Decimal(0))
         ),
+        total_issued_receivable_amount=issued_receivable,
+        total_received_amount=received_amount,
+        total_outstanding_receivable=_money(issued_receivable - received_amount),
         total_uncommitted_estimate=_money(
             sum(
                 (
