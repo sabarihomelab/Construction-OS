@@ -67,7 +67,9 @@ async def build_cost_register_export(
         .where(
             ProjectCostEntry.organization_id == organization_id,
             ProjectCostEntry.project_id == project_id,
-            ProjectCostEntry.status == ProjectCostStatus.POSTED,
+            ProjectCostEntry.status.in_(
+                {ProjectCostStatus.POSTED, ProjectCostStatus.REVERSED}
+            ),
             ProjectCostAllocation.organization_id == organization_id,
             ProjectCostAllocation.project_id == project_id,
             CostHead.organization_id == organization_id,
@@ -180,7 +182,11 @@ async def build_cost_register_export(
                 description=allocation.description or entry.description,
                 quantity=allocation.quantity,
                 unit_code=allocation.unit_code,
-                amount=_money(allocation.amount),
+                amount=(
+                    -_money(allocation.amount)
+                    if entry.reversal_of_entry_id is not None
+                    else _money(allocation.amount)
+                ),
                 currency_code=entry.currency_code.upper(),
             )
         )
