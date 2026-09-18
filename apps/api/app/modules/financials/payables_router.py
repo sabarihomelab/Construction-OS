@@ -22,13 +22,14 @@ from app.modules.financials.payables_service import (
     VendorPayableConflictError,
     VendorPayableValidationError,
     add_vendor_bill_line,
-    approve_vendor_bill,
     create_vendor_bill,
     delete_vendor_bill_line,
-    reject_vendor_bill,
-    submit_vendor_bill,
 )
-from app.modules.projects.access import project_permission_is_allowed
+from app.modules.financials.payables_workflow import (
+    decide_vendor_bill_approval,
+    submit_vendor_bill_for_approval,
+)
+from app.modules.projects.access import effective_project_permissions, project_permission_is_allowed
 from app.modules.sessions.deps import CsrfProtected, CurrentSession
 
 router = APIRouter(tags=["financials"])
@@ -42,6 +43,16 @@ def _require_project_permission(context, project_id: UUID, permission_key: str) 
         project_permissions={key: set(values) for key, values in context.project_permissions.items()},
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+
+
+def _effective_project_permissions(context, project_id: UUID) -> set[str]:
+    return effective_project_permissions(
+        project_id=project_id,
+        organization_permissions=set(context.permissions),
+        project_permissions={
+            key: set(values) for key, values in context.project_permissions.items()
+        },
+    )
 
 
 def _domain_error(exc: Exception) -> None:
@@ -316,7 +327,7 @@ async def submit_vendor_bill_route(
     if payload.allow_variance_override:
         _require_project_permission(context, project_id, "financials.payable.override")
     try:
-        bill = await submit_vendor_bill(
+        bill = await submit_vendor_bill_for_approval(
             db,
             organization_id=context.organization_id,
             project_id=project_id,
@@ -324,8 +335,47 @@ async def submit_vendor_bill_route(
             membership_id=session.membership_id,
             expected_revision=payload.expected_revision,
             allow_variance_override=payload.allow_variance_override,
+            permission_keys=_effective_project_permissions(context, project_id),
             reason=payload.reason,
             actor_user_id=session.user_id,
+            session_id=session.id,
+        )
+        await db.commit()
+        await db.refresh(bill)
+        return await _detail(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            bill=bill,
+        )
+    except (VendorPayableConflictError, VendorPayableValidationError) as exc:
+        await db.rollback()
+        _domain_error(exc)
+
+
+async def _decide_vendor_bill(
+    *,
+    project_id: UUID,
+    vendor_bill_id: UUID,
+    payload: VendorBillTransition,
+    approve: bool,
+    db: DbSession,
+    session: CurrentSession,
+) -> VendorBillDetailRead:
+    context = await build_access_context(db, session.membership_id)
+    _require_project_permission(context, project_id, "financials.payable.approve")
+    try:
+        bill = await decide_vendor_bill_approval(
+            db,
+            organization_id=context.organization_id,
+            project_id=project_id,
+            vendor_bill_id=vendor_bill_id,
+            membership_id=session.membership_id,
+            expected_revision=payload.expected_revision,
+            permission_keys=_effective_project_permissions(context, project_id),
+            actor_user_id=session.user_id,
+            approve=approve,
+            reason=payload.reason,
             session_id=session.id,
         )
         await db.commit()
@@ -353,31 +403,14 @@ async def approve_vendor_bill_route(
     session: CurrentSession,
     _csrf: CsrfProtected,
 ) -> VendorBillDetailRead:
-    context = await build_access_context(db, session.membership_id)
-    _require_project_permission(context, project_id, "financials.payable.approve")
-    try:
-        bill = await approve_vendor_bill(
-            db,
-            organization_id=context.organization_id,
-            project_id=project_id,
-            vendor_bill_id=vendor_bill_id,
-            membership_id=session.membership_id,
-            expected_revision=payload.expected_revision,
-            reason=payload.reason,
-            actor_user_id=session.user_id,
-            session_id=session.id,
-        )
-        await db.commit()
-        await db.refresh(bill)
-        return await _detail(
-            db,
-            organization_id=context.organization_id,
-            project_id=project_id,
-            bill=bill,
-        )
-    except (VendorPayableConflictError, VendorPayableValidationError) as exc:
-        await db.rollback()
-        _domain_error(exc)
+    return await _decide_vendor_bill(
+        project_id=project_id,
+        vendor_bill_id=vendor_bill_id,
+        payload=payload,
+        approve=True,
+        db=db,
+        session=session,
+    )
 
 
 @router.post(
@@ -392,28 +425,11 @@ async def reject_vendor_bill_route(
     session: CurrentSession,
     _csrf: CsrfProtected,
 ) -> VendorBillDetailRead:
-    context = await build_access_context(db, session.membership_id)
-    _require_project_permission(context, project_id, "financials.payable.approve")
-    try:
-        bill = await reject_vendor_bill(
-            db,
-            organization_id=context.organization_id,
-            project_id=project_id,
-            vendor_bill_id=vendor_bill_id,
-            membership_id=session.membership_id,
-            expected_revision=payload.expected_revision,
-            reason=payload.reason,
-            actor_user_id=session.user_id,
-            session_id=session.id,
-        )
-        await db.commit()
-        await db.refresh(bill)
-        return await _detail(
-            db,
-            organization_id=context.organization_id,
-            project_id=project_id,
-            bill=bill,
-        )
-    except (VendorPayableConflictError, VendorPayableValidationError) as exc:
-        await db.rollback()
-        _domain_error(exc)
+    return await _decide_vendor_bill(
+        project_id=project_id,
+        vendor_bill_id=vendor_bill_id,
+        payload=payload,
+        approve=False,
+        db=db,
+        session=session,
+    )
